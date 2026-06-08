@@ -82,7 +82,6 @@
 |------|------|------|
 | flex | Flex 弹性布局 | 基于 CSS Flexbox |
 | grid | Grid 网格布局 | 基于 CSS Grid |
-| absolute | 绝对定位 | 自由拖拽定位 |
 
 ### 设备类型字典 (device_types)
 
