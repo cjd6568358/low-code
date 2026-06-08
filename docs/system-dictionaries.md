@@ -66,6 +66,7 @@
 | divider | 分割线 | layout | 视觉分隔 |
 | grid | 栅格 | layout | 网格布局 |
 | flex | 弹性布局 | layout | Flex 容器 |
+| card:{{cardId}} | 自定义卡片 | custom | 用户创建的组合业务组件，动态注册 |
 
 ### 组件库字典 (component_libraries)
 
@@ -90,6 +91,76 @@
 | web | Web 端 | 桌面浏览器 |
 | mobile | Mobile 端 | 移动端 H5 |
 | miniapp | 小程序 | 微信/支付宝小程序 |
+
+---
+
+## 🖼️ 自动渲染引擎相关
+
+### 表单布局模式字典 (form_layout_modes)
+
+| code | name | 说明 |
+|------|------|------|
+| groups | 折叠分组 | 按 x-group 分折叠面板（默认） |
+| tabs | 标签页 | 按 x-group 分 Tab 页签 |
+| steps | 分步表单 | 每组为一步，分步填写 |
+| sections | 平铺区块 | 无折叠，平铺展示 |
+
+### 字段权限类型字典 (field_permission_types)
+
+| code | name | 说明 |
+|------|------|------|
+| editable | 可编辑 | 正常读写 |
+| readonly | 只读 | 可见但不可编辑 |
+| hidden | 隐藏 | 不可见 |
+
+### 变量绑定模式字典 (variable_binding_modes)
+
+| code | name | 说明 |
+|------|------|------|
+| static | 静态值 | 直接输入固定值 |
+| variable | 变量引用 | 从变量树中选择变量 |
+| expression | 表达式 | 使用表达式编辑器编写 |
+
+### 自动化触发类型字典 (automation_trigger_types)
+
+| code | name | 说明 |
+|------|------|------|
+| data_change | 数据变更 | 实体记录增删改触发 |
+| schedule | 定时任务 | Cron 调度触发 |
+| form_event | 表单事件 | 表单提交/修改等事件触发 |
+| workflow_event | 流程事件 | 流程完成/拒绝等事件触发 |
+| custom_event | 自定义事件 | 代码主动触发 |
+
+### 自动化动作类型字典 (automation_action_types)
+
+| code | name | 说明 |
+|------|------|------|
+| trigger_workflow | 触发流程 | 启动指定流程实例 |
+| send_notification | 发送通知 | 多渠道消息推送 |
+| data_operation | 数据操作 | CRUD 数据操作 |
+| api_call | API 调用 | 调用外部 API |
+| webhook | Webhook | 推送事件到外部 URL |
+
+### 条件运算符字典 (condition_operators)
+
+| code | name | 适用类型 | 说明 |
+|------|------|---------|------|
+| eq | 等于 | all | 值相等 |
+| neq | 不等于 | all | 值不相等 |
+| gt | 大于 | number/date | 数值/日期比较 |
+| gte | 大于等于 | number/date | 数值/日期比较 |
+| lt | 小于 | number/date | 数值/日期比较 |
+| lte | 小于等于 | number/date | 数值/日期比较 |
+| contains | 包含 | string | 字符串包含 |
+| not_contains | 不包含 | string | 字符串不包含 |
+| starts_with | 开头是 | string | 字符串前缀 |
+| ends_with | 结尾是 | string | 字符串后缀 |
+| in | 在范围内 | array | 值在列表中 |
+| not_in | 不在范围内 | array | 值不在列表中 |
+| is_empty | 为空 | all | 值为 null/undefined/空 |
+| is_not_empty | 不为空 | all | 值非空 |
+| between | 区间 | number/date | 值在范围内 |
+| regex | 正则匹配 | string | 正则表达式匹配 |
 
 ---
 
@@ -573,6 +644,41 @@
 ---
 
 ## 📝 系统通用
+
+### 动作类型字典 (action_types)
+
+平台统一的动作类型注册表，供渲染引擎事件系统、表单引擎动作链、自动化引擎动作、流程引擎节点动作共用。所有动作完全可序列化为 JSON。
+
+| code | name | category | 适用引擎 | 参数 | 说明 |
+|------|------|----------|---------|------|------|
+| navigate | 页面跳转 | navigation | 渲染/表单 | `url`, `params`, `target` | 跳转到指定页面 |
+| openPage | 打开新页面 | navigation | 渲染/表单 | `url`, `params` | 新窗口/Tab 打开 |
+| goBack | 返回上一页 | navigation | 渲染/表单 | 无 | 浏览器后退 |
+| refresh | 刷新页面 | navigation | 渲染/表单 | 无 | 刷新当前页面 |
+| setValue | 设置值 | data | 渲染/表单/自动化 | `target`, `value` | 设置组件/字段值 |
+| setValues | 批量设值 | data | 渲染/表单/自动化 | `values: Record<string, any>` | 批量设置多个值 |
+| resetValue | 重置值 | data | 表单 | `target` | 重置为默认值 |
+| submit | 提交表单 | data | 表单 | `api`, `redirectUrl` | 提交并跳转 |
+| apiCall | 调用 API | data | 渲染/表单/自动化/流程 | `api`, `method`, `data`, `headers` | 调用后端 API |
+| invokeMethod | 调用组件方法 | data | 渲染/表单 | `target`, `method`, `params` | 调用卡片/组件暴露的方法 |
+| showModal | 打开弹窗 | ui | 渲染/表单 | `modalId`, `data` | 打开模态弹窗 |
+| closeModal | 关闭弹窗 | ui | 渲染/表单 | `modalId` | 关闭模态弹窗 |
+| message | 消息提示 | ui | 渲染/表单/自动化/流程 | `type`, `content`, `duration` | 显示提示消息 |
+| notification | 通知提醒 | ui | 渲染/表单/自动化 | `title`, `content`, `type` | 显示通知 |
+| refreshComponent | 刷新组件 | ui | 渲染/表单 | `target` | 重新加载组件数据 |
+| showLoading | 显示加载 | ui | 渲染/表单 | `target`, `text` | 显示加载状态 |
+| hideLoading | 隐藏加载 | ui | 渲染/表单 | `target` | 隐藏加载状态 |
+| copyToClipboard | 复制到剪贴板 | utility | 渲染/表单 | `text` | 复制文本到系统剪贴板 |
+| triggerWorkflow | 触发流程 | workflow | 自动化/流程 | `workflowId`, `inputData` | 启动流程实例 |
+| sendNotification | 发送通知 | notification | 自动化/流程 | `channels`, `templateId`, `recipients` | 多渠道消息推送 |
+| executeScript | 执行脚本 | script | 自动化/流程 | `script`, `language` | 执行自定义脚本 |
+| webhook | 调用 Webhook | integration | 自动化 | `url`, `method`, `data`, `headers` | 推送事件到外部 |
+| condition | 条件分支 | control | 渲染/表单/自动化/流程 | `condition`, `then`, `else` | 条件判断分支 |
+| loop | 循环 | control | 自动化/流程 | `items`, `actions` | 遍历执行动作链 |
+| delay | 延时 | control | 自动化/流程 | `duration` | 延时后继续执行 |
+| parallel | 并行执行 | control | 自动化/流程 | `actions[]` | 并行执行多个动作 |
+
+> 动作类型注册表可扩展，各引擎可通过 `registerAction(code, handler)` 注册自定义动作类型。
 
 ### 操作类型字典 (operation_types)
 
