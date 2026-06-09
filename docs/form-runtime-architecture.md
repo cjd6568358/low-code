@@ -727,8 +727,8 @@ private buildDAG(rules: LinkageRule[]): void {
 
 | Action | 说明 | 参数 |
 |--------|------|------|
-| `showModal` | 打开弹窗 | `{ modalId, data? }` |
-| `closeModal` | 关闭弹窗 | `{ modalId }` |
+| `showModal` | 打开弹窗（返回 Promise，阻塞链条直到弹框关闭） | `{ modalId, data? }` |
+| `closeModal` | 关闭弹窗（携带返回值，resolve 对应 showModal 的 Promise） | `{ modalId, result? }` |
 | `showMessage` | 消息提示 | `{ type: 'success' \| 'error' \| 'warning' \| 'info', content }` |
 | `setVisible` | 控制组件显隐 | `{ componentId, visible: boolean }` |
 | `setDisabled` | 控制组件禁用 | `{ componentId, disabled: boolean }` |
@@ -969,7 +969,96 @@ const actionRegistry = new Map<string, ActionExecutor>([
 ]);
 ```
 
-### 3.6 onChange 的特殊处理
+### 3.6 弹框栈机制（ModalStack）
+
+#### 设计目标
+
+`showModal` 打开弹框后，action chain 需要**暂停等待**弹框关闭，并获取弹框的返回值。支持多层弹框嵌套（A 打开 B，B 关闭后返回给 A，A 再关闭返回给调用方）。
+
+#### 核心数据结构
+
+```typescript
+class ModalStack {
+  /** 栈底 → 栈顶 */
+  private stack: ModalEntry[] = [];
+
+  /** 状态变化回调（供宿主 UI 监听以渲染/关闭弹框） */
+  private onChange?: (event: ModalChangeEvent) => void;
+}
+
+interface ModalEntry {
+  modalId: string;
+  data?: any;
+  resolve: (result?: any) => void;  // showModal 的 Promise resolve
+}
+```
+
+#### 执行流程
+
+```
+调用方 action chain
+  │
+  ▼ 步骤1: showModal("A", data)
+     ModalStack.open() → 压栈，返回 Promise（链条暂停 await）
+  ┌─────────────────────────────────────┐
+  │  弹框 A 的 action chain              │
+  │                                     │
+  │  showModal("B", data2)              │
+  │    → ModalStack.open() 再压栈        │
+  │  ┌──────────────────────────┐       │
+  │  │  弹框 B 的 action chain   │       │
+  │  │  closeModal("B", result) │       │
+  │  │    → ModalStack.close()  │       │
+  │  │    → Promise<B> resolve  │       │
+  │  └──────────────────────────┘       │
+  │  $result = result (来自 B)           │
+  │  closeModal("A", result2)           │
+  │    → Promise<A> resolve             │
+  └─────────────────────────────────────┘
+  │
+  ▼ $result = result2 (来自 A)
+  步骤2: setFormValue("field", "{{$result.xxx}}")
+```
+
+#### 关键设计点
+
+| 特性 | 说明 |
+|------|------|
+| **Promise 驱动** | `showModal` 返回 Promise，`await` 自然暂停链条，无需手动管理状态 |
+| **栈隔离** | 每层弹框有独立的 `$result` 作用域，互不干扰 |
+| **级联关闭** | `closeModal("A")` 自动关闭其上方的所有弹框（避免幽灵弹框残留） |
+| **宿主通知** | 通过 `onChange` 回调通知宿主渲染/关闭弹框 UI，渲染层本身不关心具体 UI 组件 |
+| **卸载清理** | 页面/组件卸载时 `ModalStack.clear()` 自动 resolve 所有挂起的 Promise |
+
+#### 弹框内 action chain 的 $result 传递
+
+弹框内的 action chain 与主页面共享同一套 `$result` 链式传递机制。`closeModal` 的 `result` 参数支持模板变量：
+
+```jsonc
+// 弹框内：用户选择后关闭，返回选中数据
+{
+  "action": "closeModal",
+  "params": {
+    "modalId": "userSelector",
+    "result": {
+      "userId": "{{selectedUser.id}}",
+      "userName": "{{selectedUser.name}}"
+    }
+  }
+}
+
+// 主页面：showModal 的返回值自动注入 $result
+// 后续步骤可通过 {{$result.userId}} 引用
+{
+  "action": "setValue",
+  "params": {
+    "field": "assignee",
+    "value": "{{$result.userName}}"
+  }
+}
+```
+
+### 3.7 onChange 的特殊处理
 
 `onChange` 事件承担双重职责：更新表单值 + 执行用户自定义动作。必须保证执行顺序：
 
@@ -1007,7 +1096,7 @@ function buildFieldOnChangeHandler(
 }
 ```
 
-### 3.7 组件渲染时的事件注入
+### 3.8 组件渲染时的事件注入
 
 ```typescript
 /**
