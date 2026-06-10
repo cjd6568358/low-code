@@ -91,6 +91,8 @@
 | mobile | Mobile 端 | 移动端 H5 |
 | miniapp | 小程序 | 微信/支付宝小程序 |
 
+> 设计器预览仅支持 Web / Mobile 切换。小程序通过渲染引擎 `PlatformAdapter` 接口支持运行时渲染，但设计器中不提供小程序预览。
+
 ---
 
 ## 🖼️ 自动渲染引擎相关
@@ -709,3 +711,96 @@
 | light | 浅色模式 | 默认主题 |
 | dark | 深色模式 | 暗色主题 |
 | auto | 跟随系统 | 自动切换 |
+
+---
+
+## 🏢 租户管理后台相关
+
+### 应用管理员角色字典 (app_admin_roles)
+
+| code | name | 说明 |
+|------|------|------|
+| admin | 管理员 | 应用完整配置权限（页面/实体/数据表/流程/运算/权限） |
+| developer | 开发者 | 应用开发权限，不可配置权限 |
+| viewer | 查看者 | 只读权限 |
+
+### OpenKey 状态字典 (openkey_statuses)
+
+| code | name | 说明 |
+|------|------|------|
+| active | 启用 | 正常使用 |
+| disabled | 停用 | 手动停用 |
+| expired | 已过期 | 超过有效期 |
+
+### OpenKey 资源类型字典 (openkey_resource_types)
+
+| code | name | 说明 |
+|------|------|------|
+| entity | 实体 | 实体数据读写 |
+| table | 数据表 | 数据表数据读写 |
+| workflow | 流程 | 流程触发/查询 |
+| api | API | 自定义 API 调用 |
+
+### OpenKey 操作类型字典 (openkey_actions)
+
+| code | name | 说明 |
+|------|------|------|
+| read | 读取 | 查询/读取数据 |
+| write | 写入 | 新增/修改数据 |
+| delete | 删除 | 删除数据 |
+
+### 协作任务状态字典 (collaboration_task_statuses)
+
+| code | name | 说明 |
+|------|------|------|
+| pending | 待处理 | 已创建未开始 |
+| in_progress | 进行中 | 处理中 |
+| completed | 已完成 | 处理完成 |
+| closed | 已关闭 | 手动关闭 |
+
+### 审批超时动作字典 (approval_timeout_actions)
+
+| code | name | 说明 |
+|------|------|------|
+| auto_approve | 自动通过 | 超时后自动审批通过 |
+| auto_reject | 自动拒绝 | 超时后自动审批拒绝 |
+| escalate | 升级处理 | 超时后转交上级处理 |
+
+### 审批回退目标字典 (approval_rollback_targets)
+
+| code | name | 说明 |
+|------|------|------|
+| previous | 上一步 | 回退到上一个审批节点 |
+| initiator | 发起人 | 回退到流程发起人 |
+| specific | 指定节点 | 回退到指定的审批节点 |
+
+### 部门来源字典 (department_sources)
+
+| code | name | 说明 |
+|------|------|------|
+| native | 平台创建 | 管理员手动创建 |
+| synced | 第三方同步 | 从企业微信/钉钉/飞书等同步 |
+
+### 岗位分类字典 (position_categories)
+
+| code | name | 说明 |
+|------|------|------|
+| management | 管理类 | 管理岗位 |
+| technical | 技术类 | 技术岗位 |
+| business | 业务类 | 业务岗位 |
+| support | 支持类 | 支持岗位 |
+
+### 应用可见性字典 (app_visibility)
+
+| code | name | 说明 |
+|------|------|------|
+| private | 私有 | 仅应用管理员可访问 |
+| internal | 内部 | 租户内指定角色可访问 |
+| public | 公开 | 租户内所有用户可访问 |
+
+### 字典作用域字典 (dictionary_scopes)
+
+| code | name | 说明 |
+|------|------|------|
+| tenant | 租户级 | 租户内所有应用可引用 |
+| app | 应用级 | 仅所属应用可引用 |

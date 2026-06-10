@@ -117,28 +117,41 @@ interface DiscriminatorConfig {
 
 ## 控件注册表
 
+### 统一基于 antd 的控件体系
+
+自动渲染引擎的**所有基础控件统一使用 Ant Design 组件**，确保样式、交互、无障碍访问的一致性。定制组件也基于 antd 基础组件搭建。
+
+```
+ControlRegistry
+  └─ antd 控件（唯一控件源）
+       ├─ AntdAutoInput      → antd Input
+       ├─ AntdAutoTextarea   → antd Input.TextArea
+       ├─ AntdAutoNumber     → antd InputNumber
+       ├─ AntdAutoSelect     → antd Select
+       ├─ AntdAutoSwitch     → antd Switch
+       ├─ AntdAutoDatePicker → antd DatePicker
+       ├─ AntdAutoTimePicker → antd TimePicker
+       ├─ AntdAutoCheckbox   → antd Checkbox.Group
+       └─ AntdAutoRadio      → antd Radio.Group
+```
+
+> 不再维护原生 HTML 控件 fallback。所有控件统一 `size="small"`，透传 antd 原生属性（`status`/`variant`/`disabled` 等）。
+
 ### 默认类型→控件映射
 
-自动渲染引擎内置一套默认映射规则，覆盖常见 JSON Schema 类型：
-
-| Schema 类型 | format / 条件 | 默认控件 |
-|------------|--------------|---------|
-| `string` | 无 | `Input`（单行文本） |
-| `string` | `email` | `Input[type=email]` |
-| `string` | `uri` / `url` | `Input[type=url]` |
-| `string` | `color` | `ColorPicker` |
-| `string` | `date` | `DatePicker` |
-| `string` | `date-time` | `DatePicker[showTime]` |
-| `string` | `textarea`（x-component） | `Input.TextArea` |
-| `string` | 有 `enum` | `Select`（下拉选择） |
-| `string` | 有 `x-dictionary` | `Select`（字典填充） |
-| `number` | 无 | `InputNumber` |
-| `integer` | 无 | `InputNumber[step=1]` |
-| `boolean` | 无 | `Switch` |
-| `object` | 有 `properties` | `NestedForm`（嵌套表单，递归渲染） |
-| `array` | `items.type=string` | `TagInput`（标签输入） |
-| `array` | `items.type=object` | `ArrayTable`（可编辑表格） |
-| `array` | `items` 有 `enum` | `CheckboxGroup` / `Transfer` |
+| Schema 类型 | format / 条件 | antd 控件 | 说明 |
+|------------|--------------|----------|------|
+| `string` | 无 | `Input` | 单行文本 |
+| `string` | `textarea` | `Input.TextArea` | 多行文本 |
+| `string` | `date` | `DatePicker` | 日期选择 |
+| `string` | `date-time` | `DatePicker[showTime]` | 日期时间 |
+| `string` | `time` | `TimePicker` | 时间选择 |
+| `string` | 有 `enum` | `Select` | 下拉选择 |
+| `string` | 有 `x-dictionary` | `Select` | 字典填充 |
+| `number` / `integer` | 无 | `InputNumber` | 数字输入 |
+| `boolean` | 无 | `Switch` | 开关 |
+| `x-component: Checkbox` | — | `Checkbox.Group` | 多选 |
+| `x-component: Radio` | — | `Radio.Group` | 单选 |
 
 ### 自定义控件注册
 

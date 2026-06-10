@@ -4,7 +4,7 @@
 
 ## 页面设计器
 
-页面设计器采用**三栏布局**，提供直观高效的可视化搭建体验。
+页面设计器采用**三栏布局**，提供直观高效的可视化搭建体验。设计器采用统一的 **Web 布局**，Mobile/小程序通过环境变量微调布局细节。
 
 ### 布局总览
 
@@ -30,19 +30,27 @@
 │  │组件库   │  │  └───────────────────────────┘  │  │        │  │
 │  └────────┘  │  ┌───────────────────────────┐  │  └────────┘  │
 │              │  │      预览模式切换            │  │              │
-│  🔍 搜索    │  │  Web  │  Mobile  │  小程序   │  │              │
+│  🔍 搜索    │  │  🖥 Web  │  📱 Mobile       │  │              │
 └──────────────┴──┴───────────────────────────┴──┴──────────────┘
 ```
+
+> 设计器预览仅支持 **Web / Mobile** 两种设备切换。小程序渲染引擎通过 `PlatformAdapter` 接口支持，但设计器中不提供小程序预览。
 
 ### 左侧 — 组件面板
 
 - **组件分类**：基础组件、高级组件、业务组件、自定义组件库
 - **拖拽添加**：从面板拖拽组件到设计区，自动生成组件配置
 - **组件搜索**：支持按名称/标签快速检索组件
+- **组件库标识**：显示当前应用指定的组件库（只读，不可切换）
 
-### 组件库切换
+### 组件库配置
 
-设计器支持切换不同组件库，当前默认使用 **Ant Design**。
+组件库在**应用创建时指定**，后续所有页面/卡片搭建共用同一套组件库，设计器中**不可切换**。
+
+```typescript
+// 应用创建时指定组件库
+<Designer library="antd" schema={pageSchema} />
+```
 
 左侧基础组件为所有组件库的**交集子集**，确保跨库通用：
 
@@ -59,7 +67,7 @@
 | Radio 单选 | ✅ Radio | ✅ ElRadio | ✅ |
 | Upload 上传 | ✅ Upload | ✅ ElUpload | ✅ |
 
-> 高级组件和业务组件可包含组件库特有能力，切换组件库时按需降级或替换。
+> 高级组件和业务组件可包含组件库特有能力，按应用配置的组件库渲染。
 
 ### 主题风格配置
 
@@ -92,15 +100,19 @@ interface ThemeConfig {
 
 ### 中间 — 设计区 + 预览
 
-- **拖拽开发**：基于 DND (Drag and Drop) 实现可视化页面搭建
+- **只读预览态**：设计区中所有组件以只读预览态渲染（disabled + readOnly），禁用 onChange/onClick 等交互行为，仅响应拖拽和选中操作
+- **拖拽开发**：基于 DND (Drag and Drop) 实现可视化页面搭建，支持面板→画布添加、画布内排序、跨布局容器自由拖拽
+- **跨布局拖拽**：组件可在不同父容器之间自由拖拽移动。拖入容器组件中部区域时自动变为该容器的子组件（指示线显示蓝色高亮包围）
+- **拖拽阴影效果**：拖拽组件时显示半透明阴影预览（opacity 0.3），原位置保留淡影标识来源
+- **放置标准线**：拖拽过程中实时显示蓝色指示线标识放置位置，带两端圆点标记。普通组件按上/下半部分判断 before/after；容器组件按上 1/4 → before、中 1/2 → inside、下 1/4 → after 判断
 - **布局系统**：支持 Flex / Grid 两种主流布局模式
-- **实时预览**：设计区即所见即所得，支持切换 Web / Mobile / 小程序预览
-- **组件操作**：选中、拖拽排序、复制粘贴、删除、嵌套组合
+- **实时预览**：设计区即所见即所得，支持切换 **Web / Mobile** 预览（小程序不提供预览，通过渲染引擎运行时支持）
+- **组件操作**：选中、拖拽排序、复制粘贴（Ctrl+C/V）、克隆（Ctrl+D）、删除（Delete），选中时显示操作栏
 - **条件规则配置**：支持配置显隐规则，按条件控制表单/页面组件的展示与隐藏
 
 ### 右侧 — 属性配置面板
 
-属性配置面板基于 [自动渲染引擎](auto-rendering-engine.md) 实现，读取组件的 TypeScript 类型定义并自动渲染为可视化配置表单。
+属性配置面板基于 [自动渲染引擎](auto-rendering-engine.md) 实现，读取组件的 TypeScript 类型定义并自动渲染为可视化配置表单。**所有控件统一使用 Ant Design 组件**，确保样式一致性。
 
 #### 工作流程
 
@@ -114,7 +126,7 @@ interface ThemeConfig {
   注入 x-group / x-priority 等扩展字段
         │
         ▼
-  注册到自动渲染引擎 → 自动渲染为属性配置表单
+  注册到自动渲染引擎 → antd 控件渲染属性配置表单
 ```
 
 > 📄 自动渲染引擎的 Schema 扩展字段、控件映射、布局模式、判别联合等完整规范详见 [自动渲染引擎文档](auto-rendering-engine.md)
@@ -315,7 +327,284 @@ interface EventDefinition {
 }
 ```
 
-### 属性绑定 — PropBinding
+### 插槽组件 — SlotComponent
+
+插槽是卡片中的**特殊组件**，用于暴露变量/方法/事件给调用方。卡片作者在设计器中将插槽组件拖入卡片模板，配置名称、标题、约束条件和暴露接口；消费方使用卡片时，可向插槽填充自定义内容，并通过 `$slot.xxx` 引用插槽暴露的变量。
+
+#### 设计器中的插槽配置
+
+插槽组件在左侧面板的「自定义」分类下展示。拖入卡片模板后，右侧属性面板显示插槽专属配置，分为两个 Tab：
+
+**基础配置 Tab：**
+
+```
+┌─────────────────────────────────────────┐
+│  📌 插槽                    [基础配置] [暴露接口] │
+├─────────────────────────────────────────┤
+│  插槽名称 *                              │
+│  ┌──────────────────────────┐           │
+│  │ header                   │           │
+│  └──────────────────────────┘           │
+│  唯一标识，用于消费方传入 slots 内容       │
+│                                          │
+│  显示标题 *                              │
+│  ┌──────────────────────────┐           │
+│  │ 扩展区域                  │           │
+│  └──────────────────────────┘           │
+│                                          │
+│  接受的组件类型                            │
+│  ┌──────────────────────────┐           │
+│  │ [button] [text] ×        │           │
+│  └──────────────────────────┘           │
+│  ☑ button  ☑ text  ☐ table              │
+│                                          │
+│  最大子项数                               │
+│  ┌──────────────────────────┐           │
+│  │ 3                        │           │
+│  └──────────────────────────┘           │
+└─────────────────────────────────────────┘
+```
+
+**暴露接口 Tab：**
+
+配置通过此插槽暴露给消费方的变量、方法和事件。消费方在插槽内容中可通过 `$slot.xxx` 引用暴露的变量。
+
+```
+┌─────────────────────────────────────────┐
+│  暴露变量 (2)                [+ 添加]    │
+│  ┌──────┬─────────────────────────────┐ │
+│  │ name │ $context.currentRecord.name │ │
+│  │ level│ $props.customerLevel        │ │
+│  └──────┴─────────────────────────────┘ │
+│                                          │
+│  暴露方法 (1)                [+ 添加]    │
+│  ┌──────┬──────┬────────────┐           │
+│  │ 校验  │ 校验  │ form_01    │           │
+│  └──────┴──────┴────────────┘           │
+│                                          │
+│  暴露事件 (1)                [+ 添加]    │
+│  ┌──────────┬──────────┬──────────────┐ │
+│  │ onSubmit │ 提交成功  │ btn_01.onClick│ │
+│  └──────────┴──────────┴──────────────┘ │
+└─────────────────────────────────────────┘
+```
+
+#### SlotDefinition 类型定义
+
+```typescript
+interface SlotDefinition {
+  name: string;                        // 插槽名，如 "header", "footer", "actions"
+  title: string;                       // 显示标题
+  description?: string;
+  accept?: string[];                   // 允许放入的组件类型，空=不限
+  maxItems?: number;                   // 最大子项数，空=不限
+  defaultContent?: ComponentNode[];    // 默认内容
+  expose?: SlotExpose;                 // 暴露给消费方的接口
+}
+
+interface SlotExpose {
+  variables?: Record<string, string>;  // 暴露变量：变量名 → 表达式
+  methods?: SlotExposedMethod[];       // 暴露的方法
+  events?: SlotExposedEvent[];         // 暴露的事件
+}
+
+interface SlotExposedMethod {
+  name: string;
+  title: string;
+  description?: string;
+  target: string;                      // 映射到内部组件的方法，如 "form_01.validate"
+  params?: MethodParam[];
+  returnType?: string;
+}
+
+interface SlotExposedEvent {
+  name: string;
+  title: string;
+  source: string;                      // 内部触发源，如 "btn_01.onClick"
+  payload?: Record<string, string>;
+}
+```
+
+#### 保存为卡片时的自动收集
+
+保存为卡片时，模板中的所有 `type="slot"` 节点自动收集为 `SlotDefinition[]`，写入 `CardInterface.slots`。插槽的暴露接口（variables/methods/events）一并收集。
+
+#### 运行时渲染流程
+
+```
+消费方使用卡片:
+  slots={{
+    header: [<Button onClick={() => $slot.submit()}>提交</Button>]
+  }}
+        │
+        ▼
+渲染器遇到 template 中 type="slot" 的节点
+        │
+        ▼
+收集插槽暴露变量 → 注入到 $slot 作用域
+        │
+        ▼
+查找 slots[slot.props.name]
+        │
+        ├─ 有内容 → 替换为消费方传入的内容（$slot 可用）
+        └─ 无内容 → 渲染默认占位区域（📌 标题 + 描述）
+```
+
+#### 消费方引用示例
+
+**场景：消费方在插槽内容中引用暴露变量、调用暴露方法、监听暴露事件**
+
+```tsx
+// 使用卡片，向 header 插槽传入内容
+<CardInstance
+  props={{ customerName: '张三', customerLevel: 'vip' }}
+  slots={{
+    header: [
+      // 引用暴露变量
+      <Text>{$slot.header.customerName}</Text>,
+      // 调用暴露方法（返回值可通过 $result 获取）
+      <Button onClick={() => $slot.header.validate({ strict: true })}>校验</Button>,
+    ],
+  }}
+/>
+```
+
+#### invokeMethod + 插槽打通
+
+`invokeMethod` 动作支持两种路由：
+
+| methodName 格式 | 路由目标 | 说明 |
+|----------------|---------|------|
+| `"validate"` | 卡片级方法 `interface.methods` | 直接在卡片作用域执行动作链 |
+| `"header.validate"` | 插槽方法 `slot.expose.methods` | 路由到内部组件方法，返回 $result |
+
+**完整调用链路：**
+
+```
+消费方 submit 按钮 onClick:
+  [
+    {
+      "action": "invokeMethod",
+      "target": "customerCard",
+      "method": "header.validate",        ← slotName.methodName 路由
+      "params": { "strict": true }
+    },
+    {
+      "action": "apiCall",
+      "condition": "$result.valid === true",  ← $result 拿到内部方法返回值
+      "params": { "url": "/api/submit", "data": "$result.data" }
+    },
+    {
+      "action": "message",
+      "condition": "$result.valid === false",
+      "params": { "type": "error", "content": "校验失败" }
+    }
+  ]
+```
+
+**invokeMethod 路由流程：**
+
+```
+invokeMethod("customerCard", "header.validate", { strict: true })
+        │
+        ▼
+methodName 包含 "." → 插槽方法路由
+        │
+        ▼
+查找 slotDefinitions["header"].expose.methods
+        │
+        ▼
+找到 target: "form_01.validate"
+        │
+        ▼
+调用内部组件 form_01 的 validate 方法
+        │
+        ▼
+返回 { valid: true, errors: {} } → 写入 $result
+        │
+        ▼
+后续动作通过 $result.valid / $result.data 引用
+```
+
+**$slot 作用域结构：**
+
+```typescript
+// $slot 由 CardRenderer.createSlotExposeContext 生成
+$slot = {
+  header: {
+    // 暴露变量（由 expose.variables 表达式求值）
+    customerName: '张三',
+    customerLevel: 'vip',
+    // 暴露方法（由 expose.methods.target 映射到内部组件方法）
+    validate: async (params) => internalMethodInvoker('form_01', 'validate', params),
+    getData: async () => internalMethodInvoker('form_01', 'getData'),
+    // 暴露事件触发器（由 expose.events.source 映射到内部组件事件）
+    onSubmit: (data) => internalEventEmitter('btn_01', 'onClick', data),
+  },
+  footer: {
+    // 另一个插槽的暴露接口
+  },
+};
+```
+
+#### 设计器中配置 invokeMethod 调用插槽方法
+
+在设计器的事件动作链编排器中，选择「调用组件方法」动作类型，所有配置均通过 UI 下拉选择完成，无需手写表达式：
+
+```
+┌─────────────────────────────────────────────────────┐
+│  动作类型: [调用组件方法 ▼]                           │
+├─────────────────────────────────────────────────────┤
+│                                                      │
+│  目标组件: [客户摘要卡片 (customerCard) ▼]             │
+│            ↑ 自动列出页面中所有可调用的组件实例          │
+│                                                      │
+│  调用方法: ▼                                          │
+│  ┌─────────────────────────────────────────────┐    │
+│  │  卡片方法                                     │    │
+│  │    校验 — 校验卡片内所有表单字段                │    │
+│  │    重置 — 重置表单为初始值                     │    │
+│  │    获取数据 — 获取所有表单字段的当前值           │    │
+│  │  ──────────────────────────────────────────  │    │
+│  │  插槽方法                                     │    │
+│  │  📌 header.validate — 校验表单字段             │    │
+│  │  📌 header.getData — 获取表单数据              │    │
+│  │  📌 header.onSubmit — 提交成功事件             │    │
+│  └─────────────────────────────────────────────┘    │
+│            ↑ 自动列出：                               │
+│              - interface.methods（卡片级方法）         │
+│              - slot.expose.methods（插槽暴露方法）    │
+│              - 分组展示，插槽方法带 📌 标识            │
+│                                                      │
+│  参数配置:                                            │
+│    strict  ┌───────────────────────────┐             │
+│            │ ☑ (布尔值)                 │             │
+│            └───────────────────────────┘             │
+│                                                      │
+│  返回值处理:                                          │
+│    返回值自动写入 $result                              │
+│    后续动作通过 $result.xxx 引用                       │
+│    （可在条件表达式中使用 $result.valid 等字段）        │
+│                                                      │
+└─────────────────────────────────────────────────────┘
+```
+
+**变量选择器中的 $slot 引用：**
+
+在变量选择器（🔗 按钮）的变量树中，自动出现「插槽接口」节点：
+
+```
+▼ 插槽接口
+  ▼ 📌 header
+      customerName          ← 暴露变量
+      customerLevel         ← 暴露变量
+      📎 校验               ← 暴露方法（可引用）
+      📎 获取数据            ← 暴露方法
+  ▼ 📌 footer
+      totalCount            ← 暴露变量
+```
+
+消费方在变量选择器中点击即可选中 `$slot.header.customerName`，无需手写路径。
 
 暴露属性通过表达式映射到内部组件的属性上：
 
