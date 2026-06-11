@@ -369,7 +369,7 @@ interface AppAdmin {
   id: string;
   userId: string;                   // 用户 ID
   appId: string;                    // 应用 ID
-  role: 'admin' | 'developer' | 'viewer';  // 应用内角色
+  role: 'admin' | 'viewer';         // 应用内角色
   permissions: AppAdminPermission[];
   assignedAt: string;
   assignedBy: string;
@@ -386,12 +386,11 @@ interface AppAdminPermission {
 | 角色 | 页面 | 实体 | 数据表 | 流程 | 运算 | 权限 |
 |------|------|------|--------|------|------|------|
 | admin（管理员） | CRUD + 发布 | CRUD | CRUD | CRUD | CRUD | 可配置 |
-| developer（开发者） | CRUD | CRUD | CRUD | CRUD | CRUD | 不可配置 |
 | viewer（查看者） | 只读 | 只读 | 只读 | 只读 | 只读 | 只读 |
 
 应用管理员配置功能：
 - 为应用分配管理员（从租户用户列表中选择）
-- 配置管理员角色（admin / developer / viewer）
+- 配置管理员角色（admin / viewer）
 - 自定义权限（细粒度控制每个资源类型的操作权限）
 - 移除管理员
 - 管理员操作日志（关联审计日志）
@@ -432,7 +431,6 @@ interface AppAdminPermission {
 | code | name | 说明 |
 |------|------|------|
 | admin | 管理员 | 应用完整配置权限 |
-| developer | 开发者 | 应用开发权限，不可配置权限 |
 | viewer | 查看者 | 只读权限 |
 
 ### OpenKey 状态字典 (openkey_statuses)

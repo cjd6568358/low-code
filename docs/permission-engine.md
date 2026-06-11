@@ -1,6 +1,8 @@
 # 权限引擎 (Permission Engine)
 
-采用 RBAC (Role-Based Access Control) 模型，实现细粒度数据鉴权。
+采用 RBAC (Role-Based Access Control) 模型，支持角色叠加继承，实现细粒度前端 UI 层权限控制。
+
+> **注意**：权限引擎仅控制前端 UI 层（菜单/按钮可见性），不做服务端鉴权。
 
 ## RBAC 模型
 
@@ -9,6 +11,7 @@
                     ▲
                     │
               岗位 (Position) ──▶ 默认角色映射
+              部门 (Department) ──▶ 部门默认角色（自动叠加）
 ```
 
 ### 角色层级
@@ -18,29 +21,70 @@
 | 平台级 | 超级管理员 | 平台全局管理，管理所有租户 |
 | 租户级 | 租户管理员 | 管理租户内的组织架构、字典、OpenKey、应用管理员 |
 | 应用级 | 应用管理员 (admin) | 管理指定应用的页面/实体/数据表/流程/运算/权限 |
-| 应用级 | 应用开发者 (developer) | 开发指定应用，不可配置权限 |
 | 应用级 | 应用查看者 (viewer) | 只读访问指定应用 |
-| 业务级 | 自定义角色 | 租户管理员自定义的业务角色 |
+| 业务级 | 部门默认角色 (department_default) | 内置只读角色，所有用户自动拥有 |
+| 业务级 | 自定义角色 | 租户管理员自定义的业务角色，支持叠加继承 |
 
 ### 内置角色
 
 ```typescript
-interface BuiltinRole {
+const BUILTIN_ROLES = [
+  { roleId: 'super_admin',         name: '超级管理员', level: 'platform' },
+  { roleId: 'tenant_admin',        name: '租户管理员', level: 'tenant' },
+  { roleId: 'app_admin',           name: '应用管理员', level: 'app' },
+  { roleId: 'app_viewer',          name: '应用查看者', level: 'app' },
+  { roleId: 'department_default',  name: '部门默认角色', level: 'business' },
+];
+```
+
+内置角色不可删除，`isBuiltin: true`。
+
+### 部门默认角色
+
+`department_default` 是系统自动为所有用户叠加的只读角色：
+
+```typescript
+const DEPARTMENT_DEFAULT_PERMISSIONS = [
+  { permissionId: 'dept_default_menu_read',   resourceType: 'menu',   resourceId: '*', actions: ['read'] },
+  { permissionId: 'dept_default_button_read', resourceType: 'button', resourceId: '*', actions: ['read'] },
+];
+```
+
+**用户最终权限** = `department_default` ⊕ 显式分配的角色 ⊕ 岗位映射的角色
+
+## 角色叠加机制
+
+新创建的自定义角色可以通过 `baseRoleIds` 指定继承的基础角色，实现权限叠加。
+
+```
+继承链示例：
+
+app_viewer (内置: 只读)
+  └── 业务员 (自定义: baseRoleIds=['app_viewer'] + 按钮"新建订单"权限)
+        └── 高级业务员 (自定义: baseRoleIds=['业务员'] + 按钮"审批订单"权限)
+```
+
+### 合并规则
+
+1. **递归展开** `baseRoleIds`，得到从根到叶的角色链
+2. **逐层合并** permissions，从根角色开始
+3. **子角色覆盖**：同一 `(resourceType, resourceId)` 的权限，子角色覆盖父角色
+4. **多角色合并**：同一用户的多个角色，同 `(resourceType, resourceId)` 的 actions 合并去重
+
+```typescript
+interface Role {
   roleId: string;
   name: string;
+  description?: string;
   level: 'platform' | 'tenant' | 'app' | 'business';
+  /** 继承的基础角色 ID 列表 — 叠加机制 */
+  baseRoleIds: string[];
+  /** 本角色直接拥有的权限（不含继承部分） */
   permissions: Permission[];
-  isBuiltin: boolean;               // 内置角色不可删除
+  isBuiltin: boolean;
+  tenantId?: string;
+  appId?: string;
 }
-
-// 内置角色列表
-const BUILTIN_ROLES = [
-  { roleId: 'super_admin', name: '超级管理员', level: 'platform' },
-  { roleId: 'tenant_admin', name: '租户管理员', level: 'tenant' },
-  { roleId: 'app_admin', name: '应用管理员', level: 'app' },
-  { roleId: 'app_developer', name: '应用开发者', level: 'app' },
-  { roleId: 'app_viewer', name: '应用查看者', level: 'app' },
-];
 ```
 
 ## 权限维度
@@ -53,22 +97,92 @@ const BUILTIN_ROLES = [
 | 字段权限 | 控制字段的读写可见性 | 能否查看「手机号」字段 |
 | API 权限 | 控制接口的访问权限 | 能否调用「导出数据」接口 |
 
+## 前端权限引擎
+
+### PermissionEngine
+
+前端权限引擎位于 `packages/shared/src/core/PermissionEngine.ts`，提供以下能力：
+
+```typescript
+class PermissionEngine {
+  constructor(roleRegistry: RoleRegistry);
+
+  /** 解析角色的有效权限（递归展开继承链） */
+  resolveEffectivePermissions(roleId: string): EffectivePermission[];
+
+  /** 解析用户的所有有效权限（自动包含 department_default） */
+  resolveUserPermissions(roleIds: string[]): EffectivePermission[];
+
+  /** 判断是否拥有指定操作权限 */
+  hasPermission(permissions, resourceType, resourceId, action): boolean;
+
+  /** 根据菜单权限过滤可见菜单 */
+  filterMenuByPermission(menus, userRoleIds, userId, departmentId?): FilterableMenu[];
+
+  /** 根据按钮权限过滤可见按钮 */
+  filterButtonsByPermission(buttons, userRoleIds, userId, departmentId?): FilterableButton[];
+
+  /** 构建权限上下文（注入 $context.permissions） */
+  buildPermissionContext(permissions): PermissionContext;
+}
+```
+
+### PermissionContext
+
+注入到 `$context.permissions` 的权限上下文对象，在表达式中使用：
+
+```typescript
+// 判断菜单权限
+$context.permissions.has('menu', 'userManagement', 'read')
+
+// 判断按钮权限
+$context.permissions.has('button', 'deleteBtn', 'delete')
+
+// 判断是否拥有任一权限
+$context.permissions.hasAny('button', 'exportBtn', ['read', 'delete'])
+
+// 可见菜单 ID 列表
+$context.permissions.menus.includes('orderList')
+
+// 可用按钮 ID 列表
+$context.permissions.buttons.includes('exportBtn')
+```
+
+### RoleRegistry
+
+角色注册表位于 `packages/shared/src/core/RoleRegistry.ts`：
+
+```typescript
+interface RoleRegistry {
+  getRole(roleId: string): Role | undefined;
+  getAllRoles(): Role[];
+  getRolesByLevel(level: Role['level']): Role[];
+  resolveRoleChain(roleId: string): Role[];
+  registerRole(role: Role): void;
+  unregisterRole(roleId: string): boolean;
+}
+```
+
+内置实现 `MemoryRoleRegistry` 预置所有内置角色和部门默认角色的权限。
+
 ## 数据鉴权流程
 
 ```
-请求 ──▶ 身份认证 ──▶ 角色解析 ──▶ 权限匹配 ──▶ 数据过滤 ──▶ 返回结果
+请求 ──▶ 身份认证 ──▶ 角色解析 ──▶ 权限合并 ──▶ UI 过滤
   │                    │
   │                    ▼
   │              解析用户角色列表
+  │              ├─ 自动叠加 department_default
   │              ├─ 平台级角色
   │              ├─ 租户级角色
-  │              ├─ 应用级角色（应用管理员/开发者/查看者）
-  │              └─ 自定义业务角色
+  │              ├─ 应用级角色（应用管理员/查看者）
+  │              └─ 自定义业务角色（含继承链展开）
   │
   ▼
 JWT Token / Session
 ├─ userId
 ├─ tenantId
+├─ departmentId
 └─ currentAppId
 ```
 
@@ -91,43 +205,63 @@ interface DataScopeConfig {
   scopeType: 'all' | 'department' | 'department-and-child' | 'self' | 'custom';
   /** 自定义规则（scopeType=custom 时使用） */
   customFilter?: {
-    field: string;                  // 过滤字段
-    operator: string;               // 条件运算符
-    value: any;                     // 过滤值
+    field: string;
+    operator: string;
+    value: any;
     /** 引用变量：$currentUser.id, $currentUser.departmentId 等 */
     valueFrom?: string;
   };
 }
 ```
 
+## 菜单/按钮权限配置
+
+### 菜单权限（PageSchema 级别）
+
+```typescript
+interface MenuPermissionConfig {
+  menuId: string;
+  /** 允许访问的角色 ID 列表（空 = 所有人可见） */
+  allowedRoles?: string[];
+  /** 允许访问的部门 ID 列表 */
+  allowedDepartments?: string[];
+  /** 允许访问的人员 ID 列表 */
+  allowedUsers?: string[];
+}
+```
+
+### 按钮权限（ComponentNode 级别）
+
+```typescript
+interface ButtonPermissionConfig {
+  buttonId: string;
+  /** 允许操作的角色 ID 列表（空 = 所有人可见） */
+  allowedRoles?: string[];
+  /** 允许操作的部门 ID 列表 */
+  allowedDepartments?: string[];
+  /** 允许操作的人员 ID 列表 */
+  allowedUsers?: string[];
+}
+```
+
+### 过滤规则
+
+1. 有 permission 配置的菜单/按钮：检查用户角色/部门/人员是否在允许列表中
+2. 无 permission 配置的菜单/按钮：默认可见
+3. 三个列表都为空：所有人可见
+
 ## 应用管理员权限
 
 应用管理员是租户内某个应用的管理者，其权限由 `app_admin_roles` 字典定义：
 
-| 资源类型 | admin | developer | viewer |
-|---------|-------|-----------|--------|
-| 页面 | 创建/编辑/删除/发布 | 创建/编辑/删除 | 只读 |
-| 实体 | 创建/编辑/删除 | 创建/编辑/删除 | 只读 |
-| 数据表 | 创建/编辑/删除/导入/导出 | 创建/编辑/删除/导入/导出 | 只读 |
-| 流程 | 创建/编辑/删除/启用/停用 | 创建/编辑/删除/启用/停用 | 只读 |
-| 运算 | 创建/编辑/删除 | 创建/编辑/删除 | 只读 |
-| 权限 | 查看/编辑 | 不可访问 | 不可访问 |
-
-应用管理员的权限检查流程：
-
-```
-请求 ──▶ 身份认证
-  │
-  ▼
-检查用户是否为当前应用的应用管理员
-  ├─ 是 → 获取应用管理员角色（admin/developer/viewer）
-  │        → 检查角色对目标资源类型的操作权限
-  │        → 允许/拒绝
-  │
-  └─ 否 → 检查用户的其他角色（租户级/业务级）
-           → 匹配权限
-           → 允许/拒绝
-```
+| 资源类型 | admin | viewer |
+|---------|-------|--------|
+| 页面 | 创建/编辑/删除/发布 | 只读 |
+| 实体 | 创建/编辑/删除 | 只读 |
+| 数据表 | 创建/编辑/删除/导入/导出 | 只读 |
+| 流程 | 创建/编辑/删除/启用/停用 | 只读 |
+| 运算 | 创建/编辑/删除 | 只读 |
+| 权限 | 查看/编辑 | 不可访问 |
 
 ## 权限模型定义
 
@@ -139,19 +273,6 @@ interface Permission {
   actions: string[];                // 允许的操作（read/write/delete/publish）
   scope?: DataScopeConfig;          // 数据权限范围（resourceType=data 时）
   conditions?: Record<string, any>; // 附加条件
-}
-
-interface Role {
-  roleId: string;
-  name: string;
-  description?: string;
-  level: 'platform' | 'tenant' | 'app' | 'business';
-  permissions: Permission[];
-  isBuiltin: boolean;
-  tenantId?: string;                // 租户级角色归属
-  appId?: string;                   // 应用级角色归属
-  createdAt: string;
-  updatedAt: string;
 }
 ```
 
@@ -165,3 +286,5 @@ interface Role {
 | 流程引擎 | 审批人选择依赖组织架构 |
 | 数据引擎 | 数据过滤条件由权限引擎生成 |
 | 审计日志 | 记录权限变更操作 |
+| 渲染引擎 | 条件规则通过 `$context.permissions` 引用权限 |
+| 设计器 | 变量选择器暴露权限变量供设计时使用 |
