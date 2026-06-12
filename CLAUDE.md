@@ -1,0 +1,177 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code when working with this repository.
+
+## 项目概述
+
+低代码平台 - 基于 TypeScript 的 monorepo 架构
+
+## 开发规范（每次会话必须遵守）
+
+完整文档：[docs/development-conventions.md](docs/development-conventions.md)
+
+### TypeScript
+- **禁止 `enum`**，用 union literal type（`type Status = 'active' | 'disabled'`）
+- **禁止 `any`**，必须给出具体类型
+- 接口用 `interface`，联合/交叉用 `type`
+- 类型导入用 `import type`
+- 所有接口/类型必须有 JSDoc 中文注释
+
+### 命名规范
+- 接口/类型/类：PascalCase（`PageSchema`, `PermissionEngine`）
+- 函数/方法：camelCase（`resolvePermissions`）
+- 常量：UPPER_SNAKE_CASE（`BUILTIN_ROLES`）
+- 文件名：kebab-case（`path.ts`）或 PascalCase（`Renderer.tsx`）
+- 工厂/构建函数：`createXxx`
+- 判断函数：`isXxx` / `hasXxx` / `canXxx`
+- 异步函数：返回 Promise 以 `Async` 结尾
+- 接口：无 `I` 前缀
+- 类型文件：`*.type.ts` 或 `*.types.ts`
+
+### 引擎/服务命名后缀
+- `*Engine` — 引擎（ConditionRuleEngine）
+- `*Registry` — 注册表（RoleRegistry）
+- `*Manager` — 管理器（DatabaseManager）
+- `*Adapter` — 适配器（WebAdapter）
+- `*Compiler` — 编译器（EventCompiler）
+
+### 包结构
+- 每个包必须有 `src/index.ts` barrel exports
+- 跨包引用用 `@low-code/{pkg}`，不直接引用子路径
+- 类型引用用 `import type`
+
+### React
+- 函数组件 + Hooks，不用 class 组件
+- 内联样式（当前阶段），公共样式提取为 const
+
+### 数据层（SQLite）
+- 主键：TEXT（业务 ID）或 INTEGER AUTOINCREMENT
+- 时间：TEXT 存 ISO8601
+- JSON：TEXT 存储，应用层 parse
+- 枚举：`TEXT CHECK(x IN ('a', 'b'))`
+- 所有表必须有 `created_at`
+
+### 禁止事项
+- 禁止 `any`、`enum`、空 catch、`console.log` 做持久日志
+- 禁止硬编码密钥/密码
+- 禁止直接引用包内子路径（应通过 barrel export）
+
+### 会话规范
+- **每次会话响应结尾必须包含 "-------是的，我还清醒---------"**
+- 每次开发完代码后必须验证和文档的差异，并列出
+- 每次解决完 bug 后需要将问题归档
+
+## 常用命令
+
+```bash
+# 安装依赖
+yarn install
+
+# 构建所有包
+yarn build
+
+# 运行测试
+yarn test
+
+# 类型检查
+yarn typecheck
+```
+
+## 架构说明
+
+- `packages/` - 核心包
+- `data/` - 数据存储
+- `docs/` - 项目文档
+
+---
+
+## koffi + SQLite 配置指南
+
+项目使用 koffi FFI 直接调用 sqlite3.dll，无需编译原生模块（better-sqlite3）。
+
+### 关键 API 用法
+
+```typescript
+import koffi from 'koffi';
+
+// 1. 定义不透明类型
+const sqlite3 = koffi.opaque('sqlite3');
+const sqlite3_stmt = koffi.opaque('sqlite3_stmt');
+
+// 2. 定义指针类型
+const sqlite3_ptr = koffi.pointer(sqlite3);           // sqlite3*
+const sqlite3_ptr_ptr = koffi.pointer(sqlite3_ptr);    // sqlite3**
+const sqlite3_stmt_ptr = koffi.pointer(sqlite3_stmt);  // sqlite3_stmt*
+const sqlite3_stmt_ptr_ptr = koffi.pointer(sqlite3_stmt_ptr); // sqlite3_stmt**
+
+// 3. 函数签名 - 输出参数使用 koffi.out()
+const sqlite3_open = lib.func('sqlite3_open', 'int', ['str', koffi.out(sqlite3_ptr_ptr)]);
+const sqlite3_prepare_v2 = lib.func('sqlite3_prepare_v2', 'int', [
+  sqlite3_ptr, 'str', 'int', koffi.out(sqlite3_stmt_ptr_ptr), 'void *'
+]);
+
+// 4. 调用 - 输出参数用数组接收
+const outDb = [null];
+sqlite3_open('test.db', outDb);
+const db = outDb[0]; // sqlite3* 指针
+```
+
+### 常见错误及解决
+
+| 错误 | 原因 | 解决 |
+|------|------|------|
+| `Unknown or invalid type name 'pointer'` | koffi 不支持 `'pointer'` | 使用 `koffi.opaque()` + `koffi.pointer()` |
+| `Type sqlite3_ptr cannot be used as a parameter` | opaque 类型不能直接用作参数 | 用 `koffi.pointer()` 创建指针类型 |
+| `Cannot pass ambiguous value to void *` | 输出参数类型不明确 | 使用 `koffi.out()` 标记输出参数 |
+| `Invalid argument` | `koffi.as(null, 'void *')` 用法错误 | 用 `[null]` + `koffi.out()` 组合 |
+
+### DLL 下载
+
+- 地址: https://www.sqlite.org/download.html
+- 选择: Precompiled Binaries for Windows → sqlite-dll-win-x64-*.zip
+- 放置: `packages/data/lib/sqlite3.dll`
+
+**Why:** better-sqlite3 需要 Python + Visual Studio Build Tools 编译原生模块，koffi 直接调用 DLL 避免了这个复杂性。
+
+**How to apply:** 所有需要使用 SQLite 的地方都通过 `@low-code/data` 包访问，不要直接使用 better-sqlite3。
+
+---
+
+## 流程引擎数据快照设计
+
+### 设计决策（2026-06-04）
+
+- **触发方式**：采用按钮点击配置触发流程（非数据表 CREATE 触发），支持多按钮触发不同流程
+- **快照粒度**：每个节点**流出时**捕获一次快照（流出快照），非进出都捕获
+- **数据归属**：流程期间数据**只在快照表**，业务表不参与；审批结束后终态数据回写业务表
+- **快照类型**：INITIAL（启动）| NODE_COMPLETE（节点流出）| NODE_REJECT（驳回流出）| FINAL（终态）| TERMINATED（终止）
+- **变更追踪**：`changedFields` 字段记录相对上一快照的增量变更，支持子表单行级变更追踪
+- **存储设计**：独立 `workflow_snapshots` 表，数据只读不可变
+- **节点表单**：每个审批节点可独立配置表单视图（readonly/editable/hidden），数据从快照表加载
+
+### 实现流程
+
+- 流程启动：业务表写草稿占位（status=pending），初始快照写入快照表
+- 节点处理：从快照表加载最新流出快照渲染表单，节点流出时写入新快照（业务表不动）
+- 审批结束：终态快照数据回写业务表，status 更新为终态
+- 参见 [workflow-engine.md](docs/workflow-engine.md) 快照机制章节
+
+---
+
+## 表单运行时架构
+
+已创建 [docs/form-runtime-architecture.md](docs/form-runtime-architecture.md)，作为 `docs/form-engine.md` 的运行时实现层补充。表单引擎现为自动渲染引擎的子模块。
+
+### 核心机制
+
+1. **初始值注入 (FormDataContext)** — 统一数据模型，支持 5 种来源（默认值/URL参数/草稿/业务数据/快照），按优先级合并，初始化时静默执行联动
+2. **联动执行引擎 (LinkageEngine)** — 触发索引 + DAG 拓扑排序 + 批量更新，支持值联动/选项联动/显隐联动/属性联动的运行时执行，含循环依赖检测
+3. **组件事件桥接 (EventBridge + ActionSystem)** — 组件保持纯净只触发原生事件，桥接层将设计器配置的事件 Schema 编译为可执行函数，定义了 17 种标准动作类型（setValue/submit/apiCall/customScript 等）
+4. **弹框栈机制 (ModalStack)** — `showModal` 返回 Promise 阻塞 action chain，`closeModal` 携带 result resolve 该 Promise，通过栈结构支持多层弹框嵌套（A→B→C 逐级返回），级联关闭防止幽灵弹框
+
+### 关键实现文件
+
+- `packages/renderer/src/core/ModalStack.ts` — 弹框栈管理器
+- `packages/shared/src/types/actions.ts` — ActionContext 类型（showModal 返回 Promise，closeModal 接受 result）
+- `packages/renderer/src/core/ActionRegistry.ts` — showModal/closeModal 执行器
+- `packages/renderer/src/core/Renderer.tsx` — 注入 ModalStack 到 ActionContext
