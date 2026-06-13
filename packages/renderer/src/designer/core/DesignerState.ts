@@ -1,0 +1,264 @@
+import React from 'react';
+import type {
+  PageSchema,
+  ComponentNode,
+  ThemeConfig,
+  ComponentRegistration,
+} from '@low-code/shared';
+
+/** 设计器状态 */
+export interface DesignerState {
+  /** 当前页面 Schema */
+  schema: PageSchema;
+  /** 选中的组件 ID */
+  selectedComponentId: string | null;
+  /** 拖拽中的组件类型 */
+  draggingType: string | null;
+  /** 预览模式 */
+  previewMode: 'design' | 'preview';
+  /** 预览设备（仅 web/mobile） */
+  previewDevice: 'web' | 'mobile';
+  /** 当前组件库 */
+  currentLibrary: string;
+  /** 组件搜索关键词 */
+  searchKeyword: string;
+  /** 操作历史（用于撤销/重做） */
+  history: PageSchema[];
+  historyIndex: number;
+}
+
+/** 设计器动作 */
+export type DesignerAction =
+  | { type: 'SET_SCHEMA'; payload: PageSchema }
+  | { type: 'ADD_COMPONENT'; payload: { node: ComponentNode; parentId?: string; index?: number } }
+  | { type: 'UPDATE_COMPONENT'; payload: { id: string; changes: Partial<ComponentNode> } }
+  | { type: 'REMOVE_COMPONENT'; payload: { id: string } }
+  | { type: 'MOVE_COMPONENT'; payload: { id: string; newParentId?: string; newIndex: number } }
+  | { type: 'SELECT_COMPONENT'; payload: string | null }
+  | { type: 'SET_DRAGGING'; payload: string | null }
+  | { type: 'SET_PREVIEW_MODE'; payload: 'design' | 'preview' }
+  | { type: 'SET_PREVIEW_DEVICE'; payload: 'web' | 'mobile' }
+  | { type: 'SET_LIBRARY'; payload: string }
+  | { type: 'SET_SEARCH'; payload: string }
+  | { type: 'UPDATE_THEME'; payload: Partial<ThemeConfig> }
+  | { type: 'UPDATE_LAYOUT'; payload: PageSchema['layout'] }
+  | { type: 'UNDO' }
+  | { type: 'REDO' };
+
+/** 设计器 Reducer */
+export function designerReducer(state: DesignerState, action: DesignerAction): DesignerState {
+  switch (action.type) {
+    case 'SET_SCHEMA':
+      return { ...state, schema: action.payload, history: [...state.history, state.schema], historyIndex: state.history.length };
+
+    case 'ADD_COMPONENT': {
+      const { node, parentId, index } = action.payload;
+      const newNode = { ...node, parentId };
+      const components = [...state.schema.components];
+
+      if (parentId) {
+        // 添加到父组件的 children
+        const parentIdx = components.findIndex((c) => c.id === parentId);
+        if (parentIdx !== -1) {
+          const parent = { ...components[parentIdx] };
+          parent.children = [...(parent.children || [])];
+          if (index !== undefined) {
+            parent.children.splice(index, 0, node.id);
+          } else {
+            parent.children.push(node.id);
+          }
+          components[parentIdx] = parent;
+        }
+      }
+
+      components.push(newNode);
+      const newSchema = { ...state.schema, components };
+      return {
+        ...state,
+        schema: newSchema,
+        selectedComponentId: node.id,
+        history: [...state.history, state.schema],
+        historyIndex: state.history.length,
+      };
+    }
+
+    case 'UPDATE_COMPONENT': {
+      const { id, changes } = action.payload;
+      const components = state.schema.components.map((c) =>
+        c.id === id ? { ...c, ...changes } : c,
+      );
+      const newSchema = { ...state.schema, components };
+      return {
+        ...state,
+        schema: newSchema,
+        history: [...state.history, state.schema],
+        historyIndex: state.history.length,
+      };
+    }
+
+    case 'REMOVE_COMPONENT': {
+      const { id } = action.payload;
+      // 递归收集要删除的组件 ID
+      const idsToRemove = new Set<string>();
+      const collectIds = (componentId: string) => {
+        idsToRemove.add(componentId);
+        const node = state.schema.components.find((c) => c.id === componentId);
+        if (node?.children) {
+          node.children.forEach(collectIds);
+        }
+      };
+      collectIds(id);
+
+      // 从父组件的 children 中移除
+      const targetNode = state.schema.components.find((c) => c.id === id);
+      let components = state.schema.components.filter((c) => !idsToRemove.has(c.id));
+
+      if (targetNode?.parentId) {
+        components = components.map((c) => {
+          if (c.id === targetNode.parentId) {
+            return {
+              ...c,
+              children: (c.children || []).filter((childId) => childId !== id),
+            };
+          }
+          return c;
+        });
+      }
+
+      const newSchema = { ...state.schema, components };
+      return {
+        ...state,
+        schema: newSchema,
+        selectedComponentId: state.selectedComponentId === id ? null : state.selectedComponentId,
+        history: [...state.history, state.schema],
+        historyIndex: state.history.length,
+      };
+    }
+
+    case 'MOVE_COMPONENT': {
+      const { id, newParentId, newIndex } = action.payload;
+      const components = [...state.schema.components];
+      const node = components.find((c) => c.id === id);
+      if (!node) return state;
+
+      // 从旧父组件移除
+      if (node.parentId) {
+        const oldParentIdx = components.findIndex((c) => c.id === node.parentId);
+        if (oldParentIdx !== -1) {
+          const oldParent = { ...components[oldParentIdx] };
+          oldParent.children = (oldParent.children || []).filter((childId) => childId !== id);
+          components[oldParentIdx] = oldParent;
+        }
+      }
+
+      // 添加到新父组件
+      const nodeIdx = components.findIndex((c) => c.id === id);
+      components[nodeIdx] = { ...node, parentId: newParentId };
+
+      if (newParentId) {
+        const newParentIdx = components.findIndex((c) => c.id === newParentId);
+        if (newParentIdx !== -1) {
+          const newParent = { ...components[newParentIdx] };
+          newParent.children = [...(newParent.children || [])];
+          newParent.children.splice(newIndex, 0, id);
+          components[newParentIdx] = newParent;
+        }
+      }
+
+      const newSchema = { ...state.schema, components };
+      return {
+        ...state,
+        schema: newSchema,
+        history: [...state.history, state.schema],
+        historyIndex: state.history.length,
+      };
+    }
+
+    case 'SELECT_COMPONENT':
+      return { ...state, selectedComponentId: action.payload };
+
+    case 'SET_DRAGGING':
+      return { ...state, draggingType: action.payload };
+
+    case 'SET_PREVIEW_MODE':
+      return { ...state, previewMode: action.payload };
+
+    case 'SET_PREVIEW_DEVICE':
+      return { ...state, previewDevice: action.payload };
+
+    case 'SET_LIBRARY':
+      return { ...state, currentLibrary: action.payload };
+
+    case 'SET_SEARCH':
+      return { ...state, searchKeyword: action.payload };
+
+    case 'UPDATE_THEME': {
+      const newSchema = {
+        ...state.schema,
+        theme: { ...state.schema.theme, ...action.payload } as ThemeConfig,
+      };
+      return {
+        ...state,
+        schema: newSchema,
+        history: [...state.history, state.schema],
+        historyIndex: state.history.length,
+      };
+    }
+
+    case 'UPDATE_LAYOUT': {
+      const newSchema = { ...state.schema, layout: action.payload };
+      return {
+        ...state,
+        schema: newSchema,
+        history: [...state.history, state.schema],
+        historyIndex: state.history.length,
+      };
+    }
+
+    case 'UNDO': {
+      if (state.historyIndex <= 0) return state;
+      const newIndex = state.historyIndex - 1;
+      return {
+        ...state,
+        schema: state.history[newIndex],
+        historyIndex: newIndex,
+      };
+    }
+
+    case 'REDO': {
+      if (state.historyIndex >= state.history.length - 1) return state;
+      const newIndex = state.historyIndex + 1;
+      return {
+        ...state,
+        schema: state.history[newIndex],
+        historyIndex: newIndex,
+      };
+    }
+
+    default:
+      return state;
+  }
+}
+
+/** 创建初始状态 */
+export function createInitialDesignerState(schema?: PageSchema): DesignerState {
+  const defaultSchema: PageSchema = {
+    pageId: `page_${Date.now()}`,
+    title: '新页面',
+    route: '/new-page',
+    layout: { type: 'flex', direction: 'column', gap: 16 },
+    components: [],
+  };
+
+  return {
+    schema: schema || defaultSchema,
+    selectedComponentId: null,
+    draggingType: null,
+    previewMode: 'design',
+    previewDevice: 'web',
+    currentLibrary: 'antd',
+    searchKeyword: '',
+    history: [],
+    historyIndex: -1,
+  };
+}

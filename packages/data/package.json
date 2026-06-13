@@ -1,0 +1,15 @@
+{
+  "name": "@low-code/data",
+  "version": "1.0.0",
+  "description": "数据层 — 租户级 SQLite 存储引擎（koffi FFI）",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "koffi": "^2.8.0"
+  },
+  "devDependencies": {}
+}

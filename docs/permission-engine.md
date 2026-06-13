@@ -32,7 +32,6 @@ const BUILTIN_ROLES = [
   { roleId: 'super_admin',         name: '超级管理员', level: 'platform' },
   { roleId: 'tenant_admin',        name: '租户管理员', level: 'tenant' },
   { roleId: 'app_admin',           name: '应用管理员', level: 'app' },
-  { roleId: 'app_viewer',          name: '应用查看者', level: 'app' },
   { roleId: 'department_default',  name: '部门默认角色', level: 'business' },
 ];
 ```
@@ -59,8 +58,8 @@ const DEPARTMENT_DEFAULT_PERMISSIONS = [
 ```
 继承链示例：
 
-app_viewer (内置: 只读)
-  └── 业务员 (自定义: baseRoleIds=['app_viewer'] + 按钮"新建订单"权限)
+department_default (内置: 只读)
+  └── 业务员 (自定义: baseRoleIds=['department_default'] + 按钮"新建订单"权限)
         └── 高级业务员 (自定义: baseRoleIds=['业务员'] + 按钮"审批订单"权限)
 ```
 
@@ -252,16 +251,17 @@ interface ButtonPermissionConfig {
 
 ## 应用管理员权限
 
-应用管理员是租户内某个应用的管理者，其权限由 `app_admin_roles` 字典定义：
+每个应用分配一个管理员，负责该应用所有资源的配置管理：
 
-| 资源类型 | admin | viewer |
-|---------|-------|--------|
-| 页面 | 创建/编辑/删除/发布 | 只读 |
-| 实体 | 创建/编辑/删除 | 只读 |
-| 数据表 | 创建/编辑/删除/导入/导出 | 只读 |
-| 流程 | 创建/编辑/删除/启用/停用 | 只读 |
-| 运算 | 创建/编辑/删除 | 只读 |
-| 权限 | 查看/编辑 | 不可访问 |
+| 资源类型 | 管理员权限 |
+|---------|-----------|
+| 页面 | 创建/编辑/删除/发布 |
+| 卡片 | 创建/编辑/删除 |
+| 表单 | 创建/编辑/删除 |
+| 数据表 | 创建/编辑/删除/导入/导出 |
+| 流程 | 创建/编辑/删除/启用/停用 |
+| 自动化 | 创建/编辑/删除/启用/停用 |
+| 运算 | 创建/编辑/删除 |
 
 ## 权限模型定义
 

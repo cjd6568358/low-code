@@ -1,0 +1,15 @@
+{
+  "code": "resource_types",
+  "name": "资源类型",
+  "description": "应用内资源类型枚举",
+  "scope": "global",
+  "items": [
+    { "label": "页面", "value": "page", "icon": "FileOutlined" },
+    { "label": "卡片", "value": "card", "icon": "FormOutlined" },
+    { "label": "表单", "value": "form", "icon": "FormOutlined" },
+    { "label": "数据表", "value": "table", "icon": "TableOutlined" },
+    { "label": "流程", "value": "workflow", "icon": "NodeIndexOutlined" },
+    { "label": "自动化", "value": "automation", "icon": "ThunderboltOutlined" },
+    { "label": "运算", "value": "computation", "icon": "CalculatorOutlined" }
+  ]
+}

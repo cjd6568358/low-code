@@ -1,0 +1,23 @@
+{
+  "name": "@low-code/renderer",
+  "version": "1.0.0",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@low-code/shared": "*",
+    "@low-code/computation": "*",
+    "@low-code/auto-rendering": "*",
+    "antd": "^5.20.0",
+    "@ant-design/icons": "^5.4.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0"
+  }
+}

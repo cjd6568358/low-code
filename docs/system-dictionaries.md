@@ -716,13 +716,6 @@
 
 ## 🏢 租户管理后台相关
 
-### 应用管理员角色字典 (app_admin_roles)
-
-| code | name | 说明 |
-|------|------|------|
-| admin | 管理员 | 应用完整配置权限（页面/实体/数据表/流程/运算/权限） |
-| viewer | 查看者 | 只读权限 |
-
 ### OpenKey 状态字典 (openkey_statuses)
 
 | code | name | 说明 |

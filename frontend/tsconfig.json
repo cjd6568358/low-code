@@ -1,0 +1,20 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "outDir": "dist",
+    "rootDir": "..",
+    "baseUrl": ".",
+    "paths": {
+      "@low-code/shared": ["../packages/shared/src"],
+      "@low-code/computation": ["../packages/computation/src"],
+      "@low-code/renderer": ["../packages/renderer/src"],
+      "@low-code/auto-rendering": ["../packages/auto-rendering/src"],
+      "@low-code/data": ["../packages/data/src"]
+    }
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
+}

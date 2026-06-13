@@ -1,0 +1,11 @@
+{
+  "code": "tenant_statuses",
+  "name": "租户状态",
+  "description": "租户账户状态",
+  "scope": "global",
+  "items": [
+    { "label": "正常", "value": "active", "color": "green" },
+    { "label": "冻结", "value": "suspended", "color": "orange" },
+    { "label": "已注销", "value": "deleted", "color": "red" }
+  ]
+}

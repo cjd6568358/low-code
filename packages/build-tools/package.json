@@ -1,0 +1,21 @@
+{
+  "name": "@low-code/build-tools",
+  "version": "1.0.0",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "bin": {
+    "lc-schema": "src/cli.ts"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@low-code/shared": "*",
+    "typescript": "^5.4.0",
+    "glob": "^10.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0"
+  }
+}

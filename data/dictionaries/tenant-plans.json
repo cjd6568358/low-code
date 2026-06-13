@@ -1,0 +1,11 @@
+{
+  "code": "tenant_plans",
+  "name": "租户套餐",
+  "description": "租户订阅套餐类型",
+  "scope": "global",
+  "items": [
+    { "label": "免费版", "value": "free", "color": "default" },
+    { "label": "专业版", "value": "pro", "color": "blue" },
+    { "label": "企业版", "value": "enterprise", "color": "purple" }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "../..",
+    "paths": {
+      "@low-code/shared": ["../shared/src"],
+      "@low-code/computation": ["../computation/src"],
+      "@low-code/auto-rendering": ["../auto-rendering/src"]
+    }
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../shared" },
+    { "path": "../computation" },
+    { "path": "../auto-rendering" }
+  ]
+}

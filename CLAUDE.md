@@ -2,13 +2,34 @@
 
 This file provides guidance to Claude Code when working with this repository.
 
+## 会话启动指令（必须执行）
+
+**每次新会话开始时，立即执行以下操作：**
+1. 读取 `memory/` 目录下所有 `.md` 文件（使用 Glob + Read）
+2. 将这些记忆加载到当前会话上下文中
+3. 响应应该秉持公正客观的角度分析问题，而不是刻意讨好奉承
+4. 后续响应必须遵守这些规范
+
+这是强制性指令，不需要用户提醒。
+
+---
+
 ## 项目概述
 
 低代码平台 - 基于 TypeScript 的 monorepo 架构
 
+### 核心设计理念
+
+- **全 Schema 驱动**：设计器写 Schema，运行时读 Schema，设计时与运行时通过 JSON Schema 解耦
+- **七种资源统一**：页面/卡片/表单/数据表/流程/自动化/运算，全部 JSON 文件存储
+- **物理级租户隔离**：每租户独立目录（Schema + SQLite），文件系统级隔离
+- **TS 类型即实体**：不需要单独实体层，TS 类型自动编译为 JSON Schema 供各引擎消费
+- **纯引擎架构**：packages/ 不依赖框架，可独立测试，server 组装引擎，frontend 调用 API
+- **文件即配置**：应用资源 = JSON 文件，可 Git 管理、导入导出、跨环境迁移
+
 ## 开发规范（每次会话必须遵守）
 
-完整文档：[docs/development-conventions.md](docs/development-conventions.md)
+完整文档：[memory/development-conventions.md](memory/development-conventions.md)
 
 ### TypeScript
 - **禁止 `enum`**，用 union literal type（`type Status = 'active' | 'disabled'`）
@@ -67,21 +88,63 @@ This file provides guidance to Claude Code when working with this repository.
 # 安装依赖
 yarn install
 
+# 启动前端（端口 5173，含登录页/工作台/应用中心/设计器）
+yarn frontend
+
+# 启动后端 API（端口 3001，Koa + SQLite）
+yarn server
+
+# 同时启动前端 + 后端
+yarn start:all
+
+# 生成演示数据（山水集团）
+npx tsx packages/data/scripts/seed-shansui.ts
+
 # 构建所有包
 yarn build
 
 # 运行测试
 yarn test
-
-# 类型检查
-yarn typecheck
 ```
 
 ## 架构说明
 
-- `packages/` - 核心包
-- `data/` - 数据存储
-- `docs/` - 项目文档
+```
+frontend/        ← 前端门户（Vite + React，端口 5173）
+  src/auth/        认证（AuthContext、ProtectedRoute、mockAuth）
+  src/components/  通用组件（PermissionGuard）
+  src/layouts/     布局（MainLayout）
+  src/pages/       页面（LoginPage、WorkspacePage、AppCenterPage、WorkflowCenterPage、ConfigCenterPage、DesignerPage）
+  src/styles/      全局样式
+server/          ← 后端 API（Koa，端口 3001）
+  src/config/      配置（端口、DB 单例）
+  src/middlewares/  中间件（错误、CORS、日志）
+  src/routes/      路由（auth、health）
+  src/services/    业务服务层（预留）
+packages/        ← 引擎层（纯逻辑，无框架依赖）
+tenants/         ← 租户数据（Schema + SQLite，每租户独立目录）
+data/            ← 系统级数据（_system.db）
+docs/            ← 项目文档
+TODO.md          ← 技术难点与工作计划
+```
+
+### 分层职责
+
+| 层 | 目录 | 职责 |
+|----|------|------|
+| 应用层 | `frontend/` | React UI，调用 API，路由，认证 |
+| 服务层 | `server/` | Koa API，组装引擎，中间件，路由 |
+| 引擎层 | `packages/*` | 纯逻辑：渲染/运算/数据/权限/自动渲染 |
+| 租户数据 | `tenants/{id}/` | 每租户的 apps/（Schema）+ data/（SQLite） |
+| 系统数据 | `data/` | _system.db（租户注册、平台管理员） |
+
+### 登录认证流程
+
+1. 前端 POST `/api/auth/login` { email, password }
+2. 后端遍历活跃租户，在租户库中查找用户
+3. scrypt 验证密码，查询角色/部门/岗位
+4. 返回用户信息（含角色），前端存 sessionStorage
+5. 前端根据角色渲染菜单和权限（PermissionGuard）
 
 ---
 

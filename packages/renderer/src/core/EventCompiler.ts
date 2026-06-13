@@ -1,0 +1,182 @@
+import type { ActionChain, ActionStep, ActionContext } from '@low-code/shared';
+import type { ActionRegistryImpl } from './ActionRegistry';
+import type { DefaultExpressionEngine } from '@low-code/computation';
+
+/** 编译后的事件处理器 */
+export type CompiledEventHandler = (
+  event: any,
+  context: ActionContext,
+) => Promise<any>;
+
+/**
+ * 事件编译器
+ * 将 ActionChain JSON 编译为可执行的异步函数
+ */
+export class EventCompiler {
+  constructor(
+    private actionRegistry: ActionRegistryImpl,
+    private expressionEngine: DefaultExpressionEngine,
+  ) {}
+
+  /**
+   * 编译整个事件映射
+   * 文档定义 events 为 Record<string, ActionChain[]>，每个事件可有多条动作链
+   */
+  compileEvents(
+    events: Record<string, ActionChain[]>,
+    baseContext: ActionContext,
+  ): Record<string, CompiledEventHandler> {
+    const handlers: Record<string, CompiledEventHandler> = {};
+    for (const [eventName, chains] of Object.entries(events)) {
+      handlers[eventName] = this.compileChains(chains, baseContext);
+    }
+    return handlers;
+  }
+
+  /**
+   * 编译多条动作链（同一事件的多条链按顺序执行）
+   */
+  compileChains(
+    chains: ActionChain[],
+    baseContext: ActionContext,
+  ): CompiledEventHandler {
+    return async (event: any, overrideContext?: Partial<ActionContext>) => {
+      const context: ActionContext = {
+        ...baseContext,
+        ...overrideContext,
+        event,
+      };
+
+      let $result: any = undefined;
+
+      for (const chain of chains) {
+        $result = await this.executeChain(chain, context, $result);
+      }
+
+      return $result;
+    };
+  }
+
+  /**
+   * 编译单条动作链（保留用于外部直接调用）
+   */
+  compileChain(
+    chain: ActionChain,
+    baseContext: ActionContext,
+  ): CompiledEventHandler {
+    return async (event: any, overrideContext?: Partial<ActionContext>) => {
+      const context: ActionContext = {
+        ...baseContext,
+        ...overrideContext,
+        event,
+      };
+      return this.executeChain(chain, context);
+    };
+  }
+
+  /**
+   * 执行单条动作链
+   */
+  private async executeChain(
+    chain: ActionChain,
+    context: ActionContext,
+    initialResult?: any,
+  ): Promise<any> {
+    let $result: any = initialResult;
+
+    for (const step of chain) {
+      try {
+        $result = await this.executeStep(step, context, $result);
+      } catch (e) {
+        console.error(`Action step "${step.action}" failed:`, e);
+        if (!step.continueOnError) break;
+      }
+    }
+
+    return $result;
+  }
+
+  /**
+   * 执行单个动作步骤
+   */
+  private async executeStep(
+    step: ActionStep,
+    context: ActionContext,
+    $result: any,
+  ): Promise<any> {
+    // 1. 条件判断
+    if (step.condition) {
+      const conditionResult = this.expressionEngine.safeEvaluate(
+        step.condition,
+        { ...context.renderContext, $result, $event: context.event },
+      );
+      if (!conditionResult) {
+        // 条件不满足，执行 else 分支
+        if (step.else) {
+          return this.executeSubChain(step.else, context, $result);
+        }
+        return $result;
+      }
+    }
+
+    // 2. 条件分支动作（特殊处理）
+    if (step.action === 'condition' && step.params) {
+      const { condition, then: thenActions, else: elseActions } = step.params;
+      const conditionResult = this.expressionEngine.safeEvaluate(
+        condition,
+        { ...context.renderContext, $result, $event: context.event },
+      );
+      if (conditionResult && thenActions) {
+        return this.executeSubChain(thenActions, context, $result);
+      } else if (!conditionResult && elseActions) {
+        return this.executeSubChain(elseActions, context, $result);
+      }
+      return $result;
+    }
+
+    // 3. 解析模板变量
+    const resolvedParams = this.resolveParams(step.params || {}, {
+      ...context.renderContext,
+      $result,
+      $event: context.event,
+    });
+
+    // 4. 执行动作
+    const executor = this.actionRegistry.resolve(step.action);
+    if (!executor) {
+      console.warn(`Unknown action: ${step.action}`);
+      return $result;
+    }
+
+    return executor.execute(resolvedParams, { ...context, $result });
+  }
+
+  /**
+   * 执行子动作链
+   */
+  private async executeSubChain(
+    steps: ActionStep[],
+    context: ActionContext,
+    $result: any,
+  ): Promise<any> {
+    for (const step of steps) {
+      try {
+        $result = await this.executeStep(step, context, $result);
+      } catch (e) {
+        console.error(`Sub-chain action "${step.action}" failed:`, e);
+        if (!step.continueOnError) break;
+      }
+    }
+    return $result;
+  }
+
+  /**
+   * 解析参数中的模板变量 {{path}}
+   */
+  private resolveParams(
+    params: Record<string, any>,
+    context: Record<string, any>,
+  ): Record<string, any> {
+    return this.expressionEngine.resolveTemplateParams(params, context);
+  }
+}

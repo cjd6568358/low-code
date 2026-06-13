@@ -1,8 +1,25 @@
 # 渲染引擎 (Render Engine)
 
-渲染引擎是平台的核心模块，涵盖**页面设计器**和**运行时渲染器**两大部分。
+渲染引擎是平台的核心模块，涵盖**统一设计器**和**运行时渲染器**两大部分。
 
-## 页面设计器
+## 统一设计器
+
+统一设计器是应用资源的统一设计入口，路由格式：`/designer/:resourceType/:id`。
+
+支持七种资源类型：
+
+| 资源类型 | 路由 | 说明 |
+|---------|------|------|
+| 应用 | `/designer/app/:id` | 应用资源概览，展示所有资源列表 |
+| 页面 | `/designer/page/:id` | 三栏可视化页面设计器 |
+| 卡片 | `/designer/card/:id` | 自定义卡片编辑器 |
+| 表单 | `/designer/form/:id` | 数据录入表单编辑器 |
+| 数据表 | `/designer/table/:id` | 数据表结构编辑器 |
+| 流程 | `/designer/workflow/:id` | 流程编排编辑器 |
+| 自动化 | `/designer/automation/:id` | ECA 规则编辑器 |
+| 运算 | `/designer/computation/:id` | 运算规则编辑器 |
+
+### 页面设计器
 
 页面设计器采用**三栏布局**，提供直观高效的可视化搭建体验。设计器采用统一的 **Web 布局**，Mobile/小程序通过环境变量微调布局细节。
 
@@ -1131,7 +1148,7 @@ interface ComponentNode {
 
 /** 布局配置 */
 interface LayoutConfig {
-  type: 'grid' | 'flex' | 'absolute';
+  type: 'grid' | 'flex';
   columns?: number;                      // grid 列数（默认 24）
   gap?: number;                          // 间距
   direction?: 'row' | 'column';         // flex 方向
@@ -1439,3 +1456,238 @@ App/                                # 租户应用资源（可导出/导入）
 - **版本控制**：纳入 Git 管理
 - **导出/导入**：应用级资源打包为 ZIP，跨环境迁移
 - **差异对比**：JSON 结构化 diff
+
+---
+
+## 组件级数据源与刷新机制
+
+### 组件级数据源配置
+
+每个组件支持独立的数据源配置，无需依赖页面级数据源。数据源结果自动注入到组件的指定属性。
+
+```typescript
+/** 组件级数据源配置 */
+interface ComponentDataSource {
+  /** 数据源类型 */
+  type: 'api' | 'server-variable';
+  /** API 类型配置 */
+  api?: ComponentApiConfig;
+  /** 服务端变量表达式（如 $table.user.filter(...)） */
+  serverVariable?: string;
+  /** 目标属性（数据源结果注入到哪个 props） */
+  targetProp: string;
+  /** 是否自动加载（默认 true） */
+  autoLoad?: boolean;
+  /** 依赖的变量路径列表（用于依赖分析） */
+  dependencies?: string[];
+}
+```
+
+#### 配置示例
+
+```jsonc
+{
+  "id": "dept_select",
+  "type": "select",
+  "dataSource": {
+    "type": "api",
+    "api": {
+      "url": "/api/departments",
+      "method": "GET",
+      "params": { "status": "$form.filterStatus" },
+      "dataPath": "data.list"
+    },
+    "targetProp": "options",
+    "autoLoad": true,
+    "dependencies": ["$form.filterStatus"]
+  },
+  "props": {
+    "placeholder": "请选择部门"
+  }
+}
+```
+
+### 组件级刷新
+
+每个组件支持 `refreshAll()` 和 `refreshProps()` 方法，用于重新加载数据源或重新解析变量绑定。
+
+```typescript
+// 刷新组件所有属性（包括重新加载数据源）
+await actionContext.refreshComponent('dept_select');
+
+// 刷新组件指定属性
+await actionContext.refreshComponent('dept_select', ['options', 'value']);
+
+// 按依赖顺序刷新多个组件
+await actionContext.refreshWithDependencyOrder(['dept_select', 'user_select']);
+```
+
+#### 使用场景
+
+```jsonc
+// 列表页新增记录后，刷新下拉框数据源
+{
+  "id": "add_btn",
+  "type": "button",
+  "events": {
+    "onClick": [
+      { "action": "showModal", "params": { "modalId": "add_form" } },
+      {
+        "action": "refreshComponent",
+        "condition": "$result.success === true",
+        "params": { "target": "dept_select" }
+      }
+    ]
+  }
+}
+```
+
+### 统一依赖图
+
+统一依赖图管理器（`UnifiedDependencyGraph`）打通了 `LinkageEngine`、`DataSourceManager` 和组件依赖，支持全局依赖分析和按顺序更新。
+
+#### 核心能力
+
+1. **依赖注册**：注册组件、数据源、字段联动的依赖关系
+2. **影响分析**：分析变量变更后受影响的组件、数据源、字段
+3. **拓扑排序**：生成按依赖顺序的更新序列
+4. **循环检测**：检测并处理循环依赖
+
+```typescript
+// 分析变更影响
+const impact = actionContext.analyzeChangeImpact(new Set(['$form.status', '$context.currentUser']));
+console.log(impact.directAffectedComponents);  // 直接受影响的组件
+console.log(impact.updateOrder);                // 按拓扑排序的更新顺序
+```
+
+#### 依赖顺序更新示例
+
+场景：B 组件的 `label` 依赖 A 组件的 `value`
+
+```jsonc
+{
+  "components": [
+    {
+      "id": "component_a",
+      "type": "input",
+      "props": { "value": "$user.name" }
+    },
+    {
+      "id": "component_b",
+      "type": "text",
+      "props": { "label": "$components.component_a.value" }
+    }
+  ]
+}
+```
+
+当 `$user.name` 变化时：
+1. 统一依赖图分析出 `component_a` 直接受影响
+2. `component_b` 依赖 `component_a`，间接受影响
+3. 按拓扑排序：先更新 `component_a`，再更新 `component_b`
+
+### 服务端变量解析器
+
+服务端变量解析器（`ServerVariableResolver`）支持声明式查询语法，前端写查询描述，后端执行实际查询。
+
+#### 语法规范
+
+```
+$table.{table}                           // 基础查询
+  .filter(record=>record.field==value)   // 过滤条件
+  .select('field1', 'field2')           // 选择字段
+  .sort('field', 'asc'|'desc')          // 排序
+  .limit(n)                              // 限制数量
+  .first()                               // 取第一条
+  .count()                               // 统计数量
+  .sum('field')                          // 求和
+  .avg('field')                          // 平均值
+```
+
+#### 配置示例
+
+```jsonc
+{
+  "id": "user_select",
+  "type": "select",
+  "dataSource": {
+    "type": "server-variable",
+    "serverVariable": "$table.user.filter(record=>record.status=='active').select('id', 'name')",
+    "targetProp": "options"
+  }
+}
+```
+
+#### UI 配置与表达式双向转换
+
+服务端变量支持 UI 配置模式和表达式模式的双向转换：
+
+```typescript
+// UI 配置 → 表达式
+const uiConfig = {
+  table: 'user',
+  select: ['id', 'name'],
+  filters: [{ field: 'status', operator: '==', value: 'active', valueSource: 'literal' }]
+};
+const expression = serverVariableResolver.uiConfigToExpression(uiConfig);
+// 结果：$table.user.filter(record=>record.status=='active').select('id', 'name')
+
+// 表达式 → UI 配置
+const parsedConfig = serverVariableResolver.expressionToUIConfig(expression);
+// 结果：{ table: 'user', select: ['id', 'name'], filters: [...] }
+```
+
+#### 权限控制
+
+服务端变量查询需要后端进行权限校验：
+
+```typescript
+// 后端查询执行流程
+POST /api/query
+{
+  "table": "user",
+  "where": { "status": "active" },
+  "select": ["id", "name"]
+}
+
+// 后端执行：
+// 1. 校验用户是否有 user 表的查询权限
+// 2. 注入行级过滤条件（如：只能查自己部门的数据）
+// 3. 转换为 SQL 执行
+// SELECT id, name FROM user WHERE status = ? AND department_id = ?
+```
+
+### 模块依赖关系
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      UnifiedDependencyGraph                  │
+│  (统一管理组件/数据源/字段联动的依赖关系)                      │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐     │
+│  │ LinkageEngine│    │ DataSource  │    │ Component   │     │
+│  │ (字段联动)   │    │ Manager     │    │ Refresh     │     │
+│  │             │    │ (页面级)    │    │ Manager     │     │
+│  └──────┬──────┘    └──────┬──────┘    └──────┬──────┘     │
+│         │                  │                  │             │
+│         └──────────────────┼──────────────────┘             │
+│                            │                                │
+│                            ▼                                │
+│                   ┌─────────────────┐                       │
+│                   │  Renderer.tsx   │                       │
+│                   │  (统一渲染)     │                       │
+│                   │  refreshComp()  │                       │
+│                   └─────────────────┘                       │
+│                                                             │
+│  ┌─────────────────┐                                        │
+│  │ ServerVariable  │                                        │
+│  │ Resolver        │                                        │
+│  │ (服务端变量)    │                                        │
+│  └────────┬────────┘                                        │
+│           │                                                 │
+│           ▼                                                 │
+│  POST /api/query → 后端执行 SQL                             │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```

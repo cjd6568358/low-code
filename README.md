@@ -1,6 +1,38 @@
 # Low Code Platform
 
-一个企业级低代码平台，支持多端页面渲染、流程编排、数据管理、运算引擎和细粒度权限控制。支持多租户 SaaS 模式与私有化部署。
+一个企业级低代码平台，支持多端页面渲染、流程编排、数据管理、运算引擎和细粒度权限控制。SaaS 多租户架构，每租户独立 SQLite 数据库隔离。
+
+---
+
+## ✨ 系统亮点
+
+### 1. 全 Schema 驱动
+
+系统的一切皆 Schema。设计器负责**写** Schema，运行时引擎负责**读** Schema 渲染/执行。设计时与运行时通过 JSON Schema 文件完全解耦，同一份 Schema 可驱动 Web、Mobile、小程序多端渲染。
+
+### 2. 七种资源统一管理
+
+页面、卡片、表单、数据表、流程、自动化、运算 — 七种资源类型全部以 JSON Schema 文件存储在 `tenants/{tenantId}/apps/{appId}/` 下，统一入口、统一格式、统一版本管理。
+
+### 3. 物理级租户隔离
+
+每租户一个独立目录（`tenants/{tenantId}/`），同时包含应用 Schema（JSON 文件）和业务数据（SQLite），完全自包含。不同租户的数据在文件系统层面物理隔离，不存在跨租户数据泄露风险。
+
+### 4. TypeScript 类型即实体
+
+不需要单独的实体定义层。TypeScript 类型系统本身就是数据模型的唯一真相源，`build-tools` 将 TS 类型自动编译为 JSON Schema，供渲染引擎、流程引擎、数据引擎、运算引擎、权限引擎自动映射消费。
+
+### 5. 纯引擎架构
+
+`packages/` 下的引擎层不依赖任何框架（无 Koa、无 React），可独立测试、独立复用。`server/` 负责组装引擎暴露 API，`frontend/` 负责调用 API 渲染 UI。引擎之间通过类型契约协作，不直接耦合。
+
+### 6. 文件即配置
+
+所有应用资源以 JSON 文件形式存储，可纳入 Git 版本管理、可导入导出、可跨环境迁移。一个应用的完整定义就是 `tenants/{tenantId}/apps/{appId}/` 目录下的所有文件，拷贝目录即迁移应用。
+
+### 7. UUID 资源标识
+
+租户 ID 和应用 ID 使用 8 位随机 hex 生成，每次创建时校验唯一性，避免拼音/语义命名冲突，支持多租户大规模部署。
 
 ---
 
@@ -18,9 +50,7 @@
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                       核心服务层 (Core Services)                              │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│                       数据存储层 (SQLite per-tenant)                           │
-├─────────────────────────────────────────────────────────────────────────────┤
-│         SaaS 模式                    │          私有化部署模式                  │
+│                   数据存储层 (SQLite per-tenant isolation)                    │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -30,10 +60,10 @@
 
 用户可创建应用，每个应用包含页面、数据表、流程等资源，支持导出为静态 JSON Schema 文件。
 
-- **应用创建**：支持空白应用和模板创建
-- **实体定义**：配置应用级实体对象（Entity），统一定义字段、关系、校验规则，供渲染/流程/自动化/数据/运算/权限各引擎复用
+- **应用创建**：支持从空白创建、从已有应用复制、从应用市场导入三种方式
+- **应用发布**：草稿应用可发布上线，发布后员工可见可使用
 - **页面设计**：可视化拖拽搭建，支持多页面路由配置
-- **数据表管理**：可视化创建数据表，配置字段类型、校验规则、索引。数据表作为数据中心，支持跨应用数据共享与读写
+- **数据表管理**：可视化创建数据表，配置字段类型、校验规则、索引。数据表默认仅限当前应用使用，需显式开放权限后方可被其他应用引用
 - **版本管理**：应用版本快照，支持版本回滚与对比，支持锁定组件库版本确保兼容性
 - **配置导出**：导出为 JSON Schema 文件，支持离线部署、版本控制、跨环境迁移
 - **数据导出**：支持数据导出（CSV/Excel/SQL）、数据迁移（跨环境/跨库）、数据备份与恢复
@@ -44,11 +74,15 @@
 
 ## 🎨 渲染引擎
 
-涵盖**页面设计器**和**运行时渲染器**。
+涵盖**统一设计器**和**运行时渲染器**。
 
-### 页面设计器
+### 统一设计器
 
-三栏布局：左侧基础组件面板 / 中间设计区+预览 / 右侧属性配置面板。设计器采用统一 Web 布局，预览支持 Web / Mobile 切换。
+应用资源的统一设计入口，支持页面、卡片、表单、数据表、流程、自动化、运算七种资源类型。路由格式：`/designer/:resourceType/:id`。
+
+- **应用资源概览**（`/designer/app/:id`）：展示应用内所有资源（页面/数据表/流程等），点击进入对应资源编辑器
+- **页面设计器**（`/designer/page/:id`）：三栏布局，左侧基础组件面板 / 中间设计区+预览 / 右侧属性配置面板，预览支持 Web / Mobile 切换
+- **其他资源编辑器**（`/designer/card|form|table|workflow|automation|computation/:id`）：各资源专属编辑器（待实现）
 
 - **拖拽开发**：基于 DND 实现可视化页面搭建，支持面板→画布添加、画布内拖拽排序，拖拽时显示阴影效果和蓝色放置标准线
 - **组件库配置**：组件库在应用创建时指定（如 Ant Design / Element Plus），后续所有页面/卡片共用，设计器中不可切换。左侧基础组件为所有组件库的交集子集，确保跨库通用
@@ -145,30 +179,29 @@
 
 ---
 
-## 🏢 多租户与部署模式
+## 🏢 多租户架构
 
-支持 **SaaS 多租户** 和 **私有化部署** 两种模式。
+SaaS 多租户模式，每个租户独立 SQLite 数据库文件，互不干扰。
 
-- **SaaS 模式**：租户隔离、配额管理、计量计费、租户级配置、资源弹性
-- **私有化部署**：Docker Compose / K8s / 离线安装包，支持企业 SSO 集成
-- **双模式对比**：SaaS 按需订阅 vs 私有化数据自主可控
-
-> 📄 详见 [部署模式文档](docs/deployment.md)
+- **租户隔离**：每租户独立 `.db` 文件，数据物理隔离
+- **配额管理**：按套餐控制用户数、应用数、存储空间
+- **计量计费**：API 调用量、存储使用量统计
+- **租户级配置**：字典、角色、权限、组织架构独立管理
 
 ---
 
 ## 🖥️ 租户管理后台
 
-SaaS 模式下的租户级管理控制台，包含**应用中心**、**协作中心**、**配置中心**三大模块。
+SaaS 模式下的租户级管理控制台，包含**工作台**、**应用中心**、**流程中心**、**配置中心**三大模块。
 
 ### 应用中心
 
 - **应用列表**：管理租户内所有应用，支持创建/发布/归档/启用/停用
 - **应用资源**：查看和管理应用内的页面、实体、数据表、流程、自动化规则
 - **应用设置**：组件库锁定、访问控制、数据保留策略、API 开放配置
-- **应用管理员**：为应用分配管理员（admin/developer/viewer），控制页面/流程/运算的配置权限
+- **应用管理员**：为应用分配一个管理员，负责该应用的页面/流程/运算等资源的配置
 
-### 协作中心
+### 流程中心
 
 - **工作流配置**：审批流程模板、审批人规则（指定人员/岗位/部门主管/发起人自选）、超时策略、回退策略
 - **协作任务**：任务分配、状态跟踪、关联应用资源
@@ -266,17 +299,15 @@ RBAC 模型实现细粒度数据鉴权。
 
 | 层级 | 技术选型 |
 |------|---------|
-| 前端框架 | React / TypeScript |
-| 设计器 | DnD Kit / 自研拖拽引擎 |
-| 组件库 | Ant Design (默认) / Element Plus |
-| 多端适配 | React Native / Taro |
-| 后端框架 | Node.js |
-| 数据库 | SQLite（租户级隔离，每个租户一个 .db 文件） |
-| 数据驱动 | better-sqlite3（同步 API，WAL 模式） |
-| 流程引擎 | 自研 / Camunda（可选） |
-| 自动化引擎 | 自研 ECA 规则引擎 |
+| 前端框架 | React 18 / TypeScript 5 |
+| 构建工具 | Vite 5 |
+| 组件库 | Ant Design 5 |
+| 路由 | React Router 6 |
+| 后端框架 | Koa 2 |
+| 数据库 | SQLite（koffi FFI 直调 sqlite3.dll，无需原生编译） |
 | 多租户 | 租户级 SQLite 文件隔离（每租户一个 .db） |
-| 容器化 | Docker / Kubernetes |
+| 包管理 | Yarn 1.22 Workspaces |
+| 测试 | Vitest 2 |
 | 认证集成 | LDAP / AD / OAuth2 / SAML 2.0 |
 
 ---
@@ -285,53 +316,62 @@ RBAC 模型实现细粒度数据鉴权。
 
 ```
 low-code/
-├── packages/
-│   ├── designer/          # 页面设计器
-│   │   ├── core/          # 设计器核心逻辑
-│   │   ├── components/    # 设计器组件
-│   │   ├── themes/        # 主题配置
-│   │   └── adapters/      # 组件库适配器 (antd/element-plus)
-│   ├── renderer/          # 渲染引擎
-│   │   ├── core/          # 运行时渲染核心
-│   │   └── adapters/      # 多端适配器 (web/mobile/miniapp)
-│   ├── workflow/          # 流程引擎
-│   ├── automation/        # 自动化引擎
-│   ├── data-engine/       # 数据引擎
-│   ├── data/              # 数据层（租户级 SQLite 存储）
-│   ├── computation/       # 运算引擎
-│   ├── auto-rendering/    # 自动渲染引擎（Schema → UI 表单）
-│   │   ├── core/          # Schema 注册中心、表单渲染器、控件注册表
-│   │   ├── controls/      # 内建控件（VariablePicker、ExpressionEditor 等）
-│   │   └── form-engine/   # 表单引擎（联动/校验/子表单/特殊控件）
-│   ├── app-manager/       # 应用管理模块
-│   ├── permission/        # 权限引擎
-│   ├── tenant/            # 多租户模块
-│   ├── message/           # 消息中心
-│   ├── marketplace/       # 应用市场
-│   ├── plugin-sdk/        # 插件开发 SDK
-│   └── shared/            # 公共类型与工具
-├── apps/
-│   ├── admin/             # 管理后台
-│   └── portal/            # 用户门户
-├── deploy/                # 部署配置
-└── docs/                  # 详细文档
-    ├── application.md
-    ├── render-engine.md
-    ├── auto-rendering-engine.md    # 自动渲染引擎文档（基础能力层）
-    ├── form-engine.md              # 表单引擎文档（自动渲染引擎子模块）
-    ├── form-runtime-architecture.md # 表单运行时架构（自动渲染引擎子模块）
-    ├── workflow-engine.md
-    ├── automation-engine.md
-    ├── data-engine.md
-    ├── computation-engine.md
-    ├── permission-engine.md
-    ├── audit-log.md
-    ├── org-integration.md
-    ├── message-center.md
-    ├── app-marketplace.md
-    ├── developer-extension.md
-    ├── deployment.md
-    └── system-dictionaries.md
+├── frontend/                          # 前端门户（Vite + React，端口 5173）
+│   └── src/
+│       ├── auth/                      # 认证（AuthContext、ProtectedRoute、mockAuth）
+│       ├── components/                # 通用组件（PermissionGuard）
+│       ├── layouts/                   # 布局（MainLayout 侧边栏+顶栏）
+│       ├── pages/                     # 页面（LoginPage、WorkspacePage、AppCenterPage、WorkflowCenterPage、ConfigCenterPage、DesignerPage）
+│       └── styles/                    # 全局样式
+│
+├── server/                            # 后端 API（Koa，端口 3001）
+│   └── src/
+│       ├── config/                    # 配置（端口、数据库路径、DB 单例）
+│       ├── middlewares/               # 中间件（错误处理、CORS、日志）
+│       ├── routes/                    # 路由（auth、health）
+│       └── services/                  # 业务服务层（预留）
+│
+├── packages/                          # 引擎层（纯逻辑，无框架依赖）
+│   ├── shared/                        # 公共类型、权限引擎
+│   ├── computation/                   # 运算引擎
+│   ├── renderer/                      # 渲染引擎 + 设计器
+│   ├── auto-rendering/                # 自动渲染引擎
+│   ├── data/                          # 数据引擎（SQLite koffi FFI）
+│   └── build-tools/                   # 构建工具（TS → JSON Schema 编译器）
+│
+├── tenants/                           # 租户数据（每租户独立目录）
+│   └── {tenantId}/                    # 8 位随机 hex ID
+│       ├── tenant.json                # 租户元数据（名称、套餐、状态、创建时间戳）
+│       ├── apps/                      # 应用 Schema
+│       │   └── {appId}/               # 8 位随机 hex ID
+│       │       ├── app.json           # 应用元信息（含 schemaVersion、version、_references）
+│       │       ├── pages/             # 页面 Schema
+│       │       ├── cards/             # 卡片 Schema
+│       │       ├── forms/             # 表单 Schema
+│       │       ├── tables/            # 数据表 Schema
+│       │       ├── workflows/         # 流程 Schema
+│       │       ├── automations/       # 自动化 Schema
+│       │       └── computations/      # 运算 Schema
+│       └── data/                      # 租户 SQLite 数据库
+│           └── tenant_{tenantId}.db
+│
+├── data/                              # 系统级数据
+│   ├── _system.db                     # 租户注册、平台管理员
+│   └── dictionaries/                  # 全局字典（JSON 格式）
+│
+├── docs/                              # 设计文档（20+）
+├── TODO.md                            # 技术难点与工作计划
+└── memory/                            # 会话记忆
+```
+
+### 架构分层
+
+```
+frontend/        ← 应用层（React UI，调用 API）
+server/          ← 核心服务层（Koa，组装引擎，暴露 API）
+packages/*       ← 引擎层（纯逻辑，可独立测试）
+tenants/         ← 租户数据（Schema + SQLite，每租户独立目录）
+data/            ← 系统级数据（_system.db）
 ```
 
 ---
@@ -340,24 +380,31 @@ low-code/
 
 ```bash
 # 安装依赖
-pnpm install
+yarn install
 
-# 启动开发环境
-pnpm dev
+# 生成演示数据（山水集团）
+npx tsx packages/data/scripts/seed-shansui.ts
 
-# 构建生产版本
-pnpm build
+# 启动前端 + 后端（同时启动）
+yarn start:all
+
+# 或分别启动
+yarn server     # 后端 API（:3001）
+yarn frontend   # 前端门户（:5173）
+
+# 构建所有包
+yarn build
+
+# 运行测试
+yarn test
 ```
 
-### Docker 快速部署
+### 演示账号
 
-```bash
-# SaaS 模式启动
-docker-compose -f deploy/docker/docker-compose.saas.yml up -d
-
-# 私有化模式启动
-docker-compose -f deploy/docker/docker-compose.private.yml up -d
-```
+| 角色 | 邮箱 | 密码 |
+|------|------|------|
+| 租户管理员 | admin@shansui.com | shansui123 |
+| 员工 | zhangsan@shansui.com | shansui123 |
 
 ---
 

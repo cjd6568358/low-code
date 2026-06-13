@@ -1,0 +1,22 @@
+{
+  "name": "@low-code/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@koa/router": "^13.1.0",
+    "koa": "^2.15.0",
+    "koa-bodyparser": "^4.4.1"
+  },
+  "devDependencies": {
+    "@types/koa": "^2.15.0",
+    "@types/koa-bodyparser": "^4.3.12",
+    "@types/koa__router": "^12.0.4",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0"
+  }
+}

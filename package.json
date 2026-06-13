@@ -1,0 +1,26 @@
+{
+  "name": "low-code-platform",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "frontend",
+    "server"
+  ],
+  "scripts": {
+    "dev": "yarn workspace @low-code/frontend dev",
+    "server": "yarn workspace @low-code/server dev",
+    "start:all": "concurrently --names server,frontend --prefix-colors blue,green \"yarn server\" \"yarn dev\"",
+    "build": "yarn workspaces foreach -A run build",
+    "test": "yarn workspaces foreach -A run test",
+    "lint": "yarn workspaces foreach -A run lint"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0",
+    "typescript": "^5.4.0",
+    "vitest": "^2.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "packageManager": "yarn@1.22.22"
+}
