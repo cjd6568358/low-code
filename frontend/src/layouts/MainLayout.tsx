@@ -29,46 +29,50 @@ export default function MainLayout() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  /** 侧边栏菜单项 */
+  const tenantId = user?.tenantId || '';
+
+  /** Sidebar menu items */
   const menuItems = useMemo<MenuItem[]>(() => {
+    const prefix = `/${tenantId}`;
     const items: MenuItem[] = [
       {
-        key: '/workspace',
+        key: `${prefix}/workspace`,
         icon: <HomeOutlined />,
         label: '工作台',
       },
       {
-        key: '/apps',
+        key: `${prefix}/apps`,
         icon: <AppstoreOutlined />,
         label: '应用中心',
       },
       {
-        key: '/workflows',
+        key: `${prefix}/workflows`,
         icon: <NodeIndexOutlined />,
         label: '流程中心',
       },
     ];
 
-    // 管理员专属：配置中心
+    // Admin only: config center
     if (isAdmin) {
       items.push({
-        key: '/config',
+        key: `${prefix}/config`,
         icon: <SettingOutlined />,
         label: '配置中心',
       });
     }
 
     return items;
-  }, [isAdmin]);
+  }, [isAdmin, tenantId]);
 
-  /** 当前选中的菜单 key */
+  /** Current selected menu key */
   const selectedKey = useMemo(() => {
+    const prefix = `/${tenantId}`;
     const path = location.pathname;
-    if (path.startsWith('/config')) return '/config';
-    if (path.startsWith('/workflows')) return '/workflows';
-    if (path.startsWith('/apps')) return '/apps';
-    return '/workspace';
-  }, [location.pathname]);
+    if (path.startsWith(`${prefix}/config`)) return `${prefix}/config`;
+    if (path.startsWith(`${prefix}/workflows`)) return `${prefix}/workflows`;
+    if (path.startsWith(`${prefix}/apps`)) return `${prefix}/apps`;
+    return `${prefix}/workspace`;
+  }, [location.pathname, tenantId]);
 
   const handleMenuClick = useCallback(
     (info: { key: string }) => {
@@ -79,17 +83,17 @@ export default function MainLayout() {
 
   const handleLogout = useCallback(() => {
     logout();
-    navigate('/login', { replace: true });
-  }, [logout, navigate]);
+    navigate(`/${tenantId}/login`, { replace: true });
+  }, [logout, navigate, tenantId]);
 
-  /** 用户下拉菜单 */
+  /** User dropdown menu */
   const userMenuItems = useMemo<MenuItem[]>(
     () => [
       {
         key: 'profile',
         icon: <UserOutlined />,
         label: '个人信息',
-        onClick: () => navigate('/config?tab=profile'),
+        onClick: () => navigate(`/${tenantId}/config?tab=profile`),
       },
       { type: 'divider' },
       {
@@ -99,7 +103,7 @@ export default function MainLayout() {
         onClick: handleLogout,
       },
     ],
-    [navigate, handleLogout],
+    [navigate, handleLogout, tenantId],
   );
 
   return (

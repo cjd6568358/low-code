@@ -160,17 +160,6 @@ export const BUILTIN_ROLES: ReadonlyArray<Pick<Role, 'roleId' | 'name' | 'level'
     baseRoleIds: [],
   },
 ] as const;
-    isBuiltin: true,
-    baseRoleIds: [],
-  },
-  {
-    roleId: 'department_default',
-    name: '部门默认角色',
-    level: 'business',
-    isBuiltin: true,
-    baseRoleIds: [],
-  },
-] as const;
 
 /** 部门默认角色的权限：所有菜单和按钮的只读权限 */
 export const DEPARTMENT_DEFAULT_PERMISSIONS: Permission[] = [

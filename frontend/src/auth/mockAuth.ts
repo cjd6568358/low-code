@@ -25,6 +25,8 @@ export interface AuthUser {
 export interface LoginParams {
   email: string;
   password: string;
+  /** 租户 ID（可选，用于租户登录页） */
+  tenantId?: string;
 }
 
 /** 登录结果 */

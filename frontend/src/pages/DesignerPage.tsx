@@ -24,6 +24,7 @@ import {
 } from '@ant-design/icons';
 import { Designer } from '@low-code/renderer';
 import type { PageSchema } from '@low-code/shared';
+import { buildId } from '../utils/resourceId';
 
 /** 资源类型 */
 type ResourceType = 'app' | 'page' | 'card' | 'form' | 'table' | 'workflow' | 'automation' | 'computation';
@@ -163,19 +164,20 @@ function ResourcePlaceholder({ resourceType, id }: { resourceType: ResourceType;
 
 /** 主入口 */
 export default function DesignerPage() {
-  const { resourceType, id } = useParams<{ resourceType: string; id: string }>();
+  const { tenantId, resourceType, id } = useParams<{ tenantId: string; resourceType: string; id: string }>();
   const navigate = useNavigate();
+  const tid = tenantId || '';
+  const fullId = buildId(resourceType || 'app', id || '');
 
   const validResourceType = (resourceType || 'app') as ResourceType;
   const config = RESOURCE_CONFIG[validResourceType] || RESOURCE_CONFIG.app;
 
-  // 返回逻辑：app 回应用中心，其他回应用资源概览
+  // Back logic: app -> app center, other -> app resource overview
   const handleBack = () => {
     if (validResourceType === 'app') {
-      navigate('/apps');
+      navigate(`/${tid}/apps`);
     } else {
-      // 回到该应用的资源概览
-      navigate(`/designer/app/${id}`);
+      navigate(`/${tid}/designer/app/${id}`);
     }
   };
 

@@ -10,7 +10,7 @@ import { DATA_DIR, TENANTS_DIR } from './index.js';
 
 let manager: DatabaseManager | null = null;
 
-/** 获取数据库管理器（懒初始化） */
+/** 获取数据库管理器(懒初始化) */
 export function getDbManager(): DatabaseManager {
   if (!manager) {
     manager = new DatabaseManager({ dataDir: DATA_DIR, tenantsDir: TENANTS_DIR });

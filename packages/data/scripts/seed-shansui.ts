@@ -12,27 +12,29 @@ import { DatabaseManager } from '../src/database';
 import type { SqliteDb } from '../src/types';
 
 /**
- * 生成带前缀的唯一 ID
- *
- * 格式：{prefix}_{8位hex}，如 tenant_a1b2c3d4、app_5e6f7a8b
- * 前缀便于后期按资源类型查找和更新。
+ * Generate unique 8-char hex ID (no prefix in ID itself)
+ * Prefix is only added when creating directory names or DB records.
  */
 function generateUniqueId(
   db: SqliteDb,
   table: string,
   column: string,
-  prefix: string,
 ): string {
   let id: string;
   let attempts = 0;
   do {
-    id = `${prefix}_${crypto.randomBytes(4).toString('hex')}`;
+    id = crypto.randomBytes(4).toString('hex');
     attempts++;
     if (attempts > 100) {
       throw new Error(`Failed to generate unique ID for ${table}.${column} after 100 attempts`);
     }
   } while (db.prepare(`SELECT 1 FROM ${table} WHERE ${column} = ?`).get(id));
   return id;
+}
+
+/** Add prefix for directory/file names */
+function withPrefix(id: string, prefix: string): string {
+  return `${prefix}_${id}`;
 }
 
 const TENANT_NAME = '山水集团';
@@ -81,27 +83,13 @@ async function main() {
   manager.initSystemDb();
   const sysDb = manager.getSystemDb();
 
-  // 2. 生成不重复的租户 ID（格式：tenant_ + 8位hex）
-  const TENANT_ID = generateUniqueId(sysDb, 'tenants', 'tenant_id', 'tenant');
+  // 2. Generate tenant UUID and create tenant (directory + tenant.json + database)
+  const tenantUuid = crypto.randomBytes(4).toString('hex');
+  const TENANT_ID = withPrefix(tenantUuid, 'tenant'); // tenant_xxxxxxxx
   console.log(`🏢 创建租户：${TENANT_NAME} (${TENANT_ID})...`);
 
-  const tenantDb = manager.createTenant(TENANT_ID, TENANT_NAME, 'enterprise');
-  console.log('  ✅ 租户创建成功（enterprise 套餐）');
-
-  // 写入租户元数据
-  const tenantDir = path.resolve(__dirname, '../../../tenants', TENANT_ID);
-  const tenantMeta = {
-    tenantId: TENANT_ID,
-    name: TENANT_NAME,
-    plan: 'enterprise',
-    status: 'active',
-    createdAt: Date.now(),
-  };
-  fs.writeFileSync(
-    path.join(tenantDir, 'tenant.json'),
-    JSON.stringify(tenantMeta, null, 2),
-  );
-  console.log('  ✅ 租户元数据写入完成\n');
+  const tenantDb = manager.createTenant(tenantUuid, TENANT_NAME, 'enterprise');
+  console.log('  ✅ 租户创建成功（enterprise 套餐）\n');
 
   // 3. 创建部门（格式：dept_ + 8位hex）
   console.log('🏗️  创建组织架构...');
@@ -137,7 +125,8 @@ async function main() {
     `INSERT INTO user_roles (id, user_id, role_id, source) VALUES (?, ?, ?, 'manual')`,
   );
 
-  const adminUserId = makeId('user');
+  const adminUserId = makeId('user'); // user_xxxxxxxx (for DB)
+  const adminUserUuid = adminUserId.replace('user_', ''); // xxxxxxxx (for JSON)
   tenantDb.transaction(() => {
     for (let i = 0; i < USER_DEFS.length; i++) {
       const u = USER_DEFS[i];
@@ -160,8 +149,9 @@ async function main() {
   tenantDb.prepare('UPDATE departments SET manager_id = ? WHERE code = ?').run(adminUserId, 'TECH');
   console.log('  ✅ 部门负责人设置完成\n');
 
-  // 6. 创建演示应用（格式：app_ + 8位hex）
-  const APP_ID = generateUniqueId(tenantDb, 'applications', 'app_id', 'app');
+  // 6. Create demo app (8-char hex, prefix added for DB/directory)
+  const appUuid = generateUniqueId(tenantDb, 'applications', 'app_id');
+  const APP_ID = withPrefix(appUuid, 'app'); // app_xxxxxxxx
   console.log(`📱 创建演示应用 (${APP_ID})...`);
   tenantDb.prepare(
     `INSERT INTO applications (app_id, name, description, icon, status, version, component_library, visibility, created_by)
@@ -180,11 +170,15 @@ async function main() {
   for (const dir of schemaDirs) {
     fs.mkdirSync(path.join(tenantSchemaDir, dir), { recursive: true });
   }
-  // 创建应用元信息文件（含标准字段：schemaVersion、version、_references）
+
+  // 创建 uploads 目录（租户级，跨应用共享）
+  const uploadsDir = path.resolve(__dirname, '../../../tenants', TENANT_ID, 'uploads');
+  fs.mkdirSync(uploadsDir, { recursive: true });
+  // 创建应用元信息文件（含标准字段：schemaVersion、version、references）
   const appMeta = {
     schemaVersion: 1,
     version: 1,
-    appId: APP_ID,
+    appId: appUuid,
     name: '山水 OA',
     description: '办公自动化系统，包含审批流程、任务管理、日程安排等功能',
     icon: '📋',
@@ -192,10 +186,11 @@ async function main() {
     status: 'draft',
     componentLibrary: 'antd',
     visibility: 'internal',
-    createdBy: adminUserId,
+    createdBy: adminUserUuid,
     createdAt: Date.now(),
     updatedAt: Date.now(),
-    _references: [],
+    references: {},
+    expose: {},
   };
   fs.writeFileSync(
     path.join(tenantSchemaDir, 'app.json'),

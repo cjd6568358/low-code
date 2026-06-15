@@ -1,6 +1,7 @@
 {
-  "tenantId": "tenant_90ef6d72",
+  "tenantId": "90ef6d72",
   "name": "山水集团",
+  "icon": "🏔️",
   "plan": "enterprise",
   "status": "active",
   "createdAt": 1781364313079

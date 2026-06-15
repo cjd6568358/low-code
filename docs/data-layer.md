@@ -11,25 +11,30 @@
 
 ```
 data/
-  ├── _system.db                    ← 系统级数据库（所有租户共享）
-  │     ├── tenants                 ← 租户注册表
-  │     ├── platform_admins         ← 平台管理员
-  │     ├── global_dictionaries     ← 全局只读字典
-  │     └── plans                   ← 套餐定价
-  │
-  ├── tenant_acme.db                ← 租户 A 的完整数据库
-  │     ├── users / departments / positions   ← 组织架构
-  │     ├── roles / permissions / user_roles  ← 权限系统
-  │     ├── applications / app_admins / app_pages ← 应用管理
-  │     ├── dictionaries / dict_items         ← 租户字典
-  │     ├── open_keys / open_key_permissions  ← API 密钥
-  │     ├── workflow_definitions / instances / snapshots ← 流程引擎
-  │     ├── automation_rules / execution_logs ← 自动化引擎
-  │     ├── messages                          ← 消息中心
-  │     └── audit_logs                        ← 审计日志
-  │
-  └── tenant_globex.db              ← 租户 B 的完整数据库
-        └── ...
+  └── _system.db                    ← 系统级数据库
+        ├── platform_admins         ← 平台管理员
+        ├── global_dictionaries     ← 全局只读字典
+        └── plans                   ← 套餐定价
+
+tenants/
+  └── tenant_{uuid}/                ← 租户目录（文件系统即数据源）
+        ├── tenant.json             ← 租户元数据（名称、套餐、状态）
+        ├── apps/                   ← 应用 Schema
+        │   └── app_{uuid}/
+        │       ├── app.json
+        │       ├── pages/
+        │       ├── tables/
+        │       └── ...
+        └── data/
+              └── tenant.db         ← 租户 SQLite 数据库
+                    ├── users / departments / positions   ← 组织架构
+                    ├── roles / permissions / user_roles  ← 权限系统
+                    ├── dictionaries / dict_items         ← 租户字典
+                    ├── open_keys / open_key_permissions  ← API 密钥
+                    ├── workflow_definitions / instances / snapshots ← 流程引擎
+                    ├── automation_rules / execution_logs ← 自动化引擎
+                    ├── messages                          ← 消息中心
+                    └── audit_logs                        ← 审计日志
 ```
 
 ## 技术选型
@@ -37,10 +42,11 @@ data/
 | 组件 | 选择 | 理由 |
 |------|------|------|
 | 数据库 | SQLite 3 | 零配置、单文件、嵌入式 |
-| 驱动 | better-sqlite3 | 同步 API、性能最优、原生 C++ 绑定 |
+| 驱动 | koffi FFI | 直接调用 sqlite3.dll，无需编译原生模块 |
 | 日志模式 | WAL | 允许并发读写，写入性能提升 2-10 倍 |
 | 连接池 | LRU 池 | 控制同时打开的文件句柄数量 |
 | 迁移 | user_version pragma | SQLite 原生版本跟踪 |
+| 租户元数据 | tenant.json | 文件系统即数据源，不依赖数据库 |
 
 ## 连接池策略
 

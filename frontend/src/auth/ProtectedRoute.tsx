@@ -20,14 +20,18 @@ export function ProtectedRoute({ children, roles }: ProtectedRouteProps) {
   const { user } = useAuth();
   const location = useLocation();
 
-  // 未登录 → 重定向到登录页
+  // Not logged in -> redirect to login
   if (!user) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    // Try to get tenantId from current path
+    const segments = location.pathname.split('/').filter(Boolean);
+    const tenantId = segments[0]?.startsWith('tenant_') ? segments[0] : null;
+    const loginPath = tenantId ? `/${tenantId}/login` : '/login';
+    return <Navigate to={loginPath} state={{ from: location }} replace />;
   }
 
-  // 角色校验
+  // Role check
   if (roles && roles.length > 0 && !roles.includes(user.role)) {
-    return <Navigate to="/workspace" replace />;
+    return <Navigate to={`/${user.tenantId}/workspace`} replace />;
   }
 
   return <>{children}</>;

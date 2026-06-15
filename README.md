@@ -26,13 +26,17 @@
 
 `packages/` 下的引擎层不依赖任何框架（无 Koa、无 React），可独立测试、独立复用。`server/` 负责组装引擎暴露 API，`frontend/` 负责调用 API 渲染 UI。引擎之间通过类型契约协作，不直接耦合。
 
-### 6. 文件即配置
+### 6. 文件即数据源
 
-所有应用资源以 JSON 文件形式存储，可纳入 Git 版本管理、可导入导出、可跨环境迁移。一个应用的完整定义就是 `tenants/{tenantId}/apps/{appId}/` 目录下的所有文件，拷贝目录即迁移应用。
+应用数据不依赖数据库，`tenants/{tenantId}/apps/` 目录就是唯一数据源。API 直接读写 JSON 文件，无数据同步问题。创建应用 = 创建目录，删除应用 = 删除目录，查询应用 = 扫描目录。所有文件可纳入 Git 版本管理、可导入导出、可跨环境迁移。
 
 ### 7. UUID 资源标识
 
-租户 ID 和应用 ID 使用 8 位随机 hex 生成，每次创建时校验唯一性，避免拼音/语义命名冲突，支持多租户大规模部署。
+所有资源 ID 使用 8 位随机 hex 生成（如 `90ef6d72`），每次创建时校验唯一性。
+
+- **URL/前端**：使用短 ID（无前缀），如 `/apps/90ef6d72`
+- **目录/数据库记录**：带前缀，如 `tenant_90ef6d72`、`app_90ef6d72`
+- **数据库文件**：`tenants/{tenant_xxx}/data/tenant.db`（上级目录已含租户 ID，无需重复）
 
 ---
 
@@ -340,23 +344,26 @@ low-code/
 │   └── build-tools/                   # 构建工具（TS → JSON Schema 编译器）
 │
 ├── tenants/                           # 租户数据（每租户独立目录）
-│   └── {tenantId}/                    # 8 位随机 hex ID
-│       ├── tenant.json                # 租户元数据（名称、套餐、状态、创建时间戳）
+│   └── tenant_{uuid}/                 # 目录名带前缀，uuid 为 8 位 hex
+│       ├── tenant.json                # 租户元数据（含 uuid 字段）
 │       ├── apps/                      # 应用 Schema
-│       │   └── {appId}/               # 8 位随机 hex ID
-│       │       ├── app.json           # 应用元信息（含 schemaVersion、version、_references）
+│       │   └── app_{uuid}/            # 目录名带前缀
+│       │       ├── app.json           # 应用元信息（含 schemaVersion、version、references、expose）
 │       │       ├── pages/             # 页面 Schema
 │       │       ├── cards/             # 卡片 Schema
 │       │       ├── forms/             # 表单 Schema
 │       │       ├── tables/            # 数据表 Schema
 │       │       ├── workflows/         # 流程 Schema
 │       │       ├── automations/       # 自动化 Schema
-│       │       └── computations/      # 运算 Schema
+│       │       ├── computations/      # 运算 Schema
+│       │       └── dist/              # 发布产物
+│       │           └── app.bundle.json
+│       ├── uploads/                   # 上传文件（图片、文档等，跨应用共享）
 │       └── data/                      # 租户 SQLite 数据库
-│           └── tenant_{tenantId}.db
+│           └── tenant.db
 │
 ├── data/                              # 系统级数据
-│   ├── _system.db                     # 租户注册、平台管理员
+│   ├── _system.db                     # 平台管理员、套餐配置
 │   └── dictionaries/                  # 全局字典（JSON 格式）
 │
 ├── docs/                              # 设计文档（20+）
@@ -370,8 +377,8 @@ low-code/
 frontend/        ← 应用层（React UI，调用 API）
 server/          ← 核心服务层（Koa，组装引擎，暴露 API）
 packages/*       ← 引擎层（纯逻辑，可独立测试）
-tenants/         ← 租户数据（Schema + SQLite，每租户独立目录）
-data/            ← 系统级数据（_system.db）
+tenants/         ← 租户数据（Schema + SQLite，文件系统即数据源）
+data/            ← 系统级数据（平台管理员、套餐配置）
 ```
 
 ---
@@ -405,6 +412,15 @@ yarn test
 |------|------|------|
 | 租户管理员 | admin@shansui.com | shansui123 |
 | 员工 | zhangsan@shansui.com | shansui123 |
+
+### 登录页
+
+- 平台管理员：`http://localhost:5173/login`
+- 租户登录：`http://localhost:5173/:tenantId/login`（如 `/tenant_90ef6d72/login`，展示租户名称和图标）
+
+### 路由规范
+
+所有租户页面路由必须带 `/:tenantId` 前缀：`/:tenantId/workspace`、`/:tenantId/apps`、`/:tenantId/workflows`、`/:tenantId/config`、`/:tenantId/designer/:resourceType/:id`
 
 ---
 

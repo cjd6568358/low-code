@@ -8,9 +8,15 @@ import crypto from 'crypto';
 import KoaRouter from '@koa/router';
 import { DatabaseManager } from '@low-code/data';
 
-/** 密码哈希（scrypt） */
+/** 密码哈希(scrypt) */
 function hashPassword(password: string, salt: string): string {
   return crypto.scryptSync(password, salt, 64).toString('hex');
+}
+
+/** Strip prefix from ID (e.g., "tenant_90ef6d72" -> "90ef6d72") */
+function stripPrefix(id: string): string {
+  const idx = id.indexOf('_');
+  return idx >= 0 ? id.substring(idx + 1) : id;
 }
 
 /** 验证密码 */
@@ -32,9 +38,10 @@ export function createAuthRouter(manager: DatabaseManager): KoaRouter {
    * 响应：{ success, user?, error? }
    */
   router.post('/login', async (ctx) => {
-    const { email, password } = ctx.request.body as {
+    const { email, password, tenantId } = ctx.request.body as {
       email?: string;
       password?: string;
+      tenantId?: string;
     };
 
     if (!email || !password) {
@@ -43,12 +50,15 @@ export function createAuthRouter(manager: DatabaseManager): KoaRouter {
       return;
     }
 
-    // 遍历所有活跃租户，查找用户
-    const tenants = manager.listActiveTenants();
+    // If tenantId specified, only search that tenant; otherwise search all
+    const allTenants = manager.scanTenants();
+    const tenants = tenantId
+      ? allTenants.filter((t) => t.tenantId === tenantId)
+      : allTenants;
 
     for (const tenant of tenants) {
       try {
-        const tenantDb = manager.getTenantDb(tenant.tenant_id);
+        const tenantDb = manager.getTenantDb(`tenant_${tenant.tenantId}`);
         const user = tenantDb
           .prepare(
             `SELECT user_id, name, email, avatar, password, status
@@ -130,17 +140,17 @@ export function createAuthRouter(manager: DatabaseManager): KoaRouter {
           )
           .run(user.user_id);
 
-        // 返回用户信息
+        // Return user info (strip prefixes from IDs)
         ctx.body = {
           success: true,
           user: {
-            id: user.user_id,
+            id: stripPrefix(user.user_id),
             name: user.name,
             email: user.email,
             avatar: user.avatar,
             role: roleRow?.role_id || 'department_default',
             roleName: roleRow?.role_name || '员工',
-            tenantId: tenant.tenant_id,
+            tenantId: tenant.tenantId,
             tenantName: tenant.name,
             departmentName: deptRow?.dept_name || '',
             positionName: deptRow?.pos_name || '',

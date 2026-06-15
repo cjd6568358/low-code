@@ -1,7 +1,8 @@
 /**
- * 路由配置
+ * Route configuration
  *
- * 定义门户应用的完整路由结构。
+ * Tenant routes: /:tenantId/*
+ * Platform routes: /login, /platform/*
  */
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
@@ -14,26 +15,17 @@ import AppCenterPage from './pages/AppCenterPage';
 import WorkflowCenterPage from './pages/WorkflowCenterPage';
 import ConfigCenterPage from './pages/ConfigCenterPage';
 import DesignerPage from './pages/DesignerPage';
+import AppDetailPage from './pages/AppDetailPage';
 
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          {/* 登录页（未登录可访问） */}
+          {/* Platform admin login */}
           <Route path="/login" element={<LoginPage />} />
 
-          {/* 设计器（全屏，仅管理员） */}
-          <Route
-            path="/designer/:resourceType/:id"
-            element={
-              <ProtectedRoute roles={['tenant_admin']}>
-                <DesignerPage />
-              </ProtectedRoute>
-            }
-          />
-
-          {/* 平台管理员（暂未实现） */}
+          {/* Platform admin (not implemented) */}
           <Route
             path="/platform/*"
             element={
@@ -48,14 +40,37 @@ export default function App() {
                     gap: 16,
                   }}
                 >
-                  <h1 style={{ fontSize: 24, color: '#1a1a2e' }}>🏗️ 平台管理后台</h1>
-                  <p style={{ color: '#8c8c8c' }}>即将上线，敬请期待</p>
+                  <h1 style={{ fontSize: 24, color: '#1a1a2e' }}>Platform Admin</h1>
+                  <p style={{ color: '#8c8c8c' }}>Coming soon</p>
                 </div>
               </ProtectedRoute>
             }
           />
 
-          {/* 主布局路由（需要登录） */}
+          {/* Tenant login */}
+          <Route path="/:tenantId/login" element={<LoginPage />} />
+
+          {/* Tenant app detail (fullscreen, own sidebar) */}
+          <Route
+            path="/:tenantId/apps/:appId"
+            element={
+              <ProtectedRoute>
+                <AppDetailPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Tenant designer (fullscreen, admin only) */}
+          <Route
+            path="/:tenantId/designer/:resourceType/:id"
+            element={
+              <ProtectedRoute roles={['tenant_admin']}>
+                <DesignerPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Tenant main layout routes (require login) */}
           <Route
             element={
               <ProtectedRoute>
@@ -63,11 +78,11 @@ export default function App() {
               </ProtectedRoute>
             }
           >
-            <Route path="/workspace" element={<WorkspacePage />} />
-            <Route path="/apps" element={<AppCenterPage />} />
-            <Route path="/workflows" element={<WorkflowCenterPage />} />
+            <Route path="/:tenantId/workspace" element={<WorkspacePage />} />
+            <Route path="/:tenantId/apps" element={<AppCenterPage />} />
+            <Route path="/:tenantId/workflows" element={<WorkflowCenterPage />} />
             <Route
-              path="/config"
+              path="/:tenantId/config"
               element={
                 <ProtectedRoute roles={['tenant_admin']}>
                   <ConfigCenterPage />
@@ -76,9 +91,9 @@ export default function App() {
             />
           </Route>
 
-          {/* 默认重定向 */}
-          <Route path="/" element={<Navigate to="/workspace" replace />} />
-          <Route path="*" element={<Navigate to="/workspace" replace />} />
+          {/* Default redirect */}
+          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>

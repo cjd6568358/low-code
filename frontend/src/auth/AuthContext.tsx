@@ -16,7 +16,7 @@ interface AuthContextValue {
   /** 是否正在加载 */
   loading: boolean;
   /** 登录 */
-  login: (params: LoginParams) => Promise<{ success: boolean; error?: string }>;
+  login: (params: LoginParams) => Promise<{ success: boolean; error?: string; user?: AuthUser }>;
   /** 登出 */
   logout: () => void;
   /** 当前用户是否为管理员 */
@@ -37,7 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (result.success && result.user) {
         setUser(result.user);
         storeUser(result.user);
-        return { success: true };
+        return { success: true, user: result.user };
       }
       return { success: false, error: result.error };
     } finally {

@@ -1,29 +1,40 @@
 /**
- * 数据库管理器 — 顶层入口
+ * Database manager
  *
- * 管理 _system.db 和所有租户级 tenant_xxx.db。
- * 提供初始化、创建、备份、关闭等生命周期管理。
- *
- * 使用 koffi FFI 直接调用 sqlite3.dll，无需编译原生模块。
+ * Manages _system.db and per-tenant tenant.db files.
+ * Tenant data source: tenants/{tenantId}/tenant.json (file system).
+ * Database files: tenants/{tenantId}/data/tenant.db
  */
 
 import path from 'path';
 import fs from 'fs';
-import type { DatabaseConfig, SqliteDb, TenantRecord } from './types';
+import type { DatabaseConfig, SqliteDb } from './types';
 import { DEFAULT_DATABASE_CONFIG } from './types';
 import { KoffiDatabase } from './sqlite-koffi';
 import { TenantDatabasePool } from './pool';
 import { runMigrations } from './migration';
 import { SYSTEM_MIGRATIONS } from './schema/system';
-import { TENANT_MIGRATIONS, TENANT_DB_VERSION } from './schema/tenant';
+import { TENANT_MIGRATIONS } from './schema/tenant';
 
-// ─── 创建数据库实例 ──────────────────────────────────────
+/** Tenant info from tenant.json */
+export interface TenantInfo {
+  tenantId: string;
+  name: string;
+  icon?: string;
+  plan: string;
+  status: string;
+  createdAt: number;
+}
 
 function createSqliteDb(dbPath: string): SqliteDb {
   return new KoffiDatabase(dbPath);
 }
 
-// ─── 数据库管理器 ─────────────────────────────────────────
+/** Strip prefix from directory name (e.g., "tenant_90ef6d72" -> "90ef6d72") */
+function stripPrefix(dirName: string): string {
+  const idx = dirName.indexOf('_');
+  return idx >= 0 ? dirName.substring(idx + 1) : dirName;
+}
 
 export class DatabaseManager {
   private config: DatabaseConfig;
@@ -35,11 +46,8 @@ export class DatabaseManager {
     this.pool = new TenantDatabasePool(this.config);
   }
 
-  // ─── 系统数据库 ──────────────────────────────────────
+  // ─── System database ─────────────────────────────────
 
-  /**
-   * 初始化系统数据库（首次调用时创建并建表）
-   */
   initSystemDb(): SqliteDb {
     if (this.systemDb) return this.systemDb;
 
@@ -47,23 +55,18 @@ export class DatabaseManager {
     const dbPath = this.systemDbPath();
     const db = createSqliteDb(dbPath);
 
-    // 基础配置
     db.pragma('busy_timeout', this.config.busyTimeout);
     if (this.config.walMode) {
       db.pragma('journal_mode', 'WAL');
     }
     db.pragma('foreign_keys', 'ON');
 
-    // 执行迁移
     runMigrations(db, SYSTEM_MIGRATIONS);
 
     this.systemDb = db;
     return this.systemDb;
   }
 
-  /**
-   * 获取系统数据库实例
-   */
   getSystemDb(): SqliteDb {
     if (!this.systemDb) {
       throw new Error('System DB not initialized. Call initSystemDb() first.');
@@ -71,102 +74,113 @@ export class DatabaseManager {
     return this.systemDb;
   }
 
-  // ─── 租户数据库 ──────────────────────────────────────
+  // ─── Tenant database ─────────────────────────────────
 
   /**
-   * 获取租户数据库（自动打开/创建，自动迁移）
+   * Get tenant database (open if exists, run migrations)
    */
   getTenantDb(tenantId: string): SqliteDb {
     const dbPath = this.tenantDbPath(tenantId);
     const db = this.pool.get(tenantId, dbPath);
-
-    // 自动迁移到最新版本
     runMigrations(db, TENANT_MIGRATIONS);
-
     return db;
   }
 
   /**
-   * 创建新租户
-   *
-   * 1. 在 _system.db 中注册租户记录
-   * 2. 创建租户独立的 .db 文件并执行初始 schema
+   * Scan tenants directory and return all tenant info
+   * Reads tenant.json from each tenant directory.
    */
-  createTenant(tenantId: string, name: string, plan: 'free' | 'pro' | 'enterprise' = 'free'): SqliteDb {
-    const sysDb = this.getSystemDb();
+  scanTenants(): TenantInfo[] {
+    const tenantsDir = this.config.tenantsDir;
+    if (!fs.existsSync(tenantsDir)) return [];
 
-    // 检查是否已存在
-    const existing = sysDb.prepare('SELECT tenant_id FROM tenants WHERE tenant_id = ?').get(tenantId);
-    if (existing) {
-      throw new Error(`Tenant "${tenantId}" already exists.`);
+    const entries = fs.readdirSync(tenantsDir, { withFileTypes: true });
+    const tenants: TenantInfo[] = [];
+
+    for (const entry of entries) {
+      if (!entry.isDirectory() || !entry.name.startsWith('tenant_')) continue;
+
+      const tenantJsonPath = path.join(tenantsDir, entry.name, 'tenant.json');
+      try {
+        const meta = JSON.parse(fs.readFileSync(tenantJsonPath, 'utf-8'));
+        if (meta.status === 'active') {
+          tenants.push(meta);
+        }
+      } catch {
+        // Skip directories without valid tenant.json
+        continue;
+      }
     }
 
-    // 注册到系统库
-    sysDb.prepare(
-      'INSERT INTO tenants (tenant_id, name, plan, status, db_version) VALUES (?, ?, ?, ?, ?)',
-    ).run(tenantId, name, plan, 'active', TENANT_DB_VERSION);
+    return tenants;
+  }
 
-    // 创建租户数据库（确保目录存在）
+  /**
+   * Get tenant info by ID
+   */
+  getTenantInfo(tenantId: string): TenantInfo | null {
+    const tenantJsonPath = path.join(this.config.tenantsDir, `tenant_${tenantId}`, 'tenant.json');
+    try {
+      return JSON.parse(fs.readFileSync(tenantJsonPath, 'utf-8'));
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Create tenant directory structure and database
+   */
+  createTenant(uuid: string, name: string, plan: 'free' | 'pro' | 'enterprise' = 'free'): SqliteDb {
+    const tenantId = `tenant_${uuid}`;
+    const tenantDir = path.join(this.config.tenantsDir, tenantId);
+
+    // Check if directory already exists
+    if (fs.existsSync(tenantDir)) {
+      throw new Error(`Tenant directory "${tenantId}" already exists.`);
+    }
+
+    // Create directory structure
+    const dataDir = path.join(tenantDir, 'data');
+    fs.mkdirSync(dataDir, { recursive: true });
+
+    // Write tenant.json
+    const now = Date.now();
+    const tenantMeta: TenantInfo = {
+      tenantId: uuid,
+      name,
+      plan,
+      status: 'active',
+      createdAt: now,
+    };
+    fs.writeFileSync(
+      path.join(tenantDir, 'tenant.json'),
+      JSON.stringify(tenantMeta, null, 2),
+    );
+
+    // Create database
     const dbPath = this.tenantDbPath(tenantId);
-    const dbDir = path.dirname(dbPath);
-    if (!fs.existsSync(dbDir)) {
-      fs.mkdirSync(dbDir, { recursive: true });
-    }
     const db = this.pool.get(tenantId, dbPath);
     runMigrations(db, TENANT_MIGRATIONS);
 
-    // 预置内置角色
+    // Seed builtin roles
     this.seedBuiltinRoles(db);
 
     return db;
   }
 
   /**
-   * 删除租户（软删除：标记 deleted，不删文件）
+   * Delete tenant (remove directory)
    */
   deleteTenant(tenantId: string): void {
-    const sysDb = this.getSystemDb();
-    sysDb.prepare(
-      "UPDATE tenants SET status = 'deleted', updated_at = datetime('now') WHERE tenant_id = ?",
-    ).run(tenantId);
-
-    // 关闭连接
-    this.pool.close(tenantId);
-  }
-
-  /**
-   * 备份租户数据库到指定路径
-   */
-  backupTenant(tenantId: string, destPath: string): void {
-    const srcPath = this.tenantDbPath(tenantId);
-    if (!fs.existsSync(srcPath)) {
-      throw new Error(`Tenant DB not found: ${tenantId}`);
+    const tenantDir = path.join(this.config.tenantsDir, tenantId);
+    if (fs.existsSync(tenantDir)) {
+      this.pool.close(tenantId);
+      fs.rmSync(tenantDir, { recursive: true, force: true });
     }
-
-    // 直接复制文件（简单可靠）
-    fs.copyFileSync(srcPath, destPath);
   }
 
   /**
-   * 获取所有注册的租户列表
-   */
-  listTenants(): TenantRecord[] {
-    const sysDb = this.getSystemDb();
-    return sysDb.prepare('SELECT * FROM tenants ORDER BY created_at').all() as TenantRecord[];
-  }
-
-  /**
-   * 获取活跃的租户列表
-   */
-  listActiveTenants(): TenantRecord[] {
-    const sysDb = this.getSystemDb();
-    return sysDb.prepare(
-      "SELECT * FROM tenants WHERE status = 'active' ORDER BY created_at",
-    ).all() as TenantRecord[];
-  }
-
-  /**
-   * 关闭所有数据库连接
+   * Close all database connections
    */
   closeAll(): void {
     this.pool.closeAll();
@@ -177,7 +191,7 @@ export class DatabaseManager {
   }
 
   /**
-   * 获取连接池状态
+   * Get connection pool stats
    */
   getPoolStats(): { active: number; maxSize: number; activeTenants: string[] } {
     return {
@@ -187,14 +201,14 @@ export class DatabaseManager {
     };
   }
 
-  // ─── 内部方法 ────────────────────────────────────────
+  // ─── Internal ────────────────────────────────────────
 
   private systemDbPath(): string {
     return path.join(this.config.dataDir, '_system.db');
   }
 
   private tenantDbPath(tenantId: string): string {
-    return path.join(this.config.tenantsDir, tenantId, 'data', `${tenantId}.db`);
+    return path.join(this.config.tenantsDir, tenantId, 'data', 'tenant.db');
   }
 
   private ensureDataDir(): void {
@@ -203,9 +217,6 @@ export class DatabaseManager {
     }
   }
 
-  /**
-   * 预置内置角色到租户数据库
-   */
   private seedBuiltinRoles(db: SqliteDb): void {
     const insert = db.prepare(
       'INSERT OR IGNORE INTO roles (role_id, name, level, base_role_ids, is_builtin) VALUES (?, ?, ?, ?, 1)',
@@ -223,7 +234,6 @@ export class DatabaseManager {
         insert.run(r.roleId, r.name, r.level, JSON.stringify([]));
       }
 
-      // 预置部门默认角色的权限
       db.prepare(
         `INSERT OR IGNORE INTO permissions (permission_id, role_id, resource_type, resource_id, actions)
          VALUES (?, ?, ?, ?, ?)`,

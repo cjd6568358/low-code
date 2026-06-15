@@ -9,3 +9,4 @@ export * from './json-schema';
 export * from './form';
 export * from './expression';
 export * from './permission';
+export * from './app';

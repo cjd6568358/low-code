@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "version": 1,
+  "appId": "90873b5c",
+  "name": "sas",
+  "description": "测试应用",
+  "icon": "💰",
+  "appVersion": "1.0.0",
+  "status": "draft",
+  "componentLibrary": "antd",
+  "visibility": "internal",
+  "createdBy": "system",
+  "createdAt": 1781517309849,
+  "updatedAt": 1781517309849,
+  "references": {},
+  "expose": {}
+}

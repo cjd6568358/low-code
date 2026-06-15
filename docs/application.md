@@ -66,36 +66,43 @@
 
 ```
 tenants/
-└── {tenantId}/                    # 8 位随机 hex ID
-    ├── tenant.json                # 租户元数据（名称、套餐、状态）
+└── tenant_{uuid}/                 # 目录名带前缀，uuid 为 8 位 hex
+    ├── tenant.json                # 租户元数据（含 uuid 字段）
     ├── apps/                      # 应用 Schema
-    │   └── {appId}/               # 8 位随机 hex ID
-    │       ├── app.json           # 应用元信息
+    │   └── app_{uuid}/            # 目录名带前缀
+    │       ├── app.json           # 应用元信息（含 uuid 字段）
     │       ├── pages/             # 页面 Schema
-    │       │   ├── home.json
-    │       │   ├── approval-list.json
-    │       │   └── my-todos.json
+    │       │   ├── page_{uuid}.json
+    │       │   └── page_{uuid}.json
     │       ├── cards/             # 卡片 Schema
     │       ├── forms/             # 表单 Schema
     │       ├── tables/            # 数据表 Schema
-    │       │   ├── approval-records.json
-    │       │   └── user-info.json
+    │       │   ├── table_{uuid}.json
+    │       │   └── table_{uuid}.json
     │       ├── workflows/         # 流程 Schema
-    │       │   └── procurement-approval.json
+    │       │   └── workflow_{uuid}.json
     │       ├── automations/       # 自动化 Schema
-    │       └── computations/      # 运算 Schema
-    └── data/                      # 租户 SQLite 数据库
-        └── tenant_{tenantId}.db
+    │       ├── computations/      # 运算 Schema
+    │       └── dist/              # 发布产物
+    │           └── app.bundle.json
+    ├── uploads/                   # 上传文件（图片、文档等，跨应用共享）
+    └── data/
+        └── tenant.db              # SQLite 数据库（上级目录已含租户 ID）
 ```
+
+> **ID 约定**：JSON 内存裸 8 位 hex（如 `appId: "80e88653"`、`pageId: "abc12345"`），`{type}_` 前缀仅用于目录/文件名（如 `app_80e88653/`、`page_abc12345.json`），代码通过动态拼接 `{type}_{id}` 访问文件系统。
 
 ### 设计原则
 
-- **文件即配置**：每个资源一个 JSON 文件，可纳入 Git 版本管理
-- **租户隔离**：`tenants/{tenantId}/` 物理隔离，与 SQLite 数据库一一对应
-- **七种资源**：pages、cards、forms、tables、workflows、automations、computations
+- **文件即数据源**：`tenants/{tenantId}/apps/` 是应用数据的唯一数据源，API 直接读写 JSON 文件，不依赖数据库存储应用元信息
+- **租户隔离**：`tenants/{tenantId}/` 物理隔离，每租户独立目录 + 独立 SQLite
+- **七种资源**：pages、cards、forms、tables、workflows、automations、computations，每种资源一个 JSON 文件
 - **统一格式**：所有资源 Schema 遵循各自的 JSON Schema 规范
 - **时间戳**：所有时间字段统一使用 Unix 毫秒时间戳（`number` 类型）
-- **标准字段**：所有资源 JSON 必须包含 `schemaVersion`（结构版本）、`version`（乐观锁版本）、`_references`（跨资源引用）
+- **标准字段**：所有资源 JSON 必须包含 `schemaVersion`（结构版本）、`version`（乐观锁版本）、`references`（资源引用）
+- **资源暴露**：应用通过 `expose` 字段声明哪些资源可被跨应用引用，未暴露的资源对外不可见
+- **ID 约定**：JSON 内存裸 8 位 hex ID（如 `appId: "80e88653"`），`{type}_` 前缀仅用于目录/文件名（如 `app_80e88653/`、`page_abc12345.json`），代码动态拼接
+- **目录即操作**：创建应用 = 创建目录，删除应用 = 删除目录，查询应用 = 扫描目录
 
 ### 资源 JSON 标准字段
 
@@ -103,28 +110,61 @@ tenants/
 |------|------|------|
 | `schemaVersion` | `number` | 文件结构版本号，引擎升级时递增，用于自动迁移旧格式 |
 | `version` | `number` | 业务版本号，每次保存递增，用于乐观锁冲突检测 |
-| `_references` | `array` | 跨资源引用声明，编译器自动生成，用于影响分析 |
+| `references` | `object` | 资源引用声明，按资源类型分组，key 即类型、value 为 ID 列表 |
+
+> **`references` 的两层含义**：
+> - **应用级**（app.json）：跨应用引用，格式 `"{appId}.{resourceId}"`，与 `expose` 互为镜像
+> - **资源级**（page.json/table.json 等）：应用内引用，格式 `"{resourceId}"`，由编译器自动生成
+> - 两层格式统一为 `{ "tables": ["xxx"], "pages": [...] }`，降低认知负担
+> - 所有 ID 均为裸 8 位 hex，`{type}_` 前缀仅在文件系统层动态拼接
 
 ### 应用 Schema 结构
 
 ```jsonc
 // app.json - 应用元信息
 {
-  "schemaVersion": "1.0.0",
-  "appId": "app_abc123",
-  "name": "客户管理系统",
-  "version": "1.2.0",
-  "description": "CRM 客户关系管理应用",
-  "createdAt": "2024-01-15T08:00:00Z",
-  "pages": ["home", "list", "form"],
-  "tables": ["users", "orders"],
-  "workflows": ["approval", "sync"],
-  "theme": {
-    "primaryColor": "#1677ff",
-    "borderRadius": 6
+  "schemaVersion": 1,
+  "version": 1,
+  "appId": "80e88653",
+  "name": "山水 OA",
+  "description": "办公自动化系统",
+  "icon": "📋",
+  "appVersion": "0.1.0",
+  "status": "draft",
+  "componentLibrary": "antd",
+  "visibility": "internal",
+  "createdBy": "97732285",
+  "createdAt": 1781364313289,
+  "updatedAt": 1781364313289,
+  "references": {
+    "tables": ["80e88653.xyz78901"]
+  },
+  "expose": {
+    "pages": ["abc12345"],
+    "tables": ["xyz78901", "def45678"]
   }
 }
 ```
+
+#### 跨应用资源暴露 (`expose`)
+
+`expose` 字段控制哪些资源可被其他应用跨应用引用，按资源类型分组：
+
+| 资源类型 | 说明 |
+|---------|------|
+| `pages` | 页面 |
+| `cards` | 卡片 |
+| `forms` | 表单 |
+| `tables` | 数据表 |
+| `workflows` | 流程 |
+| `automations` | 自动化 |
+| `computations` | 运算 |
+
+- **默认为空**：新建应用的 `expose` 为 `{}`，不暴露任何资源
+- **多选配置**：每种资源类型下可列出多个资源 ID
+- **引用校验**：其他应用的 `references` 只能引用目标应用 `expose` 中已声明的资源
+- **运行时隔离**：未暴露的资源对跨应用消费者完全不可见
+- **与 `references` 互为镜像**：`expose` 说"我暴露了什么"，`references` 说"我引用了谁的什么"，两者结构对称
 
 ### 页面 Schema 结构
 
@@ -225,3 +265,86 @@ tenants/
 | 应用市场 | 导出为应用模板，供其他租户导入使用 |
 | 备份恢复 | 应用全量备份，支持灾难恢复 |
 | 二次开发 | 基于 Schema 文件进行定制化开发 |
+
+## 应用发布与 Bundle
+
+### 设计理念
+
+- **开发环境**：逐文件加载，方便调试和热更新
+- **运行时**：优先加载 bundle（单文件），减少 I/O 次数
+- **Treeshake**：只打包被引用的资源，未被引用的资源自动排除
+- **变更检测**：资源修改后自动检测哪些已发布应用受影响，提示重新发布
+
+### 发布流程
+
+```
+一键发布
+  ├─ 1. 扫描应用内所有资源
+  ├─ 2. 从页面入口 treeshake，递归收集 references
+  ├─ 3. 合并为 dist/app.bundle.json
+  └─ 4. 更新 app.json 状态为 published
+```
+
+### Bundle 结构
+
+```jsonc
+// dist/app.bundle.json
+{
+  "appId": "80e88653",
+  "publishedAt": 1781517309849,
+  "resourceCount": 12,
+  "resources": {
+    "pages": {
+      "abc12345": { /* page schema */ },
+      "def67890": { /* page schema */ }
+    },
+    "tables": {
+      "xyz12345": { /* table schema */ }
+    },
+    "forms": {
+      "ghi12345": { /* form schema */ }
+    }
+    // 未被引用的资源不包含
+  }
+}
+```
+
+### 运行时加载策略
+
+```
+GET /api/apps/:appId
+  ├─ 尝试加载 dist/app.bundle.json
+  │   └─ 成功 → 返回 bundle 内容（fromBundle: true）
+  └─ bundle 不存在
+      └─ fallback → 逐文件扫描（fromBundle: false）
+```
+
+### 目录结构
+
+```
+app_80e88653/
+├── app.json                 # 应用元信息（含 status、publishedAt、bundleSize）
+├── pages/                   # 源文件（保留，设计器用）
+├── tables/
+├── forms/
+├── ...
+└── dist/                    # 发布产物
+    └── app.bundle.json      # 合并后的 bundle
+```
+
+### 变更检测
+
+当资源被修改时，系统遍历所有已发布应用的 `references`，检查哪些应用引用了该资源：
+
+```
+GET /api/apps/:appId/check-updates?resourceType=tables&resourceId=xyz12345
+  → 返回受影响的已发布应用列表
+  → 前端显示"有更新"标签，提示用户重新发布
+```
+
+### API 接口
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/apps/:appId/publish` | POST | 发布应用（treeshake + 合并 bundle） |
+| `/api/apps/:appId/check-updates` | GET | 检查受影响的应用 |

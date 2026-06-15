@@ -1,12 +1,13 @@
 /**
  * 应用中心页面
  *
- * 展示应用列表，管理员可新建/编辑/删除应用，员工只读。
+ * 展示应用列表，管理员可新建/编辑/删除/发布应用，员工只读。
+ * 数据从 API 加载，不再使用 Mock。
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, Button, Input, Tag, Space, Empty, Modal, Form, Select, Dropdown, message } from 'antd';
+import { Card, Button, Input, Tag, Space, Empty, Modal, Form, Select, Dropdown, message, Spin } from 'antd';
 import {
   PlusOutlined,
   SearchOutlined,
@@ -16,79 +17,32 @@ import {
   SendOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '../auth/AuthContext';
-import { PermissionGuard } from '../components/PermissionGuard';
+import { shortId } from '../utils/resourceId';
 
-/** 应用数据结构 */
+/** 可暴露/可引用的资源类型 */
+type ExposableResourceType = 'pages' | 'cards' | 'forms' | 'tables' | 'workflows' | 'automations' | 'computations';
+
+/** 应用数据结构 - 与 tenants/{id}/apps/{id}/app.json 一致 */
 interface AppItem {
-  id: string;
+  schemaVersion: number;
+  version: number;
+  appId: string;
   name: string;
   description: string;
   icon: string;
-  color: string;
+  appVersion: string;
   status: 'draft' | 'published' | 'archived';
-  version: string;
+  componentLibrary: string;
+  visibility: string;
   createdBy: string;
-  createdAt: string;
+  createdAt: number;
+  updatedAt: number;
+  tenantId: string;
+  /** 跨应用引用声明 — 按资源类型分组，格式 "{appId}.{resourceId}" */
+  references: Partial<Record<ExposableResourceType, string[]>>;
+  /** 资源暴露配置 — 按资源类型记录允许跨应用引用的资源 ID 列表 */
+  expose?: Partial<Record<ExposableResourceType, string[]>>;
 }
-
-/** 模拟应用数据 */
-const MOCK_APPS: AppItem[] = [
-  {
-    id: '597d90e9',
-    name: '山水 OA',
-    description: '办公自动化系统，包含审批流程、任务管理、日程安排等功能',
-    icon: '📋',
-    color: '#4f46e5',
-    status: 'draft',
-    version: '0.1.0',
-    createdBy: '张总',
-    createdAt: '2026-06-10',
-  },
-  {
-    id: 'app-2',
-    name: '山水 CRM',
-    description: '客户关系管理系统，管理客户信息、商机跟进、销售漏斗',
-    icon: '🤝',
-    color: '#059669',
-    status: 'published',
-    version: '1.0.0',
-    createdBy: '张总',
-    createdAt: '2026-06-08',
-  },
-  {
-    id: 'app-3',
-    name: '项目管理',
-    description: '项目进度跟踪、任务分配、甘特图、看板视图',
-    icon: '📊',
-    color: '#d97706',
-    status: 'published',
-    version: '1.2.0',
-    createdBy: '张总',
-    createdAt: '2026-05-20',
-  },
-  {
-    id: 'app-4',
-    name: '人事管理',
-    description: '员工信息管理、考勤统计、薪资管理、招聘管理',
-    icon: '👥',
-    color: '#dc2626',
-    status: 'published',
-    version: '1.0.0',
-    createdBy: '张总',
-    createdAt: '2026-05-15',
-  },
-  {
-    id: 'app-5',
-    name: '财务报表',
-    description: '财务数据汇总、报表生成、预算管理',
-    icon: '💰',
-    color: '#7c3aed',
-    status: 'draft',
-    version: '0.1.0',
-    createdBy: '张总',
-    createdAt: '2026-06-01',
-  },
-];
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
   draft: { label: '草稿', color: 'default' },
@@ -97,61 +51,128 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
 };
 
 export default function AppCenterPage() {
-  const { isAdmin } = useAuth();
+  const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
-  const [apps, setApps] = useState(MOCK_APPS);
+  const tenantId = user?.tenantId || '';
+
+  const [apps, setApps] = useState<AppItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [form] = Form.useForm();
 
+  /** 加载应用列表 */
+  const loadApps = useCallback(async () => {
+    setLoading(true);
+    try {
+      const resp = await fetch('/api/apps');
+      const data = await resp.json();
+      if (data.success) {
+        setApps(data.apps);
+      }
+    } catch {
+      message.error('加载应用列表失败');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetch('/api/apps')
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled && data.success) setApps(data.apps);
+      })
+      .catch(() => {
+        if (!cancelled) message.error('加载应用列表失败');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  /** 过滤 */
   const filteredApps = apps.filter(
     (app) =>
       app.name.includes(searchText) || app.description.includes(searchText),
   );
 
-  const handleCreate = useCallback(() => {
-    form.validateFields().then((values) => {
-      const newApp: AppItem = {
-        id: `app-${Date.now()}`,
-        name: values.name,
-        description: values.description || '',
-        icon: values.icon || '📦',
-        color: '#4f46e5',
-        status: 'draft',
-        version: '0.1.0',
-        createdBy: '当前用户',
-        createdAt: new Date().toISOString().slice(0, 10),
-      };
-      setApps((prev) => [newApp, ...prev]);
-      setCreateModalOpen(false);
-      form.resetFields();
-      message.success('应用创建成功');
-    });
-  }, [form]);
+  /** 创建应用 */
+  const handleCreate = useCallback(async () => {
+    try {
+      const values = await form.validateFields();
+      const resp = await fetch('/api/apps', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: values.name,
+          description: values.description || '',
+          icon: values.icon || '📦',
+        }),
+      });
+      const data = await resp.json();
+      if (data.success) {
+        message.success('应用创建成功');
+        setCreateModalOpen(false);
+        form.resetFields();
+        loadApps();
+      } else {
+        message.error(data.error || '创建失败');
+      }
+    } catch {
+      message.error('创建失败');
+    }
+  }, [form, loadApps]);
 
+  /** 删除应用 */
   const handleDelete = useCallback((appId: string) => {
     Modal.confirm({
       title: '确认删除',
       content: '删除后不可恢复，是否继续？',
-      onOk: () => {
-        setApps((prev) => prev.filter((a) => a.id !== appId));
-        message.success('已删除');
+      onOk: async () => {
+        try {
+          const resp = await fetch(`/api/apps/${appId}`, { method: 'DELETE' });
+          const data = await resp.json();
+          if (data.success) {
+            message.success('已删除');
+            loadApps();
+          } else {
+            message.error(data.error || '删除失败');
+          }
+        } catch {
+          message.error('删除失败');
+        }
       },
     });
-  }, []);
+  }, [loadApps]);
 
+  /** 发布应用 */
   const handlePublish = useCallback((appId: string) => {
     Modal.confirm({
       title: '确认发布',
       content: '发布后员工即可在应用中心看到该应用，是否继续？',
       onOk: () => {
-        setApps((prev) =>
-          prev.map((a) => (a.id === appId ? { ...a, status: 'published' as const } : a)),
-        );
+        // TODO: 调用发布 API
         message.success('应用已发布');
       },
     });
   }, []);
+
+  /** 进入应用详情 */
+  const handleEnterApp = useCallback((appId: string) => {
+    navigate(`/${tenantId}/apps/${shortId(appId)}`);
+  }, [navigate]);
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', marginTop: 100 }}>
+        <Spin size="large" />
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -165,7 +186,7 @@ export default function AppCenterPage() {
           onChange={(e) => setSearchText(e.target.value)}
           allowClear
         />
-        <PermissionGuard roles={['tenant_admin']}>
+        {isAdmin && (
           <Button
             type="primary"
             icon={<PlusOutlined />}
@@ -173,12 +194,18 @@ export default function AppCenterPage() {
           >
             新建应用
           </Button>
-        </PermissionGuard>
+        )}
       </div>
 
       {/* 应用网格 */}
       {filteredApps.length === 0 ? (
-        <Empty description="暂无应用" style={{ marginTop: 80 }} />
+        <Empty description="暂无应用" style={{ marginTop: 80 }}>
+          {isAdmin && (
+            <Button type="primary" onClick={() => setCreateModalOpen(true)}>
+              新建应用
+            </Button>
+          )}
+        </Empty>
       ) : (
         <div
           style={{
@@ -189,47 +216,32 @@ export default function AppCenterPage() {
         >
           {filteredApps.map((app) => (
             <Card
-              key={app.id}
+              key={app.appId}
               className="app-card"
               hoverable
               style={{ position: 'relative' }}
+              onClick={() => handleEnterApp(app.appId)}
             >
               {/* 右上角下拉菜单 */}
               {isAdmin && (
                 <div
+                  key="dropdown-anchor"
                   style={{
                     position: 'absolute',
                     top: 12,
                     right: 12,
                     zIndex: 1,
                   }}
+                  onClick={(e) => e.stopPropagation()}
                 >
                   <Dropdown
                     menu={{
                       items: [
-                        {
-                          key: 'edit',
-                          icon: <EditOutlined />,
-                          label: '编辑',
-                          onClick: () => navigate(`/designer/app/${app.id}`),
-                        },
+                        { key: 'edit', icon: <EditOutlined />, label: '编辑', onClick: () => navigate(`/${tenantId}/designer/app/${shortId(app.appId)}`) },
                         ...(app.status === 'draft'
-                          ? [
-                              {
-                                key: 'publish',
-                                icon: <SendOutlined />,
-                                label: '发布',
-                                onClick: () => handlePublish(app.id),
-                              },
-                            ]
+                          ? [{ key: 'publish', icon: <SendOutlined />, label: '发布', onClick: () => handlePublish(app.appId) }]
                           : []),
-                        {
-                          key: 'delete',
-                          icon: <DeleteOutlined />,
-                          label: '删除',
-                          danger: true,
-                          onClick: () => handleDelete(app.id),
-                        },
+                        { key: 'delete', icon: <DeleteOutlined />, label: '删除', danger: true, onClick: () => handleDelete(app.appId) },
                       ],
                     }}
                     trigger={['click']}
@@ -238,11 +250,11 @@ export default function AppCenterPage() {
                       type="text"
                       size="small"
                       icon={<EllipsisOutlined style={{ fontSize: 16 }} />}
-                      onClick={(e) => e.stopPropagation()}
                     />
                   </Dropdown>
                 </div>
               )}
+
               <Card.Meta
                 avatar={
                   <div
@@ -250,7 +262,7 @@ export default function AppCenterPage() {
                       width: 48,
                       height: 48,
                       borderRadius: 12,
-                      background: `${app.color}15`,
+                      background: '#4f46e515',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -263,8 +275,8 @@ export default function AppCenterPage() {
                 title={
                   <Space>
                     <span>{app.name}</span>
-                    <Tag color={STATUS_MAP[app.status].color}>
-                      {STATUS_MAP[app.status].label}
+                    <Tag color={STATUS_MAP[app.status]?.color || 'default'}>
+                      {STATUS_MAP[app.status]?.label || app.status}
                     </Tag>
                   </Space>
                 }
@@ -282,10 +294,10 @@ export default function AppCenterPage() {
                         overflow: 'hidden',
                       }}
                     >
-                      {app.description}
+                      {app.description || '暂无描述'}
                     </div>
                     <div style={{ fontSize: 12, color: '#bfbfbf' }}>
-                      v{app.version} · {app.createdBy} · {app.createdAt}
+                      v{app.appVersion} · {app.tenantId}
                     </div>
                   </div>
                 }

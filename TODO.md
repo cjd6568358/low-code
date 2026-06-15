@@ -8,9 +8,9 @@
 {
   "schemaVersion": 1,
   "version": 3,
-  "_references": [
-    { "resourceType": "table", "resourceId": "table_xxx", "fields": ["field_name", "field_email"] }
-  ]
+  "references": {
+    "tables": [{ "id": "xxx" }]
+  }
 }
 ```
 
@@ -18,7 +18,7 @@
 |------|------|------|
 | `schemaVersion` | `number` | 文件结构版本号。引擎代码变更导致 Schema 结构变化时递增，用于自动迁移旧格式文件 |
 | `version` | `number` | 业务版本号。每次保存递增，用于乐观锁 — 保存时对比版本号，不一致则提示冲突 |
-| `_references` | `array` | 跨资源引用声明。由编译器自动生成，标注本资源依赖的其他资源及其字段，便于影响分析和批量更新 |
+| `references` | `object` | 资源引用声明，按资源类型分组。由编译器自动生成，标注本资源依赖的其他资源，便于影响分析和批量更新 |
 
 **`schemaVersion` vs `version` 的区别**：
 - `schemaVersion` — 文件**结构**的版本（如 `label: "姓名"` → `label: { zh: "姓名" }`），只在引擎升级时变更，需要迁移脚本
@@ -95,21 +95,21 @@
 
 **问题**：页面引用数据表字段，流程引用数据表数据，自动化监听数据表变更，运算依赖数据表字段。改了数据表字段名，需要同步更新所有引用它的资源。
 
-**解决方案**：在每个资源 JSON 中添加 `_references` 字段，声明式标注依赖关系。
+**解决方案**：在每个资源 JSON 中添加 `references` 字段，按资源类型分组声明依赖关系。
 
 ```json
 {
-  "pageId": "page_xxx",
+  "pageId": "xxx",
   "components": [...],
-  "_references": [
-    { "resourceType": "table", "resourceId": "table_xxx", "fields": ["field_name", "field_email"] }
-  ]
+  "references": {
+    "tables": [{ "id": "xxx" }]
+  }
 }
 ```
 
 **实现方式**：
-- `_references` 由 `build-tools` 编译器从组件树/流程节点/自动化规则中自动提取生成，不在设计器里手动编辑
-- 修改资源时扫描所有 `_references` 引用该资源的文件，列出影响范围
+- `references` 由 `build-tools` 编译器从组件树/流程节点/自动化规则中自动提取生成，不在设计器里手动编辑
+- 修改资源时扫描所有 `references` 引用该资源的文件，列出影响范围
 - 支持批量更新引用（重命名字段时同步更新所有引用方）
 - 文件量小时用 grep 扫描，文件量大时引入 SQLite FTS 索引
 
@@ -279,4 +279,6 @@ _system.db 获取 tenant_id 列表
 - [x] 租户目录结构（tenants/{id}/apps/{id}/ + data/）
 - [x] 全局字典 JSON 文件
 - [x] UUID 资源标识（前缀 + 8位hex + 唯一性校验）
-- [x] 资源 JSON 标准字段定义（schemaVersion、version、_references）
+- [x] 资源 JSON 标准字段定义（schemaVersion、version、references）
+- [x] 应用 API 改为文件系统即数据源（tenants/{id}/apps/ 直接读写，不依赖 SQLite）
+- [x] 租户数据改为文件系统即数据源（tenants/{id}/tenant.json，移除 _system.db 的 tenants 表）

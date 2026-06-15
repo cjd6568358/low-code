@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "version": 1,
-  "appId": "app_80e88653",
+  "appId": "80e88653",
   "name": "山水 OA",
   "description": "办公自动化系统，包含审批流程、任务管理、日程安排等功能",
   "icon": "📋",
@@ -9,8 +9,9 @@
   "status": "draft",
   "componentLibrary": "antd",
   "visibility": "internal",
-  "createdBy": "user_97732285",
+  "createdBy": "97732285",
   "createdAt": 1781364313289,
   "updatedAt": 1781364313289,
-  "_references": []
+  "references": {},
+  "expose": {}
 }

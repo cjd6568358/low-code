@@ -16,7 +16,7 @@ import { registerRoutes } from './routes/index.js';
 async function main() {
   const app = new Koa();
 
-  // ─── 中间件（顺序 matters） ────────────────────
+  // ─── 中间件(顺序 matters) ────────────────────
   app.use(errorMiddleware);
   app.use(corsMiddleware);
   app.use(loggerMiddleware);
@@ -39,10 +39,10 @@ async function main() {
     console.log('═══════════════════════════════════════════');
     console.log('');
     console.log('  目录结构:');
-    console.log('    config/       配置（端口、数据库路径）');
-    console.log('    middlewares/  中间件（错误/CORS/日志）');
-    console.log('    routes/       路由（auth、health）');
-    console.log('    services/     业务服务层（待实现）');
+    console.log('    config/       配置(端口、数据库路径)');
+    console.log('    middlewares/  中间件(错误/CORS/日志)');
+    console.log('    routes/       路由(auth、health)');
+    console.log('    services/     业务服务层(待实现)');
     console.log('');
     console.log('  接口列表:');
     console.log('    POST /api/auth/login   用户登录');

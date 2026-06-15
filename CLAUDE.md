@@ -25,7 +25,7 @@ This file provides guidance to Claude Code when working with this repository.
 - **物理级租户隔离**：每租户独立目录（Schema + SQLite），文件系统级隔离
 - **TS 类型即实体**：不需要单独实体层，TS 类型自动编译为 JSON Schema 供各引擎消费
 - **纯引擎架构**：packages/ 不依赖框架，可独立测试，server 组装引擎，frontend 调用 API
-- **文件即配置**：应用资源 = JSON 文件，可 Git 管理、导入导出、跨环境迁移
+- **文件即数据源**：`tenants/{tenantId}/apps/` 是唯一数据源，API 直接读写 JSON 文件，不依赖数据库
 
 ## 开发规范（每次会话必须遵守）
 
@@ -79,8 +79,32 @@ This file provides guidance to Claude Code when working with this repository.
 
 ### 会话规范
 - **每次会话响应结尾必须包含 "-------是的，我还清醒---------"**
-- 每次开发完代码后必须验证和文档的差异，并列出
 - 每次解决完 bug 后需要将问题归档
+
+### 文档同步检查表（每次改动必须执行）
+
+**在完成任何涉及以下内容的改动后，必须对照此表检查并更新对应文档，然后在响应中列出更新了哪些文档。**
+
+| 改动类型 | 必须同步的文档 |
+|---------|--------------|
+| 目录结构变更 | README.md（项目结构）、CLAUDE.md（架构说明） |
+| API 接口变更 | README.md（常用命令/架构） |
+| 数据库 Schema 变更 | docs/data-layer.md |
+| 引擎能力变更 | 对应的 docs/xxx-engine.md |
+| 租户/应用模型变更 | docs/application.md、docs/tenant-admin.md |
+| 权限/角色变更 | docs/permission-engine.md、docs/tenant-admin.md |
+| 设计器变更 | docs/render-engine.md |
+| 新增/删除资源类型 | README.md、docs/application.md、docs/render-engine.md |
+| 种子数据变更 | docs/tenant-delivery/山水集团-租户交付文档.md |
+| 全局字典变更 | docs/system-dictionaries.md |
+| 技术难点/设计决策 | TODO.md |
+| 启动命令变更 | README.md、CLAUDE.md |
+
+**执行流程**：
+1. 改代码前：列出本次改动涉及哪些文档
+2. 改代码中：同步更新文档
+3. 改代码后：在响应末尾列出"已同步文档：xxx、xxx"
+4. 如果某文档不需要更新，在清单中注明"无需变更"
 
 ## 常用命令
 
@@ -136,12 +160,25 @@ TODO.md          ← 技术难点与工作计划
 | 服务层 | `server/` | Koa API，组装引擎，中间件，路由 |
 | 引擎层 | `packages/*` | 纯逻辑：渲染/运算/数据/权限/自动渲染 |
 | 租户数据 | `tenants/{id}/` | 每租户的 apps/（Schema）+ data/（SQLite） |
-| 系统数据 | `data/` | _system.db（租户注册、平台管理员） |
+| 系统数据 | `data/` | _system.db（平台管理员、套餐配置） |
+
+### 路由规范
+
+所有租户页面路由必须带 `/:tenantId` 前缀：
+
+- `/login` — 平台管理员登录
+- `/:tenantId/login` — 租户登录（个性化品牌）
+- `/:tenantId/workspace` — 工作台
+- `/:tenantId/apps` — 应用中心
+- `/:tenantId/apps/:appId` — 应用运行时视图
+- `/:tenantId/workflows` — 流程中心
+- `/:tenantId/config` — 配置中心（仅管理员）
+- `/:tenantId/designer/:resourceType/:id` — 设计器
 
 ### 登录认证流程
 
-1. 前端 POST `/api/auth/login` { email, password }
-2. 后端遍历活跃租户，在租户库中查找用户
+1. 前端 POST `/api/auth/login` { email, password, tenantId? }
+2. 若指定 tenantId，只在该租户库中查找用户；否则遍历所有租户
 3. scrypt 验证密码，查询角色/部门/岗位
 4. 返回用户信息（含角色），前端存 sessionStorage
 5. 前端根据角色渲染菜单和权限（PermissionGuard）
