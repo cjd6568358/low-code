@@ -1,11 +1,16 @@
 import type {
   ComponentRegistry as IComponentRegistry,
   ComponentRegistration,
+  ComponentLibrary,
 } from '@low-code/shared';
+import type React from 'react';
 
+/** 带组件实现的注册表 — 在 IComponentRegistry 基础上增加组件解析能力 */
 export class ComponentRegistryImpl implements IComponentRegistry {
   private entries = new Map<string, ComponentRegistration>();
   private libraryEntries = new Map<string, Map<string, ComponentRegistration>>();
+  /** 组件实现映射（type → React 组件） */
+  private componentImpls = new Map<string, React.ComponentType<any>>();
 
   register(entry: ComponentRegistration): void {
     this.entries.set(entry.type, entry);
@@ -42,7 +47,53 @@ export class ComponentRegistryImpl implements IComponentRegistry {
   import(entries: ComponentRegistration[]): void {
     this.entries.clear();
     this.libraryEntries.clear();
+    this.componentImpls.clear();
     this.registerAll(entries);
+  }
+
+  /**
+   * 注册组件库 — 一次性注册库内所有组件
+   *
+   * @param library 组件库描述
+   * @param components type → React 组件实现映射
+   * @param schemas type → JSON Schema 映射
+   */
+  registerLibrary(
+    library: ComponentLibrary,
+    components: Record<string, React.ComponentType<any>>,
+    schemas: Record<string, Record<string, any>>,
+  ): void {
+    // 注册组件实现
+    for (const [type, impl] of Object.entries(components)) {
+      this.componentImpls.set(type, impl);
+    }
+
+    // 注册元数据
+    const categoryMap = library.categoryMap as Record<string, { category: string; name: string }>;
+    for (const [type, meta] of Object.entries(categoryMap)) {
+      const schema = schemas[type];
+      if (!schema) continue;
+
+      this.register({
+        type,
+        name: meta.name,
+        category: meta.category as any,
+        component: type,
+        propsSchema: schema as any,
+        acceptsChildren: library.containerTypes.has(type),
+        library: library.name,
+      });
+    }
+  }
+
+  /**
+   * 解析组件实现 — 返回实际的 React 组件
+   *
+   * @param type 组件类型标识
+   * @returns React 组件，未找到返回 null
+   */
+  resolveComponent(type: string): React.ComponentType<any> | null {
+    return this.componentImpls.get(type) || null;
   }
 
   /** 按组件库切换 */

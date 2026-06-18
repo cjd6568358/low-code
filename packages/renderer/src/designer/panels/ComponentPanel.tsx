@@ -63,8 +63,9 @@ export function ComponentPanel({ registry }: { registry: any }) {
   return (
     <div
       style={{
-        width: '280px',
+        width: '200px',
         height: '100%',
+        minHeight: 0,
         borderRight: '1px solid #e8e8e8',
         backgroundColor: '#fafafa',
         display: 'flex',
@@ -72,8 +73,8 @@ export function ComponentPanel({ registry }: { registry: any }) {
         overflow: 'hidden',
       }}
     >
-      {/* 搜索栏 */}
-      <div style={{ padding: '12px', borderBottom: '1px solid #e8e8e8' }}>
+      {/* 搜索栏 — 固定高度，与中间/右侧顶部对齐 */}
+      <div style={{ height: 40, padding: '0 8px', borderBottom: '1px solid #e8e8e8', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
         <input
           type="text"
           placeholder="搜索组件..."
@@ -81,39 +82,38 @@ export function ComponentPanel({ registry }: { registry: any }) {
           onChange={(e) => dispatch({ type: 'SET_SEARCH', payload: e.target.value })}
           style={{
             width: '100%',
-            padding: '6px 12px',
+            padding: '4px 8px',
             border: '1px solid #d9d9d9',
-            borderRadius: '6px',
-            fontSize: '14px',
+            borderRadius: '4px',
+            fontSize: '12px',
             boxSizing: 'border-box',
           }}
         />
       </div>
 
-      {/* 当前组件库标识（应用级配置，不可切换） */}
-      <div style={{ padding: '8px 12px', borderBottom: '1px solid #e8e8e8', fontSize: '12px', color: '#999' }}>
+      {/* 当前组件库标识 */}
+      <div style={{ padding: '4px 8px', borderBottom: '1px solid #e8e8e8', fontSize: '11px', color: '#999', flexShrink: 0 }}>
         组件库: <span style={{ color: '#1890ff', fontWeight: 600 }}>
           {currentLibrary === 'antd' ? 'Ant Design' : currentLibrary === 'element-plus' ? 'Element Plus' : currentLibrary}
         </span>
-        <span style={{ marginLeft: '8px', fontSize: '11px' }}>（应用创建时指定）</span>
       </div>
 
-      {/* 组件列表 */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '12px' }}>
+      {/* 组件列表 — 可滚动区域 */}
+      <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '8px' }}>
         {Array.from(groupedComponents.entries()).map(([category, components]) => (
-          <div key={category} style={{ marginBottom: '16px' }}>
+          <div key={category} style={{ marginBottom: '12px' }}>
             <div
               style={{
-                fontSize: '12px',
+                fontSize: '11px',
                 fontWeight: 600,
                 color: '#999',
-                marginBottom: '8px',
+                marginBottom: '6px',
                 textTransform: 'uppercase',
               }}
             >
               {categoryLabels[category] || category}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
               {components.map((comp) => (
                 <div
                   key={comp.type}
@@ -121,13 +121,13 @@ export function ComponentPanel({ registry }: { registry: any }) {
                   onDragStart={(e) => handleDragStart(e, comp.type)}
                   onDragEnd={handleDragEnd}
                   style={{
-                    padding: '8px',
+                    padding: '6px 4px',
                     border: '1px solid #e8e8e8',
-                    borderRadius: '6px',
+                    borderRadius: '4px',
                     backgroundColor: '#fff',
                     cursor: 'grab',
                     textAlign: 'center',
-                    fontSize: '12px',
+                    fontSize: '11px',
                     transition: 'border-color 0.2s',
                     userSelect: 'none',
                   }}
@@ -138,10 +138,7 @@ export function ComponentPanel({ registry }: { registry: any }) {
                     (e.currentTarget as HTMLElement).style.borderColor = '#e8e8e8';
                   }}
                 >
-                  <div style={{ fontSize: '20px', marginBottom: '4px' }}>
-                    {comp.icon || '📦'}
-                  </div>
-                  <div>{comp.name}</div>
+                  <div style={{ lineHeight: 1.2 }}>{comp.name}</div>
                 </div>
               ))}
             </div>

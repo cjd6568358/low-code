@@ -90,7 +90,11 @@ tenants/
         └── tenant.db              # SQLite 数据库（上级目录已含租户 ID）
 ```
 
-> **ID 约定**：JSON 内存裸 8 位 hex（如 `appId: "80e88653"`、`pageId: "abc12345"`），`{type}_` 前缀仅用于目录/文件名（如 `app_80e88653/`、`page_abc12345.json`），代码通过动态拼接 `{type}_{id}` 访问文件系统。
+> **ID 约定**：
+> - **JSON 内部**：裸 8 位 hex（如 `appId: "80e88653"`、`pageId: "abc12345"`）
+> - **文件系统**：带前缀（如 `app_80e88653/`、`page_abc12345.json`）
+> - **API 接口**：裸 ID（如 `GET /api/apps/80e88653`）
+> - 代码通过动态拼接 `{type}_{id}` 访问文件系统，服务端兼容裸 ID 和带前缀 ID
 
 ### 设计原则
 
@@ -99,7 +103,7 @@ tenants/
 - **七种资源**：pages、cards、forms、tables、workflows、automations、computations，每种资源一个 JSON 文件
 - **统一格式**：所有资源 Schema 遵循各自的 JSON Schema 规范
 - **时间戳**：所有时间字段统一使用 Unix 毫秒时间戳（`number` 类型）
-- **标准字段**：所有资源 JSON 必须包含 `schemaVersion`（结构版本）、`version`（乐观锁版本）、`references`（资源引用）
+- **标准字段**：所有资源 JSON 必须包含 `schemaVersion`（结构版本）、`version`（乐观锁版本）
 - **资源暴露**：应用通过 `expose` 字段声明哪些资源可被跨应用引用，未暴露的资源对外不可见
 - **ID 约定**：JSON 内存裸 8 位 hex ID（如 `appId: "80e88653"`），`{type}_` 前缀仅用于目录/文件名（如 `app_80e88653/`、`page_abc12345.json`），代码动态拼接
 - **目录即操作**：创建应用 = 创建目录，删除应用 = 删除目录，查询应用 = 扫描目录
@@ -110,13 +114,12 @@ tenants/
 |------|------|------|
 | `schemaVersion` | `number` | 文件结构版本号，引擎升级时递增，用于自动迁移旧格式 |
 | `version` | `number` | 业务版本号，每次保存递增，用于乐观锁冲突检测 |
-| `references` | `object` | 资源引用声明，按资源类型分组，key 即类型、value 为 ID 列表 |
+| `references` | `object` | **仅资源级**（page.json/table.json 等），应用级（app.json）无此字段。资源引用声明，按资源类型分组，由编译器自动生成 |
 
-> **`references` 的两层含义**：
-> - **应用级**（app.json）：跨应用引用，格式 `"{appId}.{resourceId}"`，与 `expose` 互为镜像
-> - **资源级**（page.json/table.json 等）：应用内引用，格式 `"{resourceId}"`，由编译器自动生成
-> - 两层格式统一为 `{ "tables": ["xxx"], "pages": [...] }`，降低认知负担
-> - 所有 ID 均为裸 8 位 hex，`{type}_` 前缀仅在文件系统层动态拼接
+> **`references` 仅存在于资源级**：
+> - 应用是资源的聚合容器，不依赖其他资源，因此 app.json 无 `references`
+> - 资源级（page.json/table.json 等）：声明本资源依赖的其他资源，格式 `{ "tables": ["resourceId"] }`
+> - 应用间依赖通过资源级 `references` + 应用级 `expose` 配合实现
 
 ### 应用 Schema 结构
 
@@ -136,9 +139,6 @@ tenants/
   "createdBy": "97732285",
   "createdAt": 1781364313289,
   "updatedAt": 1781364313289,
-  "references": {
-    "tables": ["80e88653.xyz78901"]
-  },
   "expose": {
     "pages": ["abc12345"],
     "tables": ["xyz78901", "def45678"]
@@ -162,9 +162,8 @@ tenants/
 
 - **默认为空**：新建应用的 `expose` 为 `{}`，不暴露任何资源
 - **多选配置**：每种资源类型下可列出多个资源 ID
-- **引用校验**：其他应用的 `references` 只能引用目标应用 `expose` 中已声明的资源
+- **引用校验**：其他应用的资源级 `references` 只能引用目标应用 `expose` 中已声明的资源
 - **运行时隔离**：未暴露的资源对跨应用消费者完全不可见
-- **与 `references` 互为镜像**：`expose` 说"我暴露了什么"，`references` 说"我引用了谁的什么"，两者结构对称
 
 ### 页面 Schema 结构
 
@@ -172,8 +171,7 @@ tenants/
 // pages/home.json - 页面定义
 {
   "pageId": "page_home",
-  "title": "首页",
-  "route": "/home",
+  "name": "首页",
   "layout": {
     "type": "grid",
     "columns": 24
@@ -280,7 +278,7 @@ tenants/
 ```
 一键发布
   ├─ 1. 扫描应用内所有资源
-  ├─ 2. 从页面入口 treeshake，递归收集 references
+  ├─ 2. 从页面入口 treeshake，递归收集资源级 references
   ├─ 3. 合并为 dist/app.bundle.json
   └─ 4. 更新 app.json 状态为 published
 ```
@@ -334,7 +332,7 @@ app_80e88653/
 
 ### 变更检测
 
-当资源被修改时，系统遍历所有已发布应用的 `references`，检查哪些应用引用了该资源：
+当资源被修改时，系统遍历所有已发布应用的资源级 `references`，检查哪些应用引用了该资源：
 
 ```
 GET /api/apps/:appId/check-updates?resourceType=tables&resourceId=xyz12345

@@ -6,8 +6,8 @@ import type { ActionChain } from './actions';
  */
 export interface PageSchema {
   pageId: string;
-  title: string;
-  route: string;
+  /** 资源名称（业务标识，唯一可读字段） */
+  name: string;
   layout: LayoutConfig;
   components: ComponentNode[];
   rules?: PageRule[];
@@ -20,6 +20,8 @@ export interface PageSchema {
 export interface ComponentNode {
   id: string;
   type: string;
+  /** 业务标签（可读名称，用于组件间引用和标识） */
+  label?: string;
   parentId?: string;
   props: Record<string, any>;
   events?: Record<string, ActionChain[]>;
@@ -83,13 +85,27 @@ export interface ServerVariableQuery {
   };
 }
 
-/** 布局配置 */
+/**
+ * 页面根节点布局配置
+ *
+ * flex 模式直接复用 antd Flex props（vertical/wrap/justify/align/gap），
+ * grid 模式使用 columns + CSS Grid 属性。
+ */
 export interface LayoutConfig {
   type: 'grid' | 'flex';
+  /** grid 模式列数 */
   columns?: number;
-  gap?: number;
-  direction?: 'row' | 'column';
+  /** 间距（flex/grid 通用） */
+  gap?: string | number;
+  // ── antd Flex props ──
+  /** 是否垂直排列（对应 antd Flex.vertical） */
+  vertical?: boolean;
+  /** 自动换行（对应 antd Flex.wrap） */
   wrap?: boolean;
+  /** 主轴对齐（对应 antd Flex.justify） */
+  justify?: string;
+  /** 交叉轴对齐（对应 antd Flex.align） */
+  align?: string;
 }
 
 /** 组件布局定位 */

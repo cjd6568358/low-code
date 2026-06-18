@@ -24,7 +24,9 @@ function withPrefix(uuid: string, prefix: string): string {
 
 /** 读取单个应用的 app.json */
 function readAppMeta(tenantId: string, appId: string): any | null {
-  const appJsonPath = path.join(TENANTS_DIR, tenantId, 'apps', appId, 'app.json');
+  // 兼容裸 ID 和带前缀 ID
+  const dirName = appId.startsWith('app_') ? appId : `app_${appId}`;
+  const appJsonPath = path.join(TENANTS_DIR, tenantId, 'apps', dirName, 'app.json');
   try {
     return JSON.parse(fs.readFileSync(appJsonPath, 'utf-8'));
   } catch {
@@ -187,11 +189,13 @@ function collectReferences(
  * @returns [tenantDirName, appDirPath] 或 null
  */
 function findAppDir(appId: string): [string, string] | null {
+  // 兼容裸 ID 和带前缀 ID
+  const dirName = appId.startsWith('app_') ? appId : `app_${appId}`;
   try {
     const entries = fs.readdirSync(TENANTS_DIR, { withFileTypes: true });
     for (const entry of entries) {
       if (!entry.isDirectory() || !entry.name.startsWith('tenant_')) continue;
-      const appDir = path.join(TENANTS_DIR, entry.name, 'apps', appId);
+      const appDir = path.join(TENANTS_DIR, entry.name, 'apps', dirName);
       if (fs.existsSync(path.join(appDir, 'app.json'))) {
         return [entry.name, appDir];
       }
@@ -291,7 +295,6 @@ export function createAppsRouter(): KoaRouter {
       createdBy: 'system',
       createdAt: now,
       updatedAt: now,
-      references: {},
       expose: {},
     };
     fs.writeFileSync(
@@ -323,7 +326,9 @@ export function createAppsRouter(): KoaRouter {
         const meta = readAppMeta(entry.name, appId);
         if (!meta) continue;
 
-        const appDir = path.join(TENANTS_DIR, entry.name, 'apps', appId);
+        // 兼容裸 ID 和带前缀 ID
+        const dirName = appId.startsWith('app_') ? appId : `app_${appId}`;
+        const appDir = path.join(TENANTS_DIR, entry.name, 'apps', dirName);
 
         // 尝试加载 bundle
         const bundlePath = path.join(appDir, 'dist', 'app.bundle.json');
@@ -334,7 +339,7 @@ export function createAppsRouter(): KoaRouter {
           for (const [type, typeResources] of Object.entries(bundle.resources)) {
             resources[type] = Object.entries(typeResources as Record<string, any>).map(([id, content]) => ({
               id,
-              name: content.name || content.title || id,
+              name: content.name || id,
               schemaVersion: content.schemaVersion,
               version: content.version,
             }));
@@ -365,7 +370,7 @@ export function createAppsRouter(): KoaRouter {
                 const content = JSON.parse(fs.readFileSync(path.join(typeDir, f), 'utf-8'));
                 return {
                   id: content[`${type.slice(0, -1)}Id`] || content.id || resourceIdFromFilename(f),
-                  name: content.name || content.title || resourceIdFromFilename(f),
+                  name: content.name || resourceIdFromFilename(f),
                   schemaVersion: content.schemaVersion,
                   version: content.version,
                 };
@@ -410,6 +415,9 @@ export function createAppsRouter(): KoaRouter {
         const meta = readAppMeta(entry.name, appId);
         if (!meta) continue;
 
+        // 兼容裸 ID 和带前缀 ID
+        const dirName = appId.startsWith('app_') ? appId : `app_${appId}`;
+
         // 合并更新
         const updated = {
           ...meta,
@@ -420,7 +428,7 @@ export function createAppsRouter(): KoaRouter {
           version: (meta.version || 0) + 1,
         };
 
-        const appJsonPath = path.join(TENANTS_DIR, entry.name, 'apps', appId, 'app.json');
+        const appJsonPath = path.join(TENANTS_DIR, entry.name, 'apps', dirName, 'app.json');
         fs.writeFileSync(appJsonPath, JSON.stringify(updated, null, 2));
 
         ctx.body = { success: true, app: updated };
@@ -446,7 +454,9 @@ export function createAppsRouter(): KoaRouter {
       for (const entry of entries) {
         if (!entry.isDirectory() || !entry.name.startsWith('tenant_')) continue;
 
-        const appDir = path.join(TENANTS_DIR, entry.name, 'apps', appId);
+        // 兼容裸 ID 和带前缀 ID
+        const dirName = appId.startsWith('app_') ? appId : `app_${appId}`;
+        const appDir = path.join(TENANTS_DIR, entry.name, 'apps', dirName);
         if (fs.existsSync(appDir)) {
           fs.rmSync(appDir, { recursive: true, force: true });
           ctx.body = { success: true };
@@ -459,6 +469,233 @@ export function createAppsRouter(): KoaRouter {
 
     ctx.status = 404;
     ctx.body = { success: false, error: '应用不存在' };
+  });
+
+  /**
+   * POST /api/apps/:appId/:resourceType
+   * 创建资源（页面、卡片、表单、数据表等）
+   *
+   * 请求体：{ name: string, layout?: LayoutConfig }
+   * 响应：{ success: true, resource: { id, name } }
+   */
+  router.post('/:appId/:resourceType', async (ctx) => {
+    const { appId, resourceType } = ctx.params;
+    const { name, layout } = ctx.request.body as {
+      name?: string;
+      layout?: { type: 'grid' | 'flex'; columns?: number; gap?: number; vertical?: boolean; wrap?: boolean; justify?: string; align?: string };
+    };
+
+    if (!name) {
+      ctx.status = 400;
+      ctx.body = { success: false, error: '资源名称不能为空' };
+      return;
+    }
+
+    // 验证资源类型
+    const validTypes = ['pages', 'cards', 'forms', 'tables', 'workflows', 'automations', 'computations'];
+    if (!validTypes.includes(resourceType)) {
+      ctx.status = 400;
+      ctx.body = { success: false, error: `无效的资源类型: ${resourceType}` };
+      return;
+    }
+
+    const found = findAppDir(appId);
+    if (!found) {
+      ctx.status = 404;
+      ctx.body = { success: false, error: '应用不存在' };
+      return;
+    }
+
+    const [, appDir] = found;
+    const uuid = generateUuid();
+    const prefix = resourceType.slice(0, -1); // pages → page, tables → table
+    const filename = `${prefix}_${uuid}.json`;
+    const resourceDir = path.join(appDir, resourceType);
+
+    // 确保目录存在
+    fs.mkdirSync(resourceDir, { recursive: true });
+
+    // 构建资源内容
+    const now = Date.now();
+    const resourceContent: Record<string, any> = {
+      schemaVersion: 1,
+      version: 1,
+      name,
+      createdAt: now,
+      updatedAt: now,
+      references: {},
+    };
+
+    // 设置资源 ID 字段
+    const idField = `${prefix}Id`;
+    resourceContent[idField] = uuid;
+
+    // 页面类型：添加布局配置
+    if (resourceType === 'pages') {
+      resourceContent.name = name;
+      resourceContent.layout = layout || { type: 'grid', columns: 24, gap: 16 };
+      resourceContent.components = [];
+    }
+
+    // 写入文件
+    fs.writeFileSync(
+      path.join(resourceDir, filename),
+      JSON.stringify(resourceContent, null, 2),
+    );
+
+    ctx.status = 201;
+    ctx.body = {
+      success: true,
+      resource: { id: uuid, name },
+    };
+  });
+
+  /**
+   * GET /api/apps/:appId/:resourceType/:resourceId
+   * 获取单个资源内容
+   */
+  router.get('/:appId/:resourceType/:resourceId', async (ctx) => {
+    const { appId, resourceType, resourceId } = ctx.params;
+
+    const validTypes = ['pages', 'cards', 'forms', 'tables', 'workflows', 'automations', 'computations'];
+    if (!validTypes.includes(resourceType)) {
+      ctx.status = 400;
+      ctx.body = { success: false, error: `无效的资源类型: ${resourceType}` };
+      return;
+    }
+
+    const found = findAppDir(appId);
+    if (!found) {
+      ctx.status = 404;
+      ctx.body = { success: false, error: '应用不存在' };
+      return;
+    }
+
+    const [, appDir] = found;
+    const prefix = resourceType.slice(0, -1);
+    const filename = `${prefix}_${resourceId}.json`;
+    const filePath = path.join(appDir, resourceType, filename);
+
+    if (!fs.existsSync(filePath)) {
+      ctx.status = 404;
+      ctx.body = { success: false, error: '资源不存在' };
+      return;
+    }
+
+    try {
+      const content = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+      ctx.body = { success: true, resource: content };
+    } catch {
+      ctx.status = 500;
+      ctx.body = { success: false, error: '读取资源失败' };
+    }
+  });
+
+  /**
+   * PUT /api/apps/:appId/:resourceType/:resourceId
+   * 更新资源（页面 schema、卡片 schema 等）
+   */
+  router.put('/:appId/:resourceType/:resourceId', async (ctx) => {
+    const { appId, resourceType, resourceId } = ctx.params;
+    const updates = ctx.request.body as Record<string, any>;
+
+    // 验证资源类型
+    const validTypes = ['pages', 'cards', 'forms', 'tables', 'workflows', 'automations', 'computations'];
+    if (!validTypes.includes(resourceType)) {
+      ctx.status = 400;
+      ctx.body = { success: false, error: `无效的资源类型: ${resourceType}` };
+      return;
+    }
+
+    const found = findAppDir(appId);
+    if (!found) {
+      ctx.status = 404;
+      ctx.body = { success: false, error: '应用不存在' };
+      return;
+    }
+
+    const [, appDir] = found;
+    const prefix = resourceType.slice(0, -1);
+    const filename = `${prefix}_${resourceId}.json`;
+    const filePath = path.join(appDir, resourceType, filename);
+
+    if (!fs.existsSync(filePath)) {
+      ctx.status = 404;
+      ctx.body = { success: false, error: '资源不存在' };
+      return;
+    }
+
+    // 读取现有内容并合并更新
+    let existing: Record<string, any>;
+    try {
+      existing = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    } catch {
+      ctx.status = 500;
+      ctx.body = { success: false, error: '读取资源失败' };
+      return;
+    }
+
+    // 过滤已废弃字段
+    if (resourceType === 'pages') {
+      delete updates.title;
+      delete updates.route;
+    }
+
+    const updated = {
+      ...existing,
+      ...updates,
+      [`${prefix}Id`]: existing[`${prefix}Id`], // 不允许修改 ID
+      updatedAt: Date.now(),
+      version: (existing.version || 0) + 1,
+    };
+
+    // 清除已有数据中的废弃字段
+    if (resourceType === 'pages') {
+      delete updated.title;
+      delete updated.route;
+    }
+
+    fs.writeFileSync(filePath, JSON.stringify(updated, null, 2));
+
+    ctx.body = { success: true, resource: updated };
+  });
+
+  /**
+   * DELETE /api/apps/:appId/:resourceType/:resourceId
+   * 删除资源
+   */
+  router.delete('/:appId/:resourceType/:resourceId', async (ctx) => {
+    const { appId, resourceType, resourceId } = ctx.params;
+
+    // 验证资源类型
+    const validTypes = ['pages', 'cards', 'forms', 'tables', 'workflows', 'automations', 'computations'];
+    if (!validTypes.includes(resourceType)) {
+      ctx.status = 400;
+      ctx.body = { success: false, error: `无效的资源类型: ${resourceType}` };
+      return;
+    }
+
+    const found = findAppDir(appId);
+    if (!found) {
+      ctx.status = 404;
+      ctx.body = { success: false, error: '应用不存在' };
+      return;
+    }
+
+    const [, appDir] = found;
+    const prefix = resourceType.slice(0, -1); // pages → page, tables → table
+    const filename = `${prefix}_${resourceId}.json`;
+    const filePath = path.join(appDir, resourceType, filename);
+
+    if (!fs.existsSync(filePath)) {
+      ctx.status = 404;
+      ctx.body = { success: false, error: '资源不存在' };
+      return;
+    }
+
+    fs.unlinkSync(filePath);
+
+    ctx.body = { success: true };
   });
 
   /**

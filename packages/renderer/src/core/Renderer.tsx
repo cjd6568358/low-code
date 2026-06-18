@@ -392,8 +392,10 @@ function resolvePageLayoutStyle(layout: PageSchema['layout']): React.CSSProperti
     if (layout.gap) style.gap = `${layout.gap}px`;
   } else if (layout.type === 'flex') {
     style.display = 'flex';
-    style.flexDirection = layout.direction || 'row';
+    style.flexDirection = layout.vertical !== false ? 'column' : 'row';
     if (layout.wrap) style.flexWrap = 'wrap';
+    if (layout.justify) style.justifyContent = layout.justify;
+    if (layout.align) style.alignItems = layout.align;
     if (layout.gap) style.gap = `${layout.gap}px`;
   }
 

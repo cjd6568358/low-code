@@ -1,0 +1,98 @@
+{
+  "type": "object",
+  "properties": {
+    "value": {
+      "type": "number",
+      "title": "value"
+    },
+    "defaultValue": {
+      "type": "number",
+      "title": "defaultValue"
+    },
+    "allowClear": {
+      "type": "boolean",
+      "title": "allowClear"
+    },
+    "style": {
+      "title": "style"
+    },
+    "prefixCls": {
+      "type": "string",
+      "title": "prefixCls"
+    },
+    "onChange": {
+      "type": "object",
+      "title": "onChange"
+    },
+    "onHoverChange": {
+      "type": "object",
+      "title": "onHoverChange"
+    },
+    "className": {
+      "type": "string",
+      "title": "className"
+    },
+    "tabIndex": {
+      "type": "number",
+      "title": "tabIndex"
+    },
+    "onFocus": {
+      "type": "object",
+      "title": "onFocus"
+    },
+    "onBlur": {
+      "type": "object",
+      "title": "onBlur"
+    },
+    "onKeyDown": {
+      "title": "onKeyDown"
+    },
+    "onMouseEnter": {
+      "title": "onMouseEnter"
+    },
+    "onMouseLeave": {
+      "title": "onMouseLeave"
+    },
+    "id": {
+      "type": "string",
+      "title": "id"
+    },
+    "autoFocus": {
+      "type": "boolean",
+      "title": "autoFocus"
+    },
+    "direction": {
+      "type": "string",
+      "title": "direction"
+    },
+    "keyboard": {
+      "description": "Is keyboard control enabled.",
+      "default": true,
+      "type": "boolean",
+      "title": "keyboard"
+    },
+    "disabled": {
+      "type": "boolean",
+      "title": "disabled"
+    },
+    "count": {
+      "type": "number",
+      "title": "count"
+    },
+    "character": {
+      "title": "character"
+    },
+    "characterRender": {
+      "type": "object",
+      "title": "characterRender"
+    },
+    "allowHalf": {
+      "type": "boolean",
+      "title": "allowHalf"
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "antd-rate",
+  "title": "RateProps",
+  "description": "antd RateProps — auto-generated from rate/index.d.ts"
+}

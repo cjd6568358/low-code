@@ -5,11 +5,10 @@ import type { PageSchema } from '@low-code/shared';
  */
 export const sampleFormSchema: PageSchema = {
   pageId: 'page_user_form',
-  title: '用户信息',
-  route: '/user/form',
+  name: '用户信息',
   layout: {
     type: 'flex',
-    direction: 'column',
+    vertical: true,
     gap: 16,
   },
   theme: {
@@ -159,8 +158,7 @@ export const sampleFormSchema: PageSchema = {
  */
 export const sampleDashboardSchema: PageSchema = {
   pageId: 'page_dashboard',
-  title: '仪表盘',
-  route: '/dashboard',
+  name: '仪表盘',
   layout: {
     type: 'grid',
     columns: 24,

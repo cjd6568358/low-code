@@ -2,7 +2,7 @@
  * Resource ID helpers
  *
  * URL uses short ID (without prefix), code adds prefix.
- * e.g. URL: /apps/80e88653 -> appId: app_80e88653
+ * e.g. URL: /app/80e88653 -> appId: app_80e88653
  */
 
 /** Resource type -> prefix mapping */

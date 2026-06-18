@@ -11,8 +11,8 @@
     "@low-code/shared": "*",
     "@low-code/computation": "*",
     "@low-code/auto-rendering": "*",
-    "antd": "^5.20.0",
-    "@ant-design/icons": "^5.4.0",
+    "antd": "^6.4.4",
+    "@ant-design/icons": "^6.2.5",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },

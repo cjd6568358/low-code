@@ -1,0 +1,235 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "patternProperties": {
+    "^[0-9]+$": {}
+  },
+  "properties": {
+    "href": {
+      "type": "string",
+      "title": "href"
+    },
+    "htmlType": {
+      "enum": [
+        "button",
+        "reset",
+        "submit"
+      ],
+      "type": "string",
+      "title": "htmlType"
+    },
+    "autoInsertSpace": {
+      "type": "boolean",
+      "title": "autoInsertSpace"
+    },
+    "type": {
+      "enum": [
+        "dashed",
+        "default",
+        "link",
+        "primary",
+        "text"
+      ],
+      "type": "string",
+      "title": "type"
+    },
+    "color": {
+      "enum": [
+        "blue",
+        "cyan",
+        "danger",
+        "default",
+        "geekblue",
+        "gold",
+        "green",
+        "lime",
+        "magenta",
+        "orange",
+        "pink",
+        "primary",
+        "purple",
+        "red",
+        "volcano",
+        "yellow"
+      ],
+      "type": "string",
+      "title": "color"
+    },
+    "variant": {
+      "enum": [
+        "dashed",
+        "filled",
+        "link",
+        "outlined",
+        "solid",
+        "text"
+      ],
+      "type": "string",
+      "title": "variant"
+    },
+    "icon": {
+      "title": "icon"
+    },
+    "iconPosition": {
+      "enum": [
+        "end",
+        "start"
+      ],
+      "type": "string",
+      "title": "iconPosition"
+    },
+    "iconPlacement": {
+      "enum": [
+        "end",
+        "start"
+      ],
+      "type": "string",
+      "title": "iconPlacement"
+    },
+    "shape": {
+      "enum": [
+        "circle",
+        "default",
+        "round",
+        "square"
+      ],
+      "type": "string",
+      "title": "shape"
+    },
+    "size": {
+      "$ref": "#/definitions/SizeType",
+      "title": "size"
+    },
+    "disabled": {
+      "type": "boolean",
+      "title": "disabled"
+    },
+    "loading": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "delay": {
+              "type": "number",
+              "title": "delay"
+            },
+            "icon": {
+              "title": "icon"
+            }
+          }
+        },
+        {
+          "type": "boolean"
+        }
+      ],
+      "title": "loading"
+    },
+    "prefixCls": {
+      "type": "string",
+      "title": "prefixCls"
+    },
+    "className": {
+      "type": "string",
+      "title": "className"
+    },
+    "rootClassName": {
+      "type": "string",
+      "title": "rootClassName"
+    },
+    "ghost": {
+      "type": "boolean",
+      "title": "ghost"
+    },
+    "danger": {
+      "type": "boolean",
+      "title": "danger"
+    },
+    "block": {
+      "type": "boolean",
+      "title": "block"
+    },
+    "children": {
+      "title": "children"
+    },
+    "classNames": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/DeepClassNameType%3C%7Broot%3F%3Astring%7Cundefined%3Bicon%3F%3Astring%7Cundefined%3Bcontent%3F%3Astring%7Cundefined%3B%7D%3E"
+        },
+        {
+          "type": "object"
+        }
+      ],
+      "title": "classNames"
+    },
+    "styles": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/DeepStylesType%3C%7Broot%3F%3Aany%3Bicon%3F%3Aany%3Bcontent%3F%3Aany%3B%7D%3E"
+        },
+        {
+          "type": "object"
+        }
+      ],
+      "title": "styles"
+    },
+    "_skipSemantic": {
+      "type": "boolean",
+      "title": "_skipSemantic"
+    }
+  },
+  "definitions": {
+    "SizeType": {
+      "description": "Note: `middle` is deprecated and will be removed in v7, please use `medium` instead.",
+      "title": "SizeType",
+      "enum": [
+        "large",
+        "medium",
+        "middle",
+        "small"
+      ],
+      "type": "string"
+    },
+    "DeepClassNameType<{root?:string|undefined;icon?:string|undefined;content?:string|undefined;}>": {
+      "title": "DeepClassNameType<{root?:string|undefined;icon?:string|undefined;content?:string|undefined;}>",
+      "type": "object",
+      "properties": {
+        "root": {
+          "$ref": "#/definitions/DeepClassNameType%3Cstring%7Cundefined%3E",
+          "title": "root"
+        },
+        "icon": {
+          "$ref": "#/definitions/DeepClassNameType%3Cstring%7Cundefined%3E",
+          "title": "icon"
+        },
+        "content": {
+          "$ref": "#/definitions/DeepClassNameType%3Cstring%7Cundefined%3E",
+          "title": "content"
+        }
+      }
+    },
+    "DeepClassNameType<string|undefined>": {
+      "title": "DeepClassNameType<string|undefined>",
+      "type": "string"
+    },
+    "DeepStylesType<{root?:any;icon?:any;content?:any;}>": {
+      "title": "DeepStylesType<{root?:any;icon?:any;content?:any;}>",
+      "type": "object",
+      "properties": {
+        "root": {
+          "title": "root"
+        },
+        "icon": {
+          "title": "icon"
+        },
+        "content": {
+          "title": "content"
+        }
+      }
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "antd-button",
+  "title": "ButtonProps",
+  "description": "antd ButtonProps — auto-generated from button/button.d.ts"
+}

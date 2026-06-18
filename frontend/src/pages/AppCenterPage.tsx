@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, Button, Input, Tag, Space, Empty, Modal, Form, Select, Dropdown, message, Spin } from 'antd';
+import { App, Card, Button, Input, Tag, Space, Empty, Modal, Form, Select, Dropdown, Spin } from 'antd';
 import {
   PlusOutlined,
   SearchOutlined,
@@ -51,6 +51,7 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
 };
 
 export default function AppCenterPage() {
+  const { message } = App.useApp();
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const tenantId = user?.tenantId || '';
@@ -163,7 +164,7 @@ export default function AppCenterPage() {
 
   /** 进入应用详情 */
   const handleEnterApp = useCallback((appId: string) => {
-    navigate(`/${tenantId}/apps/${shortId(appId)}`);
+    navigate(`/${tenantId}/app/${shortId(appId)}`);
   }, [navigate]);
 
   if (loading) {

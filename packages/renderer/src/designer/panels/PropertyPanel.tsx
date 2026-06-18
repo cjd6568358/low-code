@@ -105,38 +105,31 @@ export function PropertyPanel({ registry }: { registry: any }) {
     [selectedNode, dispatch],
   );
 
+  // 未选中组件时，显示页面设置面板
   if (!selectedNode) {
-    return (
-      <div style={{
-        width: '320px', height: '100%', borderLeft: '1px solid #e8e8e8',
-        backgroundColor: '#fafafa', display: 'flex', alignItems: 'center',
-        justifyContent: 'center', color: '#bbb', fontSize: '14px',
-      }}>
-        请选择一个组件
-      </div>
-    );
+    return <PageSettingsPanel />;
   }
 
   const propsSchema = registration?.propsSchema;
 
   return (
     <div style={{
-      width: '320px', height: '100%', borderLeft: '1px solid #e8e8e8',
+      width: '320px', height: '100%', minHeight: 0, borderLeft: '1px solid #e8e8e8',
       backgroundColor: '#fafafa', display: 'flex', flexDirection: 'column', overflow: 'hidden',
     }}>
-      {/* 头部 */}
+      {/* 头部 — 固定高度，与中间/左侧顶部对齐 */}
       <div style={{
-        padding: '12px 16px', borderBottom: '1px solid #e8e8e8',
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fff',
+        height: 40, padding: '0 16px', borderBottom: '1px solid #e8e8e8',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fff', flexShrink: 0,
       }}>
-        <div>
-          <div style={{ fontWeight: 600, fontSize: '14px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontWeight: 600, fontSize: '14px' }}>
             {isSlot ? '📌 插槽' : registration?.name || selectedNode.type}
-          </div>
-          <div style={{ fontSize: '12px', color: '#999' }}>ID: {selectedNode.id}</div>
+          </span>
+          <span style={{ fontSize: '12px', color: '#999' }}>ID: {selectedNode.id}</span>
         </div>
         <button onClick={handleDelete}
-          style={{ padding: '4px 12px', border: '1px solid #ff4d4f', borderRadius: '4px', backgroundColor: '#fff', color: '#ff4d4f', cursor: 'pointer', fontSize: '12px' }}>
+          style={{ padding: '2px 10px', border: '1px solid #ff4d4f', borderRadius: '4px', backgroundColor: '#fff', color: '#ff4d4f', cursor: 'pointer', fontSize: '12px' }}>
           删除
         </button>
       </div>
@@ -192,6 +185,18 @@ export function PropertyPanel({ registry }: { registry: any }) {
           <>
             {/* 基础信息 */}
             <Section title="基础信息">
+              <Field label="标签名称">
+                <input
+                  type="text"
+                  value={selectedNode.label || ''}
+                  onChange={(e) => dispatch({
+                    type: 'UPDATE_COMPONENT',
+                    payload: { id: selectedNode.id, changes: { label: e.target.value } },
+                  })}
+                  placeholder="业务标签（如：客户姓名）"
+                  style={inputStyle}
+                />
+              </Field>
               <Field label="组件 ID">
                 <input type="text" value={selectedNode.id} readOnly
                   style={{ ...inputStyle, backgroundColor: '#f5f5f5' }} />
@@ -333,6 +338,159 @@ const inputStyle: React.CSSProperties = {
   fontSize: '13px',
   boxSizing: 'border-box',
 };
+
+// ─── 页面设置面板 ───────────────────────────────────────
+
+/** 页面设置面板 — 未选中组件时显示，编辑页面级属性 */
+function PageSettingsPanel() {
+  const { state, dispatch } = useDesigner();
+  const { schema } = state;
+
+  const handleNameChange = (name: string) => {
+    dispatch({ type: 'UPDATE_PAGE_META', payload: { name } });
+  };
+
+  const handleGapChange = (gap: string | number) => {
+    dispatch({ type: 'UPDATE_LAYOUT', payload: { ...schema.layout, gap } });
+  };
+
+  const handleVerticalChange = (vertical: boolean) => {
+    dispatch({ type: 'UPDATE_LAYOUT', payload: { ...schema.layout, vertical } });
+  };
+
+  const handleWrapChange = (wrap: boolean) => {
+    dispatch({ type: 'UPDATE_LAYOUT', payload: { ...schema.layout, wrap } });
+  };
+
+  const handleJustifyChange = (justify: string) => {
+    dispatch({ type: 'UPDATE_LAYOUT', payload: { ...schema.layout, justify } });
+  };
+
+  const handleAlignChange = (align: string) => {
+    dispatch({ type: 'UPDATE_LAYOUT', payload: { ...schema.layout, align } });
+  };
+
+  const handleColumnsChange = (columns: number) => {
+    dispatch({ type: 'UPDATE_LAYOUT', payload: { ...schema.layout, columns } });
+  };
+
+  return (
+    <div style={{
+      width: '320px', height: '100%', minHeight: 0, borderLeft: '1px solid #e8e8e8',
+      backgroundColor: '#fafafa', display: 'flex', flexDirection: 'column', overflow: 'hidden',
+    }}>
+      {/* 头部 — 固定高度，与中间/左侧顶部对齐 */}
+      <div style={{
+        height: 40, padding: '0 16px', borderBottom: '1px solid #e8e8e8',
+        display: 'flex', alignItems: 'center', backgroundColor: '#fff', flexShrink: 0,
+      }}>
+        <span style={{ fontWeight: 600, fontSize: '14px' }}>📄 页面设置</span>
+        <span style={{ fontSize: '12px', color: '#999', marginLeft: 8 }}>ID: {schema.pageId}</span>
+      </div>
+
+      {/* 内容区 */}
+      <div style={{ flex: 1, overflow: 'auto', padding: '16px' }}>
+        {/* 基本信息 */}
+        <Section title="基本信息">
+          <Field label="名称">
+            <input
+              type="text"
+              value={schema.name}
+              onChange={(e) => handleNameChange(e.target.value)}
+              placeholder="页面名称"
+              style={inputStyle}
+            />
+          </Field>
+        </Section>
+
+        {/* 布局配置 */}
+        <Section title="布局配置">
+          <Field label="布局类型">
+            <input
+              type="text"
+              value={schema.layout.type === 'flex' ? '弹性布局 (Flex)' : '栅格布局 (Grid)'}
+              readOnly
+              style={{ ...inputStyle, backgroundColor: '#f5f5f5', color: '#999' }}
+            />
+          </Field>
+          <Field label="间距 (gap)">
+            <input
+              type="number"
+              value={schema.layout.gap ?? 16}
+              onChange={(e) => handleGapChange(Number(e.target.value))}
+              min={0}
+              max={64}
+              style={inputStyle}
+            />
+          </Field>
+          {schema.layout.type === 'flex' && (
+            <>
+              <Field label="垂直排列">
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
+                  <input
+                    type="checkbox"
+                    checked={schema.layout.vertical ?? true}
+                    onChange={(e) => handleVerticalChange(e.target.checked)}
+                  />
+                  垂直排列子元素
+                </label>
+              </Field>
+              <Field label="自动换行">
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
+                  <input
+                    type="checkbox"
+                    checked={schema.layout.wrap ?? false}
+                    onChange={(e) => handleWrapChange(e.target.checked)}
+                  />
+                  允许子元素换行
+                </label>
+              </Field>
+              <Field label="主轴对齐 (justify)">
+                <select
+                  value={schema.layout.justify || 'flex-start'}
+                  onChange={(e) => handleJustifyChange(e.target.value)}
+                  style={inputStyle}
+                >
+                  <option value="flex-start">起始 (flex-start)</option>
+                  <option value="center">居中 (center)</option>
+                  <option value="flex-end">末尾 (flex-end)</option>
+                  <option value="space-between">两端对齐 (space-between)</option>
+                  <option value="space-around">环绕 (space-around)</option>
+                  <option value="space-evenly">均分 (space-evenly)</option>
+                </select>
+              </Field>
+              <Field label="交叉轴对齐 (align)">
+                <select
+                  value={schema.layout.align || 'stretch'}
+                  onChange={(e) => handleAlignChange(e.target.value)}
+                  style={inputStyle}
+                >
+                  <option value="flex-start">起始 (flex-start)</option>
+                  <option value="center">居中 (center)</option>
+                  <option value="flex-end">末尾 (flex-end)</option>
+                  <option value="stretch">拉伸 (stretch)</option>
+                  <option value="baseline">基线 (baseline)</option>
+                </select>
+              </Field>
+            </>
+          )}
+          {schema.layout.type === 'grid' && (
+            <Field label="列数">
+              <input
+                type="number"
+                value={schema.layout.columns ?? 24}
+                onChange={(e) => handleColumnsChange(Number(e.target.value))}
+                min={1}
+                max={48}
+                style={inputStyle}
+              />
+            </Field>
+          )}
+        </Section>
+      </div>
+    </div>
+  );
+}
 
 // ─── 权限配置区块 ───────────────────────────────────────
 

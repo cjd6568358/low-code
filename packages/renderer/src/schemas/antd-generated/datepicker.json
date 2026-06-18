@@ -1,0 +1,67 @@
+{
+  "allOf": [
+    {
+      "type": "object",
+      "properties": {
+        "lang": {
+          "title": "lang"
+        },
+        "timePickerLocale": {
+          "$ref": "#/definitions/TimePickerLocale",
+          "title": "timePickerLocale"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "properties": {
+        "dateFormat": {
+          "type": "string",
+          "title": "dateFormat"
+        },
+        "dateTimeFormat": {
+          "type": "string",
+          "title": "dateTimeFormat"
+        },
+        "weekFormat": {
+          "type": "string",
+          "title": "weekFormat"
+        },
+        "monthFormat": {
+          "type": "string",
+          "title": "monthFormat"
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "TimePickerLocale": {
+      "title": "TimePickerLocale",
+      "type": "object",
+      "properties": {
+        "placeholder": {
+          "type": "string",
+          "title": "placeholder"
+        },
+        "rangePlaceholder": {
+          "type": "array",
+          "items": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "minItems": 2,
+          "maxItems": 2,
+          "title": "rangePlaceholder"
+        }
+      }
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "antd-datepicker",
+  "title": "PickerLocale",
+  "description": "antd PickerLocale — auto-generated from date-picker/generatePicker/interface.d.ts"
+}

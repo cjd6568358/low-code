@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "version": 10,
+  "name": "9890009",
+  "createdAt": 1781608598544,
+  "updatedAt": 1781793783416,
+  "references": {},
+  "pageId": "41bdefc9",
+  "layout": {
+    "type": "flex",
+    "direction": "column",
+    "gap": 10
+  },
+  "components": [
+    {
+      "id": "rate_1781713793409",
+      "type": "rate",
+      "props": {}
+    },
+    {
+      "id": "radio_1781791768238",
+      "type": "radio",
+      "label": "单选1",
+      "props": {}
+    },
+    {
+      "id": "switch_1781791660364",
+      "type": "switch",
+      "label": "开关1",
+      "props": {}
+    },
+    {
+      "id": "button_1781791776171",
+      "type": "button",
+      "label": "按钮1",
+      "props": {
+        "children": "999",
+        "type": "primary",
+        "htmlType": "button",
+        "shape": "default",
+        "danger": false,
+        "loading": false,
+        "size": "middle",
+        "variant": "filled",
+        "status": "warning",
+        "iconPosition": "end"
+      }
+    },
+    {
+      "id": "textarea_1781765600372",
+      "type": "textarea",
+      "props": {}
+    }
+  ]
+}

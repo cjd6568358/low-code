@@ -253,14 +253,17 @@ export const FlexPropsSchema: JSONSchema7 = {
     vertical: { type: 'boolean', title: '垂直排列', 'x-group': '基础属性', 'x-priority': 1 },
     wrap: { type: 'boolean', title: '自动换行', 'x-group': '基础属性', 'x-priority': 2 },
     justify: {
-      type: 'string', title: '水平对齐', 'x-group': '基础属性', 'x-priority': 3,
+      type: 'string', title: '主轴对齐', 'x-group': '基础属性', 'x-priority': 3,
       enum: ['flex-start', 'center', 'flex-end', 'space-between', 'space-around', 'space-evenly'],
     },
     align: {
-      type: 'string', title: '垂直对齐', 'x-group': '基础属性', 'x-priority': 4,
+      type: 'string', title: '交叉轴对齐', 'x-group': '基础属性', 'x-priority': 4,
       enum: ['flex-start', 'center', 'flex-end', 'stretch', 'baseline'],
     },
     gap: { type: 'string', title: '间距', 'x-group': '基础属性', 'x-priority': 5, 'x-placeholder': '如 8, 16, small, middle' },
+    // Grid 属性 — 当组件作为栅格容器时使用
+    gridTemplateColumns: { type: 'string', title: 'Grid 列模板', 'x-group': 'Grid 属性', 'x-priority': 30, 'x-placeholder': '如 1fr 1fr 或 repeat(3, 1fr)' },
+    gridTemplateRows: { type: 'string', title: 'Grid 行模板', 'x-group': 'Grid 属性', 'x-priority': 31, 'x-placeholder': '如 auto 1fr auto' },
   },
 };
 

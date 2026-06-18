@@ -1,0 +1,48 @@
+{
+  "type": "object",
+  "properties": {
+    "prefixCls": {
+      "type": "string",
+      "title": "prefixCls"
+    },
+    "rootClassName": {
+      "type": "string",
+      "title": "rootClassName"
+    },
+    "vertical": {
+      "type": "boolean",
+      "title": "vertical"
+    },
+    "orientation": {
+      "enum": [
+        "horizontal",
+        "vertical"
+      ],
+      "type": "string",
+      "title": "orientation"
+    },
+    "wrap": {
+      "title": "wrap"
+    },
+    "justify": {
+      "title": "justify"
+    },
+    "align": {
+      "title": "align"
+    },
+    "flex": {
+      "title": "flex"
+    },
+    "gap": {
+      "description": "https://github.com/Microsoft/TypeScript/issues/29729",
+      "title": "gap"
+    },
+    "component": {
+      "title": "component"
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "antd-flex",
+  "title": "FlexProps",
+  "description": "antd FlexProps — auto-generated from flex/index.d.ts"
+}

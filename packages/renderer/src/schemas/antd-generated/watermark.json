@@ -1,0 +1,172 @@
+{
+  "type": "object",
+  "properties": {
+    "zIndex": {
+      "type": "number",
+      "title": "zIndex"
+    },
+    "rotate": {
+      "type": "number",
+      "title": "rotate"
+    },
+    "width": {
+      "type": "number",
+      "title": "width"
+    },
+    "height": {
+      "type": "number",
+      "title": "height"
+    },
+    "image": {
+      "type": "string",
+      "title": "image"
+    },
+    "content": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "title": "content"
+    },
+    "font": {
+      "type": "object",
+      "properties": {
+        "color": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/CanvasGradient"
+            },
+            {
+              "$ref": "#/definitions/CanvasPattern"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "color"
+        },
+        "fontSize": {
+          "type": [
+            "string",
+            "number"
+          ],
+          "title": "fontSize"
+        },
+        "fontWeight": {
+          "anyOf": [
+            {
+              "enum": [
+                "bold",
+                "bolder",
+                "lighter",
+                "normal"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "fontWeight"
+        },
+        "fontStyle": {
+          "enum": [
+            "italic",
+            "none",
+            "normal",
+            "oblique"
+          ],
+          "type": "string",
+          "title": "fontStyle"
+        },
+        "fontFamily": {
+          "type": "string",
+          "title": "fontFamily"
+        },
+        "textAlign": {
+          "enum": [
+            "center",
+            "end",
+            "left",
+            "right",
+            "start"
+          ],
+          "type": "string",
+          "title": "textAlign"
+        }
+      },
+      "title": "font"
+    },
+    "style": {
+      "title": "style"
+    },
+    "className": {
+      "type": "string",
+      "title": "className"
+    },
+    "rootClassName": {
+      "type": "string",
+      "title": "rootClassName"
+    },
+    "gap": {
+      "type": "array",
+      "items": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "minItems": 2,
+      "maxItems": 2,
+      "title": "gap"
+    },
+    "offset": {
+      "type": "array",
+      "items": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "minItems": 2,
+      "maxItems": 2,
+      "title": "offset"
+    },
+    "children": {
+      "title": "children"
+    },
+    "inherit": {
+      "type": "boolean",
+      "title": "inherit"
+    },
+    "onRemove": {
+      "type": "object",
+      "title": "onRemove"
+    }
+  },
+  "definitions": {
+    "CanvasGradient": {
+      "title": "CanvasGradient",
+      "type": "object"
+    },
+    "CanvasPattern": {
+      "title": "CanvasPattern",
+      "type": "object"
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "antd-watermark",
+  "title": "WatermarkProps",
+  "description": "antd WatermarkProps — auto-generated from watermark/index.d.ts"
+}

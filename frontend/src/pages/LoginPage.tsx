@@ -10,7 +10,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Input, Button, message, Spin } from 'antd';
+import { App, Input, Button, Spin } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { useAuth } from '../auth/AuthContext';
 
@@ -22,6 +22,7 @@ interface TenantBrand {
 }
 
 export default function LoginPage() {
+  const { message } = App.useApp();
   const { tenantId } = useParams<{ tenantId: string }>();
   const navigate = useNavigate();
   const { login } = useAuth();

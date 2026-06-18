@@ -34,7 +34,7 @@
 
 所有资源 ID 使用 8 位随机 hex 生成（如 `90ef6d72`），每次创建时校验唯一性。
 
-- **URL/前端**：使用短 ID（无前缀），如 `/apps/90ef6d72`
+- **URL/前端**：使用短 ID（无前缀），如 `/app/90ef6d72`
 - **目录/数据库记录**：带前缀，如 `tenant_90ef6d72`、`app_90ef6d72`
 - **数据库文件**：`tenants/{tenant_xxx}/data/tenant.db`（上级目录已含租户 ID，无需重复）
 
@@ -89,7 +89,7 @@
 - **其他资源编辑器**（`/designer/card|form|table|workflow|automation|computation/:id`）：各资源专属编辑器（待实现）
 
 - **拖拽开发**：基于 DND 实现可视化页面搭建，支持面板→画布添加、画布内拖拽排序，拖拽时显示阴影效果和蓝色放置标准线
-- **组件库配置**：组件库在应用创建时指定（如 Ant Design / Element Plus），后续所有页面/卡片共用，设计器中不可切换。左侧基础组件为所有组件库的交集子集，确保跨库通用
+- **组件库配置**：默认使用 Ant Design（65 个全量组件），设计器中不可切换。左侧组件面板展示当前组件库的全部可用组件，按分类组织
 - **布局容器**：提供行、列、卡片等布局容器组件，支持对基础组件进行灵活布局编排
 - **自定义卡片**：由基础组件组合而成的最小化业务组件，支持保存为卡片模板复用；卡片内部可递归嵌套卡片，实现多层业务抽象。对外暴露 Props/Methods/Events/Slots 接口，所有接口均通过设计器 UI 配置（变量选择器、动作链编排、拖拽填充），无需手写代码。详见 [自定义卡片规范](docs/render-engine.md#自定义卡片规范)
 - **主题风格配置**：支持全局主题色、圆角、字号、间距等 Token 级配置，实时预览
@@ -99,6 +99,7 @@
 
 ### 运行时渲染器
 
+- **PageRuntime**：运行时渲染器已实现，路由 `/:tenantId/app/:appId/page/:pageId` 可实际渲染页面（加载 JSON Schema → 递归渲染 antd 组件树）
 - **多端支持**：Web / Mobile / 小程序，复用同一套运行时
 - **JSON Schema 驱动**：设计器产出的页面描述直接驱动渲染
 - **跨端适配层**：适配器模式屏蔽各端差异
@@ -323,9 +324,10 @@ low-code/
 ├── frontend/                          # 前端门户（Vite + React，端口 5173）
 │   └── src/
 │       ├── auth/                      # 认证（AuthContext、ProtectedRoute、mockAuth）
-│       ├── components/                # 通用组件（PermissionGuard）
+│       ├── components/                # 通用组件（PermissionGuard、PageRuntime）
+│       ├── designers/                 # 资源设计器（PageDesign、CardDesign、FormDesign、TableDesign、...）
 │       ├── layouts/                   # 布局（MainLayout 侧边栏+顶栏）
-│       ├── pages/                     # 页面（LoginPage、WorkspacePage、AppCenterPage、WorkflowCenterPage、ConfigCenterPage、DesignerPage）
+│       ├── pages/                     # 页面（LoginPage、WorkspacePage、AppCenterPage、WorkflowCenterPage、ConfigCenterPage、AppDesignPage）
 │       └── styles/                    # 全局样式
 │
 ├── server/                            # 后端 API（Koa，端口 3001）
@@ -348,7 +350,7 @@ low-code/
 │       ├── tenant.json                # 租户元数据（含 uuid 字段）
 │       ├── apps/                      # 应用 Schema
 │       │   └── app_{uuid}/            # 目录名带前缀
-│       │       ├── app.json           # 应用元信息（含 schemaVersion、version、references、expose）
+│       │       ├── app.json           # 应用元信息（含 schemaVersion、version、expose）
 │       │       ├── pages/             # 页面 Schema
 │       │       ├── cards/             # 卡片 Schema
 │       │       ├── forms/             # 表单 Schema
@@ -367,6 +369,8 @@ low-code/
 │   └── dictionaries/                  # 全局字典（JSON 格式）
 │
 ├── docs/                              # 设计文档（20+）
+├── scripts/                           # 构建/生成脚本
+│   └── generate-antd-schemas.ts       # antd TS → JSON Schema 自动生成
 ├── TODO.md                            # 技术难点与工作计划
 └── memory/                            # 会话记忆
 ```

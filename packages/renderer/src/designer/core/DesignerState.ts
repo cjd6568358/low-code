@@ -42,6 +42,7 @@ export type DesignerAction =
   | { type: 'SET_SEARCH'; payload: string }
   | { type: 'UPDATE_THEME'; payload: Partial<ThemeConfig> }
   | { type: 'UPDATE_LAYOUT'; payload: PageSchema['layout'] }
+  | { type: 'UPDATE_PAGE_META'; payload: { name?: string } }
   | { type: 'UNDO' }
   | { type: 'REDO' };
 
@@ -71,7 +72,15 @@ export function designerReducer(state: DesignerState, action: DesignerAction): D
         }
       }
 
-      components.push(newNode);
+      // 根级别插入：支持 index 指定位置
+      if (parentId) {
+        components.push(newNode);
+      } else if (index !== undefined) {
+        components.splice(index, 0, newNode);
+      } else {
+        components.push(newNode);
+      }
+
       const newSchema = { ...state.schema, components };
       return {
         ...state,
@@ -141,26 +150,67 @@ export function designerReducer(state: DesignerState, action: DesignerAction): D
       const node = components.find((c) => c.id === id);
       if (!node) return state;
 
+      const sameParent = node.parentId === newParentId;
+      let adjustedIndex = newIndex;
+
       // 从旧父组件移除
       if (node.parentId) {
         const oldParentIdx = components.findIndex((c) => c.id === node.parentId);
         if (oldParentIdx !== -1) {
           const oldParent = { ...components[oldParentIdx] };
-          oldParent.children = (oldParent.children || []).filter((childId) => childId !== id);
+          const oldChildren = oldParent.children || [];
+          const oldIndex = oldChildren.indexOf(id);
+          oldParent.children = oldChildren.filter((childId) => childId !== id);
           components[oldParentIdx] = oldParent;
+          if (sameParent && oldIndex < newIndex) {
+            adjustedIndex = newIndex - 1;
+          }
+        }
+      } else {
+        // 根级别源
+        const oldRootIdx = components.findIndex((c) => c.id === id);
+        if (oldRootIdx !== -1) {
+          if (!newParentId) {
+            // 根级别内移动：splice 取出再插入
+            const [removed] = components.splice(oldRootIdx, 1);
+            if (oldRootIdx < newIndex) {
+              adjustedIndex = newIndex - 1;
+            }
+            removed.parentId = undefined;
+            components.splice(adjustedIndex, 0, removed);
+          } else {
+            // 根级别 → 容器：不 splice，只更新 parentId + 插入 children
+            components[oldRootIdx] = { ...components[oldRootIdx], parentId: newParentId };
+            const newParentIdx = components.findIndex((c) => c.id === newParentId);
+            if (newParentIdx !== -1) {
+              const newParent = { ...components[newParentIdx] };
+              newParent.children = [...(newParent.children || [])];
+              newParent.children.splice(newIndex, 0, id);
+              components[newParentIdx] = newParent;
+            }
+          }
+
+          const newSchema = { ...state.schema, components };
+          return {
+            ...state,
+            schema: newSchema,
+            history: [...state.history, state.schema],
+            historyIndex: state.history.length,
+          };
         }
       }
 
-      // 添加到新父组件
+      // 更新节点的 parentId
       const nodeIdx = components.findIndex((c) => c.id === id);
       components[nodeIdx] = { ...node, parentId: newParentId };
 
+      // 添加到新父组件
       if (newParentId) {
         const newParentIdx = components.findIndex((c) => c.id === newParentId);
         if (newParentIdx !== -1) {
           const newParent = { ...components[newParentIdx] };
           newParent.children = [...(newParent.children || [])];
-          newParent.children.splice(newIndex, 0, id);
+          newParent.children.splice(adjustedIndex, 0, id);
           components[newParentIdx] = newParent;
         }
       }
@@ -215,6 +265,16 @@ export function designerReducer(state: DesignerState, action: DesignerAction): D
       };
     }
 
+    case 'UPDATE_PAGE_META': {
+      const newSchema = { ...state.schema, ...action.payload };
+      return {
+        ...state,
+        schema: newSchema,
+        history: [...state.history, state.schema],
+        historyIndex: state.history.length,
+      };
+    }
+
     case 'UNDO': {
       if (state.historyIndex <= 0) return state;
       const newIndex = state.historyIndex - 1;
@@ -244,9 +304,8 @@ export function designerReducer(state: DesignerState, action: DesignerAction): D
 export function createInitialDesignerState(schema?: PageSchema): DesignerState {
   const defaultSchema: PageSchema = {
     pageId: `page_${Date.now()}`,
-    title: '新页面',
-    route: '/new-page',
-    layout: { type: 'flex', direction: 'column', gap: 16 },
+    name: '新页面',
+    layout: { type: 'flex', vertical: true, gap: 16 },
     components: [],
   };
 

@@ -6,6 +6,10 @@ export interface DesignerContextValue {
   dispatch: React.Dispatch<DesignerAction>;
   /** 应用级组件库标识（不可切换） */
   library: string;
+  /** 保存回调（由 PageDesign 传入） */
+  onSave?: () => void;
+  /** 是否正在保存 */
+  saving?: boolean;
 }
 
 export const DesignerContext = createContext<DesignerContextValue | null>(null);

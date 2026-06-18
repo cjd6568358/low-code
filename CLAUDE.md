@@ -56,6 +56,21 @@ This file provides guidance to Claude Code when working with this repository.
 - `*Adapter` — 适配器（WebAdapter）
 - `*Compiler` — 编译器（EventCompiler）
 
+### ID 约定
+- **JSON 内部**：裸 8 位 hex（如 `appId: "80e88653"`、`pageId: "abc12345"`）
+- **文件系统**：带前缀（如 `app_80e88653/`、`page_abc12345.json`）
+- **API 接口**：裸 ID（如 `GET /api/apps/80e88653`）
+- 代码通过动态拼接 `{type}_{id}` 访问文件系统，服务端兼容裸 ID 和带前缀 ID
+- **禁止**在 API 响应或前端代码中使用带前缀的资源 ID
+
+### 设计器 DnD 开发规范
+- **禁止用 `disabled` 禁用组件交互** — disabled 会吞掉鼠标事件，用 `pointer-events: none` 包裹
+- **wrapper 必须同时阻止 `onMouseDown` 和 `onClick` 冒泡** — 前者选中，后者防止画布取消选中
+- **拖拽源 ID 用 `useRef` 保存** — 避免 `handleDragOver` 闭包过期导致拖拽失效
+- **同父移动时 reducer 需修正索引** — 先删后插导致索引偏移，源在目标前时 `adjustedIndex = newIndex - 1`
+- **根级别重排需单独处理** — 没有 children 数组，直接操作 components 数组 splice
+- 完整踩坑记录见 [docs/render-engine.md](docs/render-engine.md)
+
 ### 包结构
 - 每个包必须有 `src/index.ts` barrel exports
 - 跨包引用用 `@low-code/{pkg}`，不直接引用子路径
@@ -136,9 +151,10 @@ yarn test
 ```
 frontend/        ← 前端门户（Vite + React，端口 5173）
   src/auth/        认证（AuthContext、ProtectedRoute、mockAuth）
-  src/components/  通用组件（PermissionGuard）
+  src/components/  通用组件（PermissionGuard、PageRuntime）
+  src/designers/   资源设计器（PageDesign、CardDesign、FormDesign、TableDesign、...）
   src/layouts/     布局（MainLayout）
-  src/pages/       页面（LoginPage、WorkspacePage、AppCenterPage、WorkflowCenterPage、ConfigCenterPage、DesignerPage）
+  src/pages/       页面（LoginPage、WorkspacePage、AppCenterPage、WorkflowCenterPage、ConfigCenterPage、AppDesignPage）
   src/styles/      全局样式
 server/          ← 后端 API（Koa，端口 3001）
   src/config/      配置（端口、DB 单例）
@@ -170,7 +186,8 @@ TODO.md          ← 技术难点与工作计划
 - `/:tenantId/login` — 租户登录（个性化品牌）
 - `/:tenantId/workspace` — 工作台
 - `/:tenantId/apps` — 应用中心
-- `/:tenantId/apps/:appId` — 应用运行时视图
+- `/:tenantId/app/:appId` — 应用运行时视图（含侧边栏页面菜单）
+- `/:tenantId/app/:appId/page/:pageId` — 应用内页面运行时渲染（PageRuntime 组件驱动）
 - `/:tenantId/workflows` — 流程中心
 - `/:tenantId/config` — 配置中心（仅管理员）
 - `/:tenantId/designer/:resourceType/:id` — 设计器
@@ -178,7 +195,7 @@ TODO.md          ← 技术难点与工作计划
 ### 登录认证流程
 
 1. 前端 POST `/api/auth/login` { email, password, tenantId? }
-2. 若指定 tenantId，只在该租户库中查找用户；否则遍历所有租户
+2. 若指定 tenantId，只在该租户库中查找用户；否则查找系统用户
 3. scrypt 验证密码，查询角色/部门/岗位
 4. 返回用户信息（含角色），前端存 sessionStorage
 5. 前端根据角色渲染菜单和权限（PermissionGuard）

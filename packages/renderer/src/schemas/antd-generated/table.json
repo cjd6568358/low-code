@@ -1,0 +1,184 @@
+{
+  "type": "object",
+  "properties": {
+    "filterTitle": {
+      "type": "string",
+      "title": "filterTitle"
+    },
+    "filterConfirm": {
+      "$ref": "#/definitions/React.ReactNode",
+      "title": "filterConfirm"
+    },
+    "filterReset": {
+      "$ref": "#/definitions/React.ReactNode",
+      "title": "filterReset"
+    },
+    "filterEmptyText": {
+      "$ref": "#/definitions/React.ReactNode",
+      "title": "filterEmptyText"
+    },
+    "filterCheckall": {
+      "$ref": "#/definitions/React.ReactNode",
+      "title": "filterCheckall"
+    },
+    "filterCheckAll": {
+      "$ref": "#/definitions/React.ReactNode",
+      "title": "filterCheckAll"
+    },
+    "filterSearchPlaceholder": {
+      "type": "string",
+      "title": "filterSearchPlaceholder"
+    },
+    "emptyText": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/React.ReactPortal"
+        },
+        {
+          "$ref": "#/definitions/React.ReactElement%3Cany%2Cstring%7CReact.JSXElementConstructor%3Cany%3E%3E"
+        },
+        {
+          "$ref": "#/definitions/Iterable%3CReact.ReactNode%3E"
+        },
+        {
+          "type": [
+            "null",
+            "string",
+            "number",
+            "object",
+            "boolean"
+          ]
+        }
+      ],
+      "title": "emptyText"
+    },
+    "selectAll": {
+      "$ref": "#/definitions/React.ReactNode",
+      "title": "selectAll"
+    },
+    "selectNone": {
+      "$ref": "#/definitions/React.ReactNode",
+      "title": "selectNone"
+    },
+    "selectInvert": {
+      "$ref": "#/definitions/React.ReactNode",
+      "title": "selectInvert"
+    },
+    "selectionAll": {
+      "$ref": "#/definitions/React.ReactNode",
+      "title": "selectionAll"
+    },
+    "sortTitle": {
+      "type": "string",
+      "title": "sortTitle"
+    },
+    "expand": {
+      "type": "string",
+      "title": "expand"
+    },
+    "collapse": {
+      "type": "string",
+      "title": "collapse"
+    },
+    "triggerDesc": {
+      "type": "string",
+      "title": "triggerDesc"
+    },
+    "triggerAsc": {
+      "type": "string",
+      "title": "triggerAsc"
+    },
+    "cancelSort": {
+      "type": "string",
+      "title": "cancelSort"
+    }
+  },
+  "definitions": {
+    "React.ReactNode": {
+      "description": "Represents all of the things React can render.\n\nWhere {@link ReactElement} only represents JSX, `ReactNode` represents everything that can be rendered.",
+      "title": "React.ReactNode",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/React.ReactPortal"
+        },
+        {
+          "$ref": "#/definitions/React.ReactElement%3Cany%2Cstring%7CReact.JSXElementConstructor%3Cany%3E%3E"
+        },
+        {
+          "$ref": "#/definitions/Iterable%3CReact.ReactNode%3E"
+        },
+        {
+          "type": [
+            "null",
+            "string",
+            "number",
+            "boolean"
+          ]
+        }
+      ]
+    },
+    "React.ReactPortal": {
+      "title": "React.ReactPortal",
+      "type": "object",
+      "properties": {
+        "children": {
+          "$ref": "#/definitions/React.ReactNode",
+          "title": "children"
+        },
+        "type": {
+          "description": "The type of the component or tag",
+          "type": [
+            "string",
+            "object"
+          ],
+          "title": "type"
+        },
+        "props": {
+          "description": "The type of the props object",
+          "title": "props"
+        },
+        "key": {
+          "type": [
+            "null",
+            "string"
+          ],
+          "title": "key"
+        }
+      }
+    },
+    "React.ReactElement<any,string|React.JSXElementConstructor<any>>": {
+      "description": "Represents a JSX element.\n\nWhere {@link ReactNode} represents everything that can be rendered, `ReactElement`\nonly represents JSX.",
+      "title": "React.ReactElement<any,string|React.JSXElementConstructor<any>>",
+      "type": "object",
+      "properties": {
+        "type": {
+          "description": "The type of the component or tag",
+          "type": [
+            "string",
+            "object"
+          ],
+          "title": "type"
+        },
+        "props": {
+          "description": "The type of the props object",
+          "title": "props"
+        },
+        "key": {
+          "type": [
+            "null",
+            "string"
+          ],
+          "title": "key"
+        }
+      }
+    },
+    "Iterable<React.ReactNode>": {
+      "title": "Iterable<React.ReactNode>",
+      "type": "object"
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "antd-table",
+  "title": "TableLocale",
+  "description": "antd TableLocale — auto-generated from table/interface.d.ts"
+}

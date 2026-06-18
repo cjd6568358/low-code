@@ -1,93 +1,128 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useRef, useEffect } from 'react';
+import { Switch, Tooltip } from 'antd';
 import { useDesigner } from '../core/DesignerContext';
 import type { ComponentNode } from '@low-code/shared';
-import {
-  BuiltinInput, BuiltinTextarea, BuiltinNumber, BuiltinSelect,
-  BuiltinRadio, BuiltinCheckbox, BuiltinSwitch,
-  BuiltinDatePicker, BuiltinTimePicker, BuiltinUpload,
-  BuiltinButton, BuiltinTable, BuiltinForm,
-  BuiltinCard, BuiltinFlex, BuiltinGrid, BuiltinDivider, BuiltinTabs, BuiltinText,
-  SlotComponent,
-} from '@low-code/renderer';
+import { SlotComponent } from '@low-code/renderer';
+import type { ComponentRegistryImpl } from '@low-code/renderer';
+import { DesignerNode } from './DesignerNode';
 
-/** 内建组件映射（用于设计区预览）— 覆盖文档定义的所有组件类型 */
-const DESIGN_COMPONENTS: Record<string, React.ComponentType<any>> = {
-  slot: SlotComponent,
-  input: BuiltinInput,
-  textarea: BuiltinTextarea,
-  number: BuiltinNumber,
-  select: BuiltinSelect,
-  radio: BuiltinRadio,
-  checkbox: BuiltinCheckbox,
-  switch: BuiltinSwitch,
-  datepicker: BuiltinDatePicker,
-  timepicker: BuiltinTimePicker,
-  upload: BuiltinUpload,
-  button: BuiltinButton,
-  table: BuiltinTable,
-  form: BuiltinForm,
-  card: BuiltinCard,
-  flex: BuiltinFlex,
-  grid: BuiltinGrid,
-  divider: BuiltinDivider,
-  tabs: BuiltinTabs,
-  text: BuiltinText,
-};
+// ─── 常量 ─────────────────────────────────────────────────
 
-/** 拖拽数据类型 */
-const DND_TYPE = 'application/lc-component';
+const DND_DATA_TYPE = 'application/lc-component';
 
-/** 放置指示器位置 */
-interface DropIndicator {
+// ─── 类型 ─────────────────────────────────────────────────
+
+interface DropPosition {
   targetId: string;
   position: 'before' | 'after' | 'inside';
-  parentId?: string;
+  parentId: string | undefined;
 }
 
-/** 设计区属性 */
+interface DragState {
+  sourceId: string | null;       // 拖拽源组件 ID
+  overId: string | null;         // 当前悬停的目标组件 ID
+  dropPosition: DropPosition | null;  // 放置位置
+}
+
+// ─── 工具函数 ─────────────────────────────────────────────
+
+/** 判断组件是否为容器类型 */
+function isContainerNode(node: ComponentNode, registry: any): boolean {
+  const reg = registry.resolve(node.type);
+  return reg?.acceptsChildren || false;
+}
+
+/** 获取组件的兄弟节点 ID 列表 */
+function getSiblingIds(node: ComponentNode, components: ComponentNode[]): string[] {
+  if (node.parentId) {
+    const parent = components.find((c) => c.id === node.parentId);
+    return parent?.children || [];
+  }
+  return components.filter((c) => !c.parentId).map((c) => c.id);
+}
+
+/** 组件类型 → 中文名称映射（用于生成默认 label） */
+const TYPE_LABEL_MAP: Record<string, string> = {
+  input: '输入框', textarea: '文本域', number: '数字输入', select: '选择器',
+  radio: '单选', checkbox: '多选', switch: '开关', datepicker: '日期选择',
+  timepicker: '时间选择', upload: '上传', button: '按钮',
+  table: '表格', form: '表单', chart: '图表', calendar: '日历',
+  richtext: '富文本编辑', tree: '树形控件',
+  tabs: '标签页', card: '卡片', divider: '分割线', grid: '栅格', flex: '弹性布局',
+  slot: '插槽', text: '文本',
+};
+
+/** 为新组件生成默认 label（如 "输入框1"、"按钮2"） */
+function generateLabel(type: string, components: ComponentNode[]): string {
+  const baseName = TYPE_LABEL_MAP[type] || type;
+  const existing = components.filter((c) => c.type === type && c.label);
+  const maxNum = existing.reduce((max, c) => {
+    const match = c.label?.match(new RegExp(`${baseName}(\\d+)$`));
+    return match ? Math.max(max, parseInt(match[1], 10)) : max;
+  }, 0);
+  return `${baseName}${maxNum + 1}`;
+}
+
+// ─── 主组件 ───────────────────────────────────────────────
+
 export interface DesignCanvasProps {
-  registry: any;
+  registry: ComponentRegistryImpl;
 }
 
-/** 设计区 — 中间画布 */
 export function DesignCanvas({ registry }: DesignCanvasProps) {
-  const { state, dispatch } = useDesigner();
+  const { state, dispatch, onSave, saving } = useDesigner();
   const { schema, selectedComponentId, previewMode, previewDevice } = state;
 
-  const [clipboard, setClipboard] = useState<ComponentNode | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragSourceId, setDragSourceId] = useState<string | null>(null);
-  const [dropIndicator, setDropIndicator] = useState<DropIndicator | null>(null);
+  const [dragState, setDragState] = useState<DragState>({
+    sourceId: null, overId: null, dropPosition: null,
+  });
+  // 用 ref 保存拖拽源 ID，避免闭包过期问题
+  const dragSourceRef = useRef<string | null>(null);
+  // Portal 容器 ref — overlay（选中框/工具栏/drop 指示器）渲染到这里
+  const portalRef = useRef<HTMLDivElement>(null);
+  // 滚动计数器 — 触发 overlay 位置重新计算
+  const [scrollTick, setScrollTick] = useState(0);
+  const canvasScrollRef = useRef<HTMLDivElement>(null);
 
-  const handleSelect = useCallback(
-    (e: React.MouseEvent, componentId: string) => {
-      e.stopPropagation();
-      dispatch({ type: 'SELECT_COMPONENT', payload: componentId });
-    },
-    [dispatch],
-  );
+  // 画布滚动时更新 overlay 位置
+  useEffect(() => {
+    const el = canvasScrollRef.current;
+    if (!el) return;
+    const onScroll = () => setScrollTick((t) => t + 1);
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, []);
 
-  const handleCanvasClick = useCallback(() => {
-    dispatch({ type: 'SELECT_COMPONENT', payload: null });
+  // ─── 选中 ──────────────────────────────────────────────
+
+  const handleSelect = useCallback((componentId: string | null) => {
+    dispatch({ type: 'SELECT_COMPONENT', payload: componentId });
   }, [dispatch]);
 
-  // ========== 放置指示器计算 ==========
-  const calcDropIndicator = useCallback(
-    (e: React.DragEvent, targetId: string): DropIndicator => {
-      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+  // ─── 放置位置计算（按设计文档规范） ────────────────────
+
+  const calcDropPosition = useCallback(
+    (e: React.DragEvent, targetId: string): DropPosition => {
+      const el = e.currentTarget as HTMLElement;
+      const rect = el.getBoundingClientRect();
       const y = e.clientY - rect.top;
       const ratio = y / rect.height;
 
       const targetNode = schema.components.find((c) => c.id === targetId);
-      const registration = registry.resolve(targetNode?.type || '');
-      const isContainer = registration?.acceptsChildren || !!targetNode?.children?.length;
+      const isContainer = isContainerNode(targetNode!, registry);
 
+      // 容器组件：上1/4→before，中1/2→inside，下1/4→after
       if (isContainer) {
-        if (ratio < 0.25) return { targetId, position: 'before', parentId: targetNode?.parentId };
-        if (ratio > 0.75) return { targetId, position: 'after', parentId: targetNode?.parentId };
+        if (ratio < 0.25) {
+          return { targetId, position: 'before', parentId: targetNode?.parentId };
+        }
+        if (ratio > 0.75) {
+          return { targetId, position: 'after', parentId: targetNode?.parentId };
+        }
         return { targetId, position: 'inside', parentId: targetId };
       }
 
+      // 普通组件：上半→before，下半→after
       return {
         targetId,
         position: ratio < 0.5 ? 'before' : 'after',
@@ -97,136 +132,193 @@ export function DesignCanvas({ registry }: DesignCanvasProps) {
     [schema.components, registry],
   );
 
-  // ========== 拖放处理 ==========
-  const handleDrop = useCallback(
-    (e: React.DragEvent, indicator?: DropIndicator) => {
+  // ─── 拖拽开始（画布内组件） ────────────────────────────
+
+  const handleDragStart = useCallback(
+    (e: React.DragEvent, componentId: string) => {
+      e.stopPropagation();
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData(DND_DATA_TYPE, JSON.stringify({ componentId }));
+      const el = e.currentTarget as HTMLElement;
+      el.style.opacity = '0.3';
+      dragSourceRef.current = componentId;
+      setDragState({ sourceId: componentId, overId: null, dropPosition: null });
+    },
+    [],
+  );
+
+  // ─── 拖拽结束 ──────────────────────────────────────────
+
+  const handleDragEnd = useCallback(
+    (e: React.DragEvent) => {
+      e.stopPropagation();
+      const el = e.currentTarget as HTMLElement;
+      el.style.opacity = '1';
+      dragSourceRef.current = null;
+      setDragState({ sourceId: null, overId: null, dropPosition: null });
+    },
+    [],
+  );
+
+  // ─── 拖拽悬停（画布内组件） ────────────────────────────
+
+  const handleDragOver = useCallback(
+    (e: React.DragEvent, targetId: string) => {
       e.preventDefault();
       e.stopPropagation();
-      setIsDragging(false);
-      setDragSourceId(null);
-      setDropIndicator(null);
+      e.dataTransfer.dropEffect = 'move';
+      // 画布内拖拽：跳过自身；面板拖入：始终处理
+      const isPanelDrag = e.dataTransfer.types.includes('component-type');
+      if (!isPanelDrag && (!dragSourceRef.current || dragSourceRef.current === targetId)) return;
+      const pos = calcDropPosition(e, targetId);
+      setDragState((prev) => ({ ...prev, overId: targetId, dropPosition: pos }));
+    },
+    [calcDropPosition],
+  );
 
-      const effectiveIndicator = indicator || dropIndicator;
+  // ─── 拖拽离开 ──────────────────────────────────────────
+
+  const handleDragLeave = useCallback(
+    (e: React.DragEvent, targetId: string) => {
+      e.stopPropagation();
+      setDragState((prev) => {
+        if (prev.overId === targetId) return { ...prev, overId: null, dropPosition: null };
+        return prev;
+      });
+    },
+    [],
+  );
+
+  // ─── 放置（画布内组件） ────────────────────────────────
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent, targetId: string) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      // 始终实时计算放置位置，避免缓存的 dropPosition 与实际位置不一致
+      const pos = calcDropPosition(e, targetId);
+
+      // 计算新索引
+      const parent = schema.components.find((c) => c.id === pos.parentId);
+      const children = parent?.children || schema.components.filter((c) => !c.parentId).map((c) => c.id);
+      const targetIdx = children.indexOf(pos.targetId);
+      const newIndex = pos.position === 'inside' ? 0
+        : pos.position === 'before' ? targetIdx : targetIdx + 1;
 
       // 画布内排序
-      const dragData = e.dataTransfer.getData(DND_TYPE);
+      const dragData = e.dataTransfer.getData(DND_DATA_TYPE);
       if (dragData) {
         try {
           const { componentId } = JSON.parse(dragData);
-          if (componentId) {
-            let newIndex = 0;
-            if (effectiveIndicator) {
-              const parent = schema.components.find((c) => c.id === effectiveIndicator.parentId);
-              const children = parent?.children || schema.components.filter((c) => !c.parentId).map((c) => c.id);
-              const targetIdx = children.indexOf(effectiveIndicator.targetId);
-              newIndex = effectiveIndicator.position === 'inside' ? 0
-                : effectiveIndicator.position === 'before' ? targetIdx : targetIdx + 1;
-            }
-            dispatch({ type: 'MOVE_COMPONENT', payload: { id: componentId, newParentId: effectiveIndicator?.parentId, newIndex } });
-            return;
+          if (componentId && componentId !== targetId) {
+            dispatch({
+              type: 'MOVE_COMPONENT',
+              payload: { id: componentId, newParentId: pos.parentId, newIndex },
+            });
           }
         } catch { /* ignore */ }
       }
 
       // 面板拖入
       const componentType = e.dataTransfer.getData('component-type');
-      if (!componentType) return;
+      if (componentType) {
+        const registration = registry.resolve(componentType);
+        const defaultProps = registration?.defaultProps || {};
 
-      const registration = registry.resolve(componentType);
-      const defaultProps = registration?.defaultProps || {};
-
-      let parentId: string | undefined;
-      let insertIndex: number | undefined;
-      if (effectiveIndicator) {
-        parentId = effectiveIndicator.parentId;
-        const parent = schema.components.find((c) => c.id === parentId);
-        const children = parent?.children || schema.components.filter((c) => !c.parentId).map((c) => c.id);
-        const targetIdx = children.indexOf(effectiveIndicator.targetId);
-        insertIndex = effectiveIndicator.position === 'inside' ? 0
-          : effectiveIndicator.position === 'before' ? targetIdx : targetIdx + 1;
+        dispatch({
+          type: 'ADD_COMPONENT',
+          payload: {
+            node: {
+              id: `${componentType}_${Date.now()}`,
+              type: componentType,
+              label: generateLabel(componentType, schema.components),
+              props: { ...defaultProps },
+              parentId: pos.parentId,
+              children: registration?.acceptsChildren ? [] : undefined,
+            },
+            parentId: pos.parentId,
+            index: newIndex,
+          },
+        });
       }
 
-      dispatch({
-        type: 'ADD_COMPONENT',
-        payload: {
-          node: { id: `${componentType}_${Date.now()}`, type: componentType, props: { ...defaultProps }, parentId, children: registration?.acceptsChildren ? [] : undefined },
-          parentId,
-          index: insertIndex,
-        },
-      });
-      dispatch({ type: 'SET_DRAGGING', payload: null });
+      dragSourceRef.current = null;
+      setDragState({ sourceId: null, overId: null, dropPosition: null });
     },
-    [registry, dispatch, dropIndicator, schema.components],
+    [calcDropPosition, registry, dispatch, schema.components],
   );
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
+  // ─── 画布放置（根级别） ────────────────────────────────
+
+  const handleCanvasDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const dragData = e.dataTransfer.getData(DND_DATA_TYPE);
+      if (dragData) {
+        try {
+          const { componentId } = JSON.parse(dragData);
+          if (componentId) {
+            dispatch({
+              type: 'MOVE_COMPONENT',
+              payload: { id: componentId, newParentId: undefined, newIndex: schema.components.filter((c) => !c.parentId).length },
+            });
+          }
+        } catch { /* ignore */ }
+      }
+
+      const componentType = e.dataTransfer.getData('component-type');
+      if (componentType) {
+        const registration = registry.resolve(componentType);
+        const defaultProps = registration?.defaultProps || {};
+        dispatch({
+          type: 'ADD_COMPONENT',
+          payload: {
+            node: {
+              id: `${componentType}_${Date.now()}`,
+              type: componentType,
+              props: { ...defaultProps },
+              parentId: undefined,
+              children: registration?.acceptsChildren ? [] : undefined,
+            },
+          },
+        });
+      }
+
+      dragSourceRef.current = null;
+      setDragState({ sourceId: null, overId: null, dropPosition: null });
+    },
+    [registry, dispatch, schema.components],
+  );
+
+  const handleCanvasDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
   }, []);
 
-  // ========== 画布内拖拽 ==========
-  const handleComponentDragStart = useCallback(
-    (e: React.DragEvent, componentId: string) => {
-      e.stopPropagation();
-      setIsDragging(true);
-      setDragSourceId(componentId);
-      e.dataTransfer.setData(DND_TYPE, JSON.stringify({ componentId }));
-      e.dataTransfer.effectAllowed = 'move';
+  // ─── 组件操作 ──────────────────────────────────────────
 
-      // 拖拽阴影
-      const el = e.currentTarget as HTMLElement;
-      const ghost = el.cloneNode(true) as HTMLElement;
-      ghost.style.cssText = 'position:absolute;top:-9999px;left:-9999px;opacity:0.7;transform:scale(0.95);box-shadow:0 8px 24px rgba(0,0,0,0.2);border-radius:4px;pointer-events:none;';
-      document.body.appendChild(ghost);
-      e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2);
-      requestAnimationFrame(() => document.body.removeChild(ghost));
-    },
-    [],
-  );
-
-  const handleComponentDragEnd = useCallback(() => {
-    setIsDragging(false);
-    setDragSourceId(null);
-    setDropIndicator(null);
-  }, []);
-
-  const handleComponentDragOver = useCallback(
-    (e: React.DragEvent, targetId: string) => {
-      e.preventDefault();
-      e.stopPropagation();
-      e.dataTransfer.dropEffect = 'move';
-      if (isDragging && dragSourceId && dragSourceId !== targetId) {
-        setDropIndicator(calcDropIndicator(e, targetId));
-      }
-    },
-    [isDragging, dragSourceId, calcDropIndicator],
-  );
-
-  const handleComponentDrop = useCallback(
-    (e: React.DragEvent, targetId: string) => {
-      e.stopPropagation();
-      handleDrop(e, calcDropIndicator(e, targetId));
-    },
-    [calcDropIndicator, handleDrop],
-  );
-
-  // ========== 复制粘贴 ==========
   const handleCopy = useCallback(() => {
     if (!selectedComponentId) return;
     const node = schema.components.find((c) => c.id === selectedComponentId);
-    if (node) setClipboard({ ...node });
+    if (node) {
+      navigator.clipboard.writeText(JSON.stringify(node)).catch(() => {});
+    }
   }, [selectedComponentId, schema.components]);
-
-  const handlePaste = useCallback(() => {
-    if (!clipboard) return;
-    dispatch({ type: 'ADD_COMPONENT', payload: { node: { ...clipboard, id: `${clipboard.type}_${Date.now()}`, children: clipboard.children ? [...clipboard.children] : undefined } } });
-  }, [clipboard, dispatch]);
 
   const handleDuplicate = useCallback(() => {
     if (!selectedComponentId) return;
     const node = schema.components.find((c) => c.id === selectedComponentId);
     if (!node) return;
-    dispatch({ type: 'ADD_COMPONENT', payload: { node: { ...node, id: `${node.type}_${Date.now()}`, children: node.children ? [...node.children] : undefined }, parentId: node.parentId } });
+    dispatch({
+      type: 'ADD_COMPONENT',
+      payload: {
+        node: { ...node, id: `${node.type}_${Date.now()}`, children: node.children ? [...node.children] : undefined },
+        parentId: node.parentId,
+      },
+    });
   }, [selectedComponentId, schema.components, dispatch]);
 
   const handleDelete = useCallback(() => {
@@ -234,219 +326,306 @@ export function DesignCanvas({ registry }: DesignCanvasProps) {
     dispatch({ type: 'REMOVE_COMPONENT', payload: { id: selectedComponentId } });
   }, [selectedComponentId, dispatch]);
 
-  // 键盘快捷键
-  React.useEffect(() => {
+  const handleMove = useCallback((direction: 'left' | 'right') => {
+    if (!selectedComponentId) return;
+    const node = schema.components.find((c) => c.id === selectedComponentId);
+    if (!node) return;
+
+    const siblings = getSiblingIds(node, schema.components);
+    const idx = siblings.indexOf(selectedComponentId);
+    // 右移传 idx+2：reducer 会把源在目标前面的索引减 1，所以要多传 1 来补偿
+    const newIdx = direction === 'left' ? idx - 1 : idx + 2;
+
+    if (newIdx < 0 || newIdx > siblings.length) return;
+
+    dispatch({
+      type: 'MOVE_COMPONENT',
+      payload: { id: selectedComponentId, newParentId: node.parentId, newIndex: newIdx },
+    });
+  }, [selectedComponentId, schema.components, dispatch]);
+
+  // ─── 键盘快捷键 ────────────────────────────────────────
+
+  useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'c') { e.preventDefault(); handleCopy(); }
-      if ((e.ctrlKey || e.metaKey) && e.key === 'v') { e.preventDefault(); handlePaste(); }
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+
       if ((e.ctrlKey || e.metaKey) && e.key === 'd') { e.preventDefault(); handleDuplicate(); }
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA') return;
-        e.preventDefault();
-        handleDelete();
-      }
+      if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); handleDelete(); }
+      if (e.key === 'Escape') { handleSelect(null); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [handleCopy, handlePaste, handleDuplicate, handleDelete]);
+  }, [handleDuplicate, handleDelete, handleSelect]);
 
-  // ========== 放置指示线 ==========
-  const renderDropIndicator = useCallback(
-    (targetId: string): React.ReactNode => {
-      if (!dropIndicator || dropIndicator.targetId !== targetId) return null;
+  // ─── 组件节点渲染（render prop，零 wrapper DOM） ──────────
 
-      if (dropIndicator.position === 'inside') {
-        return (
-          <div style={{
-            position: 'absolute', inset: 0, border: '2px solid #1890ff', borderRadius: '4px',
-            backgroundColor: 'rgba(24,144,255,0.06)', pointerEvents: 'none', zIndex: 20,
-          }} />
-        );
-      }
-
-      const isBefore = dropIndicator.position === 'before';
-      return (
-        <div style={{
-          position: 'absolute', left: 0, right: 0, [isBefore ? 'top' : 'bottom']: '-2px',
-          height: '3px', backgroundColor: '#1890ff', borderRadius: '2px', zIndex: 20,
-          pointerEvents: 'none', boxShadow: '0 0 6px rgba(24,144,255,0.4)',
-        }}>
-          <div style={{ position: 'absolute', left: '-4px', top: '-3px', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#1890ff' }} />
-          <div style={{ position: 'absolute', right: '-4px', top: '-3px', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#1890ff' }} />
-        </div>
-      );
-    },
-    [dropIndicator],
-  );
-
-  // ========== 渲染组件节点 ==========
   const renderNode = useCallback(
     (node: ComponentNode): React.ReactNode => {
       const isSelected = selectedComponentId === node.id;
-      const isDragSource = dragSourceId === node.id;
-      const registration = registry.resolve(node.type);
-      const ComponentImpl = DESIGN_COMPONENTS[node.type] || 'div';
+      const isDragSource = dragState.sourceId === node.id;
+      const isContainer = isContainerNode(node, registry);
+      const ComponentImpl = node.type === 'slot'
+        ? SlotComponent
+        : (registry as ComponentRegistryImpl).resolveComponent(node.type) || 'div';
 
       const childNodes = (node.children || [])
-        .map((childId) => schema.components.find((c) => c.id === childId))
+        .map((id) => schema.components.find((c) => c.id === id))
         .filter(Boolean) as ComponentNode[];
 
-      const isContainer = registration?.acceptsChildren || !!node.children?.length;
-
-      // 只读预览态
-      const readOnlyProps: Record<string, any> = {
-        disabled: true,
-        readOnly: true,
-        onChange: undefined,
-        onClick: undefined,
+      const designerNodeProps = {
+        node,
+        isSelected,
+        isDragSource,
+        registry,
+        onCopy: handleCopy,
+        onMove: handleMove,
+        onDelete: handleDelete,
+        onDragStart: handleDragStart,
+        onDragEnd: handleDragEnd,
+        onDragOver: handleDragOver,
+        onDragLeave: handleDragLeave,
+        onDrop: handleDrop,
+        onSelect: handleSelect,
+        dragOverId: dragState.overId,
+        dropPosition: dragState.dropPosition?.position ?? null,
+        dragSourceId: dragState.sourceId,
+        siblings: getSiblingIds(node, schema.components),
+        previewMode,
       };
 
-      return (
-        <div
-          key={node.id}
-          data-component-id={node.id}
-          onClick={(e) => { e.stopPropagation(); handleSelect(e, node.id); }}
-          style={{
-            position: 'relative',
-            border: isSelected ? '2px solid #1890ff' : isDragging ? '1px dashed #1890ff40' : '1px dashed transparent',
-            borderRadius: '4px',
-            padding: isContainer ? '8px' : '2px',
-            margin: '4px',
-            minHeight: isContainer ? '60px' : undefined,
-            transition: 'all 0.15s ease',
-            opacity: isDragSource ? 0.3 : 1,
-            boxShadow: isSelected ? '0 0 0 1px #1890ff33' : 'none',
-          }}
-        >
-          {/* 拖拽覆盖层 — 解决内层组件拦截拖拽事件的问题 */}
-          {previewMode === 'design' && (
-            <div
-              draggable
-              onDragStart={(e) => handleComponentDragStart(e, node.id)}
-              onDragEnd={handleComponentDragEnd}
-              onDragOver={(e) => handleComponentDragOver(e, node.id)}
-              onDrop={(e) => handleComponentDrop(e, node.id)}
+      // 容器组件 — 选中 outline 由 DesignerNode Portal overlay 处理
+      if (isContainer) {
+        return (
+          <DesignerNode key={node.id} {...designerNodeProps}>
+            <ComponentImpl
+              {...node.props}
               style={{
-                position: 'absolute',
-                inset: 0,
-                zIndex: isContainer ? 1 : 5,
-                cursor: isDragSource ? 'grabbing' : 'grab',
-                // 容器组件的覆盖层不拦截子组件区域的事件
-                pointerEvents: isContainer ? 'none' : 'auto',
+                border: '1px dashed #c8c8c8',
+                borderRadius: 6,
+                padding: 8,
+                minHeight: 60,
+                ...((node.type === 'flex' || node.type === 'grid') ? {
+                  display: 'flex',
+                  flexDirection: node.props.vertical !== false ? 'column' : 'row',
+                  flexWrap: node.props.wrap ? 'wrap' : 'nowrap',
+                  justifyContent: node.props.justify || 'flex-start',
+                  alignItems: node.props.align || 'stretch',
+                  gap: node.props.gap ?? 8,
+                } : { display: 'flex', flexDirection: 'column', gap: 8 }),
+                ...node.props.style,
               }}
-            />
-          )}
-
-          {/* 放置指示线 */}
-          {renderDropIndicator(node.id)}
-
-          {/* 选中操作栏 */}
-          {isSelected && previewMode === 'design' && (
-            <div style={{ position: 'absolute', top: '-28px', left: '0', display: 'flex', alignItems: 'center', gap: '4px', zIndex: 30 }}>
-              <span style={{ backgroundColor: '#1890ff', color: '#fff', fontSize: '11px', padding: '2px 6px', borderRadius: '3px', whiteSpace: 'nowrap' }}>
-                {registration?.name || node.type}
-              </span>
-              <button onClick={(e) => { e.stopPropagation(); handleCopy(); }} title="复制 (Ctrl+C)"
-                style={{ padding: '2px 6px', border: '1px solid #d9d9d9', borderRadius: '3px', backgroundColor: '#fff', cursor: 'pointer', fontSize: '11px' }}>复制</button>
-              <button onClick={(e) => { e.stopPropagation(); handleDuplicate(); }} title="克隆 (Ctrl+D)"
-                style={{ padding: '2px 6px', border: '1px solid #d9d9d9', borderRadius: '3px', backgroundColor: '#fff', cursor: 'pointer', fontSize: '11px' }}>克隆</button>
-              <button onClick={(e) => { e.stopPropagation(); handleDelete(); }} title="删除 (Delete)"
-                style={{ padding: '2px 6px', border: '1px solid #ff4d4f', borderRadius: '3px', color: '#ff4d4f', backgroundColor: '#fff', cursor: 'pointer', fontSize: '11px' }}>删除</button>
-            </div>
-          )}
-
-          {/* 组件内容 */}
-          {isContainer && childNodes.length > 0 ? (
-            <ComponentImpl {...node.props} {...readOnlyProps}>
+            >
               {childNodes.map((child) => renderNode(child))}
-            </ComponentImpl>
-          ) : isContainer ? (
-            <ComponentImpl {...node.props} {...readOnlyProps}>
+              {/* 容器内拖入区域 */}
               <div
-                onDrop={(e) => handleDrop(e, { targetId: node.id, position: 'inside', parentId: node.id })}
-                onDragOver={handleDragOver}
+                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                onDrop={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  const componentType = e.dataTransfer.getData('component-type');
+                  if (componentType) {
+                    const reg = registry.resolve(componentType);
+                    dispatch({
+                      type: 'ADD_COMPONENT',
+                      payload: {
+                        node: {
+                          id: `${componentType}_${Date.now()}`,
+                          type: componentType,
+                          label: generateLabel(componentType, schema.components),
+                          props: { ...(reg?.defaultProps || {}) },
+                          parentId: node.id,
+                          children: reg?.acceptsChildren ? [] : undefined,
+                        },
+                        parentId: node.id,
+                      },
+                    });
+                  }
+                }}
                 style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  minHeight: '40px', color: '#bbb', fontSize: '12px',
-                  border: isDragging ? '2px dashed #1890ff40' : '1px dashed #d9d9d9',
-                  borderRadius: '4px', transition: 'border-color 0.15s ease',
+                  minHeight: childNodes.length > 0 ? 24 : 40,
+                  color: '#bbb', fontSize: 12,
+                  border: '1px dashed #d9d9d9',
+                  borderRadius: 4,
+                  marginTop: childNodes.length > 0 ? 4 : 0,
                 }}
               >
-                拖入组件
+                {childNodes.length > 0 ? '+ 拖入更多' : '拖入组件'}
               </div>
             </ComponentImpl>
-          ) : (
-            <ComponentImpl {...node.props} {...readOnlyProps} />
-          )}
-        </div>
+          </DesignerNode>
+        );
+      }
+
+      // 普通组件（叶子节点）
+      return (
+        <DesignerNode key={node.id} {...designerNodeProps}>
+          <ComponentImpl {...node.props} />
+        </DesignerNode>
       );
     },
-    [schema.components, selectedComponentId, previewMode, isDragging, dragSourceId, registry,
-     handleSelect, handleDrop, handleDragOver, handleComponentDragStart, handleComponentDragEnd,
-     handleComponentDragOver, handleComponentDrop, renderDropIndicator, handleCopy, handleDuplicate, handleDelete],
+    [schema.components, selectedComponentId, previewMode, dragState, registry,
+     handleSelect, handleDragStart, handleDragEnd, handleDragOver, handleDragLeave,
+     handleDrop, handleCopy, handleMove, handleDelete, dispatch, scrollTick],
   );
+
+  // ─── 根级组件 ──────────────────────────────────────────
 
   const rootComponents = schema.components.filter((c) => !c.parentId);
 
   const deviceStyles: Record<string, React.CSSProperties> = {
     web: { width: '100%', maxWidth: '100%' },
-    mobile: { width: '375px', maxWidth: '375px', margin: '0 auto', border: '1px solid #e8e8e8', borderRadius: '20px', minHeight: '667px' },
+    mobile: { width: 375, maxWidth: 375, margin: '0 auto', border: '1px solid #e8e8e8', borderRadius: 20, minHeight: 667 },
   };
 
+  // ─── 渲染 ──────────────────────────────────────────────
+
+  // ─── Ctrl+S 快捷键 ──────────────────────────────────────
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        onSave?.();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onSave]);
+
+  // ─── 渲染 ──────────────────────────────────────────────
+
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* 工具栏 */}
-      <div style={{ padding: '8px 16px', borderBottom: '1px solid #e8e8e8', display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#fff' }}>
-        <button onClick={() => dispatch({ type: 'UNDO' })} disabled={state.historyIndex <= 0}
-          style={{ padding: '4px 8px', border: '1px solid #d9d9d9', borderRadius: '4px', cursor: state.historyIndex <= 0 ? 'not-allowed' : 'pointer', backgroundColor: '#fff' }}>↩ 撤销</button>
-        <button onClick={() => dispatch({ type: 'REDO' })} disabled={state.historyIndex >= state.history.length - 1}
-          style={{ padding: '4px 8px', border: '1px solid #d9d9d9', borderRadius: '4px', cursor: state.historyIndex >= state.history.length - 1 ? 'not-allowed' : 'pointer', backgroundColor: '#fff' }}>↪ 重做</button>
-        <div style={{ width: '1px', height: '20px', backgroundColor: '#e8e8e8' }} />
-        <button onClick={handleCopy} disabled={!selectedComponentId}
-          style={{ padding: '4px 8px', border: '1px solid #d9d9d9', borderRadius: '4px', cursor: selectedComponentId ? 'pointer' : 'not-allowed', backgroundColor: '#fff' }}>📋 复制</button>
-        <button onClick={handlePaste} disabled={!clipboard}
-          style={{ padding: '4px 8px', border: '1px solid #d9d9d9', borderRadius: '4px', cursor: clipboard ? 'pointer' : 'not-allowed', backgroundColor: '#fff' }}>📄 粘贴</button>
-        <div style={{ width: '1px', height: '20px', backgroundColor: '#e8e8e8' }} />
-        {(['design', 'preview'] as const).map((mode) => (
-          <button key={mode} onClick={() => dispatch({ type: 'SET_PREVIEW_MODE', payload: mode })}
-            style={{ padding: '4px 12px', border: '1px solid', borderColor: previewMode === mode ? '#1890ff' : '#d9d9d9', borderRadius: '4px', backgroundColor: previewMode === mode ? '#e6f7ff' : '#fff', color: previewMode === mode ? '#1890ff' : '#000000d9', cursor: 'pointer' }}>
-            {mode === 'design' ? '设计' : '预览'}
-          </button>
-        ))}
-        <div style={{ width: '1px', height: '20px', backgroundColor: '#e8e8e8' }} />
-        {(['web', 'mobile'] as const).map((device) => (
-          <button key={device} onClick={() => dispatch({ type: 'SET_PREVIEW_DEVICE', payload: device })}
-            style={{ padding: '4px 12px', border: '1px solid', borderColor: previewDevice === device ? '#1890ff' : '#d9d9d9', borderRadius: '4px', backgroundColor: previewDevice === device ? '#e6f7ff' : '#fff', color: previewDevice === device ? '#1890ff' : '#000000d9', cursor: 'pointer', fontSize: '12px' }}>
-            {device === 'web' ? '🖥 Web' : '📱 Mobile'}
-          </button>
-        ))}
+      <div style={{
+        height: 40, padding: '0 12px', borderBottom: '1px solid #e8e8e8',
+        display: 'flex', alignItems: 'center', gap: 12, backgroundColor: '#fff', flexShrink: 0,
+      }}>
+        {/* 左侧：设计/预览 Switch */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 12, color: previewMode === 'design' ? '#1890ff' : '#999' }}>设计</span>
+          <Switch
+            size="small"
+            checked={previewMode === 'preview'}
+            onChange={(checked) => dispatch({ type: 'SET_PREVIEW_MODE', payload: checked ? 'preview' : 'design' })}
+          />
+          <span style={{ fontSize: 12, color: previewMode === 'preview' ? '#1890ff' : '#999' }}>预览</span>
+        </div>
+
+        <div style={{ width: 1, height: 16, backgroundColor: '#e8e8e8' }} />
+
+        {/* Web/Mobile Switch */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 12, color: previewDevice === 'web' ? '#1890ff' : '#999' }}>🖥 Web</span>
+          <Switch
+            size="small"
+            checked={previewDevice === 'mobile'}
+            onChange={(checked) => dispatch({ type: 'SET_PREVIEW_DEVICE', payload: checked ? 'mobile' : 'web' })}
+          />
+          <span style={{ fontSize: 12, color: previewDevice === 'mobile' ? '#1890ff' : '#999' }}>📱 Mobile</span>
+        </div>
+
+        {/* 中间：保存按钮 */}
+        <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+          {onSave && (
+            <Tooltip title="Ctrl+S">
+              <button
+                onClick={onSave}
+                disabled={saving}
+                style={{
+                  padding: '3px 20px',
+                  border: '1px solid #1890ff',
+                  borderRadius: 4,
+                  backgroundColor: '#1890ff',
+                  color: '#fff',
+                  cursor: saving ? 'not-allowed' : 'pointer',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  opacity: saving ? 0.6 : 1,
+                }}
+              >
+                {saving ? '保存中...' : '保存'}
+              </button>
+            </Tooltip>
+          )}
+        </div>
       </div>
 
-      {/* 画布区域 */}
-      <div style={{ flex: 1, overflow: 'auto', backgroundColor: '#f0f2f5', padding: '24px' }}>
+      {/* Portal 容器 — overlay（选中框/工具栏/drop 指示器）渲染到这里，放在滚动容器外 */}
+      <div ref={portalRef} />
+      {/* 画布 */}
+      <div ref={canvasScrollRef} style={{ flex: 1, overflow: 'auto', backgroundColor: '#f0f2f5', padding: 24 }}>
         <div
-          onClick={handleCanvasClick}
-          onDrop={(e) => handleDrop(e)}
-          onDragOver={handleDragOver}
+          onClick={() => handleSelect(null)}
+          onDragOver={handleCanvasDragOver}
+          onDrop={handleCanvasDrop}
           style={{
             ...deviceStyles[previewDevice],
             backgroundColor: '#fff',
-            padding: '16px',
-            minHeight: '500px',
+            padding: 16,
+            minHeight: 500,
             boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+            border: '2px dashed #d9d9d9',
+            borderRadius: 8,
+            position: 'relative',
           }}
         >
           {rootComponents.length === 0 ? (
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              minHeight: '200px', color: '#bbb', fontSize: '16px',
-              border: isDragging ? '2px dashed #1890ff' : '2px dashed #d9d9d9',
-              borderRadius: '8px', transition: 'border-color 0.15s ease',
+              minHeight: 200, color: '#bbb', fontSize: 16,
             }}>
               从左侧拖拽组件到此处
             </div>
           ) : (
-            rootComponents.map((node) => renderNode(node))
+            <>
+              {/* 组件区域 — 受布局配置影响 */}
+              <div style={{
+                display: schema.layout.type === 'grid' ? 'grid' : 'flex',
+                flexDirection: schema.layout.type === 'flex' ? (schema.layout.vertical !== false ? 'column' : 'row') : undefined,
+                flexWrap: schema.layout.type === 'flex' ? (schema.layout.wrap ? 'wrap' : 'nowrap') : undefined,
+                justifyContent: schema.layout.type === 'flex' ? (schema.layout.justify || 'flex-start') : undefined,
+                alignItems: schema.layout.type === 'flex' ? (schema.layout.align || 'stretch') : undefined,
+                gridTemplateColumns: schema.layout.type === 'grid' ? `repeat(${schema.layout.columns || 24}, 1fr)` : undefined,
+                gap: schema.layout.gap ?? 16,
+              }}>
+                {rootComponents.map((node) => renderNode(node))}
+              </div>
+              {/* 根级放置区域 — 不受布局影响 */}
+              <div
+                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                onDrop={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  const componentType = e.dataTransfer.getData('component-type');
+                  if (componentType) {
+                    const reg = registry.resolve(componentType);
+                    dispatch({
+                      type: 'ADD_COMPONENT',
+                      payload: {
+                        node: {
+                          id: `${componentType}_${Date.now()}`,
+                          type: componentType,
+                          label: generateLabel(componentType, schema.components),
+                          props: { ...(reg?.defaultProps || {}) },
+                          children: reg?.acceptsChildren ? [] : undefined,
+                        },
+                      },
+                    });
+                  }
+                }}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  minHeight: 24, color: '#bbb', fontSize: 12,
+                  border: '1px dashed #d9d9d9', borderRadius: 4, marginTop: 8,
+                }}
+              >
+                + 拖入更多组件
+              </div>
+            </>
           )}
         </div>
       </div>

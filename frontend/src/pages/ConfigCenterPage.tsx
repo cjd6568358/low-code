@@ -5,7 +5,7 @@
  */
 
 import { useState } from 'react';
-import { Tabs, Card, Table, Tag, Button, Space, Avatar, Switch, Modal, Form, Input, Select, message } from 'antd';
+import { App, Tabs, Card, Table, Tag, Button, Space, Avatar, Switch, Modal, Form, Input, Select } from 'antd';
 import {
   PlusOutlined,
   EditOutlined,
@@ -91,6 +91,7 @@ const ROLE_LABELS: Record<string, { label: string; color: string }> = {
 };
 
 function UserManagementTab() {
+  const { message } = App.useApp();
   const [users, setUsers] = useState(MOCK_USERS);
   const [modalOpen, setModalOpen] = useState(false);
   const [form] = Form.useForm();

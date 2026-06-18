@@ -5,7 +5,7 @@
  * Platform routes: /login, /platform/*
  */
 
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthContext';
 import { ProtectedRoute } from './auth/ProtectedRoute';
 import MainLayout from './layouts/MainLayout';
@@ -14,7 +14,7 @@ import WorkspacePage from './pages/WorkspacePage';
 import AppCenterPage from './pages/AppCenterPage';
 import WorkflowCenterPage from './pages/WorkflowCenterPage';
 import ConfigCenterPage from './pages/ConfigCenterPage';
-import DesignerPage from './pages/DesignerPage';
+import AppDesignPage from './pages/AppDesignPage';
 import AppDetailPage from './pages/AppDetailPage';
 
 export default function App() {
@@ -52,20 +52,23 @@ export default function App() {
 
           {/* Tenant app detail (fullscreen, own sidebar) */}
           <Route
-            path="/:tenantId/apps/:appId"
+            path="/:tenantId/app/:appId"
             element={
               <ProtectedRoute>
                 <AppDetailPage />
               </ProtectedRoute>
             }
-          />
+          >
+            {/* 嵌套页面路由 — 用 pageId 做路由标识 */}
+            <Route path="page/:pageId" element={null} />
+          </Route>
 
           {/* Tenant designer (fullscreen, admin only) */}
           <Route
             path="/:tenantId/designer/:resourceType/:id"
             element={
               <ProtectedRoute roles={['tenant_admin']}>
-                <DesignerPage />
+                <AppDesignPage />
               </ProtectedRoute>
             }
           />

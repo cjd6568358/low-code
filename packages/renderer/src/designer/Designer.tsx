@@ -1,7 +1,10 @@
 import React, { useReducer, useMemo } from 'react';
 import type { PageSchema, ComponentRegistration } from '@low-code/shared';
-import { ComponentRegistryImpl, builtinComponents } from '@low-code/renderer';
-import { componentSchemas } from '@low-code/renderer';
+import { ComponentRegistryImpl } from '@low-code/renderer';
+import {
+  antdComponentImpls, antdCategoryMap, antdContainerTypes, antdSchemas,
+} from '@low-code/renderer';
+import type { ComponentLibrary } from '@low-code/shared';
 import { designerReducer, createInitialDesignerState } from './core/DesignerState';
 import { DesignerContext } from './core/DesignerContext';
 import { ComponentPanel } from './panels/ComponentPanel';
@@ -17,11 +20,34 @@ export interface DesignerProps {
   /**
    * 组件库标识（应用级配置，设计器中不可切换）
    * 在应用创建时指定，后续所有页面/卡片搭建共用
+   * 支持：'antd'（默认）、'builtin'（原生 HTML）
    */
   library?: string;
   /** Schema 变更回调 */
   onChange?: (schema: PageSchema) => void;
+  /** 保存回调（由 PageDesign 传入，画布顶部保存按钮和 Ctrl+S 触发） */
+  onSave?: () => void;
+  /** 是否正在保存 */
+  saving?: boolean;
 }
+
+/** 内置组件库注册表 */
+const LIBRARY_REGISTRY: Record<string, {
+  library: ComponentLibrary;
+  components: Record<string, React.ComponentType<any>>;
+  schemas: Record<string, Record<string, any>>;
+}> = {
+  antd: {
+    library: {
+      name: 'antd',
+      basePropsSchema: { type: 'object', properties: {} } as any,
+      categoryMap: antdCategoryMap,
+      containerTypes: antdContainerTypes,
+    },
+    components: antdComponentImpls,
+    schemas: antdSchemas,
+  },
+};
 
 /**
  * 页面设计器主组件
@@ -34,7 +60,7 @@ export interface DesignerProps {
  * 所有页面/卡片搭建共用同一套组件库。
  */
 export function Designer(props: DesignerProps) {
-  const { schema: initialSchema, components: extraComponents, library = 'antd', onChange } = props;
+  const { schema: initialSchema, components: extraComponents, library = 'antd', onChange, onSave, saving } = props;
 
   // 初始化状态
   const [state, dispatch] = useReducer(
@@ -42,57 +68,13 @@ export function Designer(props: DesignerProps) {
     createInitialDesignerState(initialSchema),
   );
 
-  // 组件分类映射（严格按文档定义）
-  const categoryMap: Record<string, { category: 'basic' | 'advanced' | 'layout' | 'custom'; name: string }> = {
-    // 基础组件
-    input: { category: 'basic', name: '输入框' },
-    textarea: { category: 'basic', name: '文本域' },
-    number: { category: 'basic', name: '数字输入' },
-    select: { category: 'basic', name: '选择器' },
-    radio: { category: 'basic', name: '单选' },
-    checkbox: { category: 'basic', name: '多选' },
-    switch: { category: 'basic', name: '开关' },
-    datepicker: { category: 'basic', name: '日期选择' },
-    timepicker: { category: 'basic', name: '时间选择' },
-    upload: { category: 'basic', name: '上传' },
-    button: { category: 'basic', name: '按钮' },
-    // 高级组件
-    table: { category: 'advanced', name: '表格' },
-    form: { category: 'advanced', name: '表单' },
-    chart: { category: 'advanced', name: '图表' },
-    calendar: { category: 'advanced', name: '日历' },
-    richtext: { category: 'advanced', name: '富文本编辑' },
-    tree: { category: 'advanced', name: '树形控件' },
-    // 布局组件
-    tabs: { category: 'layout', name: '标签页' },
-    card: { category: 'layout', name: '卡片' },
-    divider: { category: 'layout', name: '分割线' },
-    grid: { category: 'layout', name: '栅格' },
-    flex: { category: 'layout', name: '弹性布局' },
-    // 插槽组件（卡片专用，暴露变量/方法/事件给调用方）
-    slot: { category: 'custom', name: '插槽' },
-  };
-
-  // 容器组件类型（接受子组件）
-  const containerTypes = new Set(['form', 'card', 'flex', 'grid', 'tabs']);
-
   // 初始化组件注册表（使用应用级指定的组件库）
   const registry = useMemo(() => {
     const reg = new ComponentRegistryImpl();
 
-    // 注册内建组件（绑定到应用指定的组件库，按文档分类，使用完整 propsSchema）
-    for (const [type] of Object.entries(builtinComponents)) {
-      const meta = categoryMap[type] || { category: 'basic' as const, name: type };
-      reg.register({
-        type,
-        name: meta.name,
-        category: meta.category,
-        component: type,
-        propsSchema: componentSchemas[type] || { type: 'object', properties: {} },
-        acceptsChildren: containerTypes.has(type),
-        library,
-      });
-    }
+    // 注册组件库
+    const libConfig = LIBRARY_REGISTRY[library] || LIBRARY_REGISTRY.antd;
+    reg.registerLibrary(libConfig.library, libConfig.components, libConfig.schemas);
 
     // 注册额外组件
     if (extraComponents) {
@@ -108,11 +90,11 @@ export function Designer(props: DesignerProps) {
   }, [state.schema, onChange]);
 
   return (
-    <DesignerContext.Provider value={{ state, dispatch, library }}>
+    <DesignerContext.Provider value={{ state, dispatch, library, onSave, saving }}>
       <div
         style={{
           display: 'flex',
-          height: '100vh',
+          height: '100%',
           fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
           fontSize: '14px',
           color: '#000000d9',

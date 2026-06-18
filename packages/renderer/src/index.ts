@@ -17,8 +17,12 @@ export { UnifiedDependencyGraph } from './core/UnifiedDependencyGraph';
 export { ServerVariableResolver } from './core/ServerVariableResolver';
 
 // Components
-export { builtinComponents } from './components/builtin';
 export { antdComponents } from './components/antd-components';
+
+// Libraries（组件库定义：BaseProps + 组件实现 + JSON Schema）
+export {
+  antdBasePropsSchema, antdComponentImpls, antdCategoryMap, antdContainerTypes, antdSchemas,
+} from './libraries';
 
 // Schemas
 export { componentSchemas } from './schemas';
@@ -42,27 +46,6 @@ export {
   TabsPropsSchema,
   TextPropsSchema,
 } from './schemas';
-export {
-  BuiltinInput,
-  BuiltinTextarea,
-  BuiltinNumber,
-  BuiltinSelect,
-  BuiltinRadio,
-  BuiltinCheckbox,
-  BuiltinSwitch,
-  BuiltinDatePicker,
-  BuiltinTimePicker,
-  BuiltinUpload,
-  BuiltinButton,
-  BuiltinTable,
-  BuiltinForm,
-  BuiltinCard,
-  BuiltinFlex,
-  BuiltinGrid,
-  BuiltinDivider,
-  BuiltinTabs,
-  BuiltinText,
-} from './components/builtin';
 export { SlotComponent } from './components/SlotComponent';
 export type { SlotComponentProps } from './components/SlotComponent';
 
@@ -115,6 +98,7 @@ export type {
   ActionExecutor,
   ActionContext,
   ComponentRegistration,
+  ComponentLibrary,
   ThemeConfig,
   PlatformAdapter,
   CustomCardDefinition,

@@ -97,8 +97,10 @@ export function AutoFormRenderer(props: AutoFormRendererProps) {
       // 解析控件
       const xComponent = (fieldSchema as any)['x-component'];
       const componentProps = (fieldSchema as any)['x-component-props'] || {};
+      // enum 字段优先用 Select 控件
+      const resolvedType = fieldSchema.enum ? 'enum' : (fieldSchema.type as string || 'string');
       const ControlComponent = controlRegistry.resolve(
-        fieldSchema.type as string || 'string',
+        resolvedType,
         fieldSchema.format,
         xComponent,
       );

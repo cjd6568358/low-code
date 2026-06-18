@@ -60,31 +60,56 @@
 - **组件搜索**：支持按名称/标签快速检索组件
 - **组件库标识**：显示当前应用指定的组件库（只读，不可切换）
 
-### 组件库配置
+### 右侧 — 属性配置面板
 
-组件库在**应用创建时指定**，后续所有页面/卡片搭建共用同一套组件库，设计器中**不可切换**。
+- **未选中组件时**：显示**页面设置面板**，可编辑页面 `name` 和布局配置（gap、方向、列数）
+- **选中组件时**：显示组件属性面板（属性/事件/样式/规则四个 Tab）
+- **布局类型约束**：布局类型（flex/grid）在页面创建后**不可修改**，防止组件定位错乱
+
+### 组件库架构
+
+组件库在**应用创建时指定**，后续所有页面/卡片搭建共用同一套组件库，设计器中**不可切换**。当前仅实现 **antd**（65 个全量组件），后续可扩展其他组件库。
 
 ```typescript
 // 应用创建时指定组件库
 <Designer library="antd" schema={pageSchema} />
 ```
 
-左侧基础组件为所有组件库的**交集子集**，确保跨库通用：
+每个组件库通过 `ComponentLibrary` 接口定义，提供三件套：
 
-| 基础组件 | Ant Design | Element Plus | 其他组件库 |
-|---------|------------|--------------|-----------|
-| Input 输入框 | ✅ Input | ✅ ElInput | ✅ |
-| Select 选择器 | ✅ Select | ✅ ElSelect | ✅ |
-| Button 按钮 | ✅ Button | ✅ ElButton | ✅ |
-| Table 表格 | ✅ Table | ✅ ElTable | ✅ |
-| Form 表单 | ✅ Form | ✅ ElForm | ✅ |
-| DatePicker 日期 | ✅ DatePicker | ✅ ElDatePicker | ✅ |
-| Switch 开关 | ✅ Switch | ✅ ElSwitch | ✅ |
-| Checkbox 多选 | ✅ Checkbox | ✅ ElCheckbox | ✅ |
-| Radio 单选 | ✅ Radio | ✅ ElRadio | ✅ |
-| Upload 上传 | ✅ Upload | ✅ ElUpload | ✅ |
+| 产物 | 说明 |
+|------|------|
+| `basePropsSchema` | 公共 BaseProps 的 JSON Schema（如 antd 的 disabled/size/variant/status） |
+| `components` | type → React 组件实现映射 |
+| `schemas` | type → 组件 JSON Schema（含 BaseProps 继承，allOf 结构） |
 
-> 高级组件和业务组件可包含组件库特有能力，按应用配置的组件库渲染。
+**JSON Schema 自动生成**：antd 组件的 JSON Schema 通过 `scripts/generate-antd-schemas.ts` 基于 `typescript-json-schema` 从 antd 的 TS 类型定义自动生成，输出到 `packages/renderer/src/schemas/antd-generated/`。65 个组件中 61 个自动生成，4 个（cascader/list/statistic/table）因复杂泛型手写补充。
+
+```jsonc
+// 示例：Input 的 JSON Schema（自动生成）
+{
+  "$id": "antd-input",
+  "title": "InputProps",
+  "type": "object",
+  "properties": {
+    "placeholder": { "type": "string", "title": "placeholder" },
+    "maxLength": { "type": "number", "title": "maxLength" },
+    "disabled": { "type": "boolean", "title": "disabled" },
+    "size": { "enum": ["small", "middle", "large"], "type": "string", "title": "size" },
+    ...
+  }
+}
+```
+
+**当前组件库**：
+
+| 库名 | BaseProps | 组件数 | 说明 |
+|------|-----------|--------|------|
+| `antd` | disabled, size, variant, status, className, style | 65 | antd 5.x 全量组件（数据录入 19 + 数据展示 19 + 反馈 9 + 导航 7 + 布局 8 + 通用 3） |
+
+组件面板按 antd 官方分类组织：通用 / 布局 / 导航 / 数据录入 / 数据展示 / 反馈。
+
+新增组件库只需实现 `ComponentLibrary` 接口并在 `Designer.tsx` 的 `LIBRARY_REGISTRY` 中注册。
 
 ### 主题风格配置
 
@@ -99,8 +124,8 @@ interface ThemeConfig {
   fontSize: number;            // 基础字号
   spacing: number;             // 基础间距
 
-  // 组件库映射
-  componentLibrary: 'antd' | 'element-plus' | 'custom';
+  // 组件库映射（当前仅支持 antd）
+  componentLibrary: string;
 
   // 扩展 Token
   colorSuccess: string;
@@ -126,6 +151,142 @@ interface ThemeConfig {
 - **实时预览**：设计区即所见即所得，支持切换 **Web / Mobile** 预览（小程序不提供预览，通过渲染引擎运行时支持）
 - **组件操作**：选中、拖拽排序、复制粘贴（Ctrl+C/V）、克隆（Ctrl+D）、删除（Delete），选中时显示操作栏
 - **条件规则配置**：支持配置显隐规则，按条件控制表单/页面组件的展示与隐藏
+
+#### DnD 实现指南（踩坑总结）
+
+设计区的拖拽选中是多个交互系统的耦合点，以下是经过反复调试总结的关键设计决策和踩坑记录。
+
+##### 1. 组件选中：禁用 `disabled`，用 `pointer-events: none`
+
+**问题**：设计模式下需要禁用组件交互（onChange/onClick），最初传 `disabled: true` 给表单组件。但 `disabled` 的 `<input>` / `<select>` 会**吞掉鼠标事件**，导致 mousedown 无法冒泡到外层 wrapper，组件选不中。
+
+**错误方案 — 透明遮罩**：
+```jsx
+<ComponentImpl disabled />
+<div style={{ position: 'absolute', inset: 0, zIndex: 1 }}
+     onMouseDown={handleSelect} />  // 遮罩拦截点击
+```
+遮罩虽然解决了选中，但**遮住了拖拽**——遮罩没有 `draggable`，鼠标点在遮罩上无法启动拖拽。
+
+**正确方案 — `pointer-events: none`**：
+```jsx
+<div style={{ pointerEvents: 'none' }}>
+  <ComponentImpl />  {/* 不传 disabled */}
+</div>
+```
+- 组件内部元素完全不接收鼠标事件，事件直接穿透到 wrapper
+- wrapper 有 `draggable` 和 `onMouseDown`，选中和拖拽都正常
+- 组件视觉上不变灰（没有 disabled 样式），符合设计器"所见即所得"
+
+##### 2. 选中后立刻取消：onClick 冒泡到画布
+
+**问题**：wrapper 的 `onMouseDown` 选中组件后，`onClick` 事件继续冒泡到画布根 div，触发 `handleSelect(null)` 取消选中。
+
+**修复**：wrapper 同时阻止 `onClick` 冒泡：
+```jsx
+<div
+  onMouseDown={(e) => { e.stopPropagation(); handleSelect(node.id); }}
+  onClick={(e) => e.stopPropagation()}  // 阻止冒泡到画布
+>
+```
+
+##### 3. 拖拽悬停不生效：闭包过期
+
+**问题**：`handleDragOver` 通过 `useCallback` 捕获 `dragState.sourceId`。拖拽开始后 `setDragState` 更新了 state，但 React 还没重渲染，`handleDragOver` 闭包里的 `sourceId` 还是 `null`，直接 return 跳过。
+
+**修复**：用 `useRef` 保存拖拽源 ID，`handleDragOver` 读 ref 而非 state：
+```jsx
+const dragSourceRef = useRef<string | null>(null);
+
+const handleDragStart = useCallback((e, id) => {
+  dragSourceRef.current = id;  // 同步更新
+  setDragState({ sourceId: id, ... });
+}, []);
+
+const handleDragEnd = useCallback((e) => {
+  dragSourceRef.current = null;  // 同步清理
+  setDragState({ sourceId: null, ... });
+}, []);
+
+const handleDragOver = useCallback((e, targetId) => {
+  if (!dragSourceRef.current || dragSourceRef.current === targetId) return;  // 读 ref
+  // ...
+}, [calcDropPosition]);  // 不依赖 dragState
+```
+
+**关键原则**：拖拽相关的状态用 `ref` 保存，UI 相关的用 `state`。
+
+##### 4. 同父移动索引偏移
+
+**问题**：`MOVE_COMPONENT` reducer 先从旧父组件移除源，再插入到新位置。同父移动时，移除导致后续元素前移，索引偏移一位。
+
+**修复**：记录移除前的索引，源在目标前面时修正：
+```jsx
+if (sameParent && oldIndex < newIndex) {
+  adjustedIndex = newIndex - 1;
+}
+```
+
+**handleMove 的配合**：右移需要传 `idx + 2`（而非 `idx + 1`）来补偿 reducer 的修正：
+```jsx
+const newIdx = direction === 'left' ? idx - 1 : idx + 2;
+```
+
+##### 5. 根级别组件重排
+
+**问题**：reducer 只处理了 `newParentId` 存在时的 children 数组重排，根级别（`newParentId` 为空）时只设了 `parentId: undefined` 但没动数组顺序。
+
+**修复**：根级别单独处理——先 splice 移除，再 splice 插入：
+```jsx
+if (!node.parentId) {
+  const [removed] = components.splice(oldIdx, 1);
+  if (oldIdx < newIndex) adjustedIndex = newIndex - 1;
+  components.splice(adjustedIndex, 0, removed);
+  return newSchema;
+}
+```
+
+##### 6. 放置位置计算规范
+
+按设计文档规范：
+
+| 目标类型 | 鼠标位置 | 放置动作 |
+|---------|---------|---------|
+| 普通组件 | 上半部分 | before（前面插入） |
+| 普通组件 | 下半部分 | after（后面插入） |
+| 容器组件 | 上 1/4 | before |
+| 容器组件 | 中 1/2 | inside（成为子组件） |
+| 容器组件 | 下 1/4 | after |
+
+##### 7. 事件模型总结
+
+采用 **DesignerNode + Portal** 架构，极简 wrapper div + Portal overlay：
+
+```
+DesignerNode（极简 wrapper div）
+  ├── draggable          ← 拖拽源
+  ├── onMouseDown        ← 选中（stopPropagation）
+  ├── onClick            ← 阻止冒泡到画布（stopPropagation）
+  ├── onDragStart/End/Over/Leave/Drop ← 拖拽事件
+  ├── style={{ opacity, cursor }}     ← 拖拽视觉反馈
+  └── div (pointer-events: none)      ← 组件不拦截鼠标事件
+       └─ ComponentImpl
+
+Portal overlay（渲染到画布级容器，无额外 DOM）
+  ├── 选中框（position: fixed, CSS border）
+  ├── 工具栏（position: fixed, 复制/移动/删除）
+  └── Drop 指示器（position: fixed, before/after/inside）
+```
+
+**为什么用 Portal 而不是 absolute 定位的子元素**：
+- wrapper div 无需 border/padding/margin，不破坏组件自身宽度
+- overlay 使用 `position: fixed` + `getBoundingClientRect()`，精确定位到组件实际位置
+- 画布滚动时通过 `scrollTick` 计数器触发 overlay 位置重新计算
+
+**为什么保留 wrapper div 而不是直接注入 props**：
+- antd 组件不一定把 ref/onClick/draggable 透传到根 DOM 节点
+- wrapper 作为统一的事件边界，保证选中/拖拽行为一致
+- wrapper 无视觉样式（无 border/padding/margin），不影响组件布局
 
 ### 右侧 — 属性配置面板
 
@@ -1116,6 +1277,12 @@ interface CardEventDef {
 
 运行时渲染器消费设计器产出的页面描述 JSON，驱动多端 UI 渲染。一切配置皆可序列化为 JSON，运行时无隐式状态。
 
+**当前实现**：`PageRuntime` 组件（`frontend/src/components/PageRuntime.tsx`）提供简化版运行时渲染：
+- 路由：`/:tenantId/app/:appId/page/:pageId`
+- 加载页面 Schema → 递归渲染 antd 组件树 → 应用布局配置
+- 暂不支持数据绑定/联动/事件，仅做静态渲染
+- 完整运行时能力（数据绑定、联动引擎、事件系统）后续接入 `PageRenderer`
+
 ### 页面 Schema 定义
 
 设计器产出的页面描述 JSON 是渲染器的唯一输入，完整结构如下：
@@ -1124,8 +1291,7 @@ interface CardEventDef {
 /** 页面描述 JSON — 渲染器的消费契约 */
 interface PageSchema {
   pageId: string;                        // 页面唯一标识
-  title: string;                         // 页面标题
-  route: string;                         // 路由路径，如 "/customer/list"
+  name: string;                          // 资源名称（业务标识，唯一可读字段）
   layout: LayoutConfig;                  // 全局布局配置
   components: ComponentNode[];           // 组件树
   rules?: PageRule[];                    // 页面级条件规则
@@ -1146,13 +1312,21 @@ interface ComponentNode {
   children?: string[];                   // 子组件 ID 列表（有序）
 }
 
-/** 布局配置 */
+/**
+ * 页面根节点布局配置
+ *
+ * flex 模式直接复用 antd Flex props（vertical/wrap/justify/align/gap），
+ * grid 模式使用 columns + CSS Grid 属性。
+ */
 interface LayoutConfig {
   type: 'grid' | 'flex';
   columns?: number;                      // grid 列数（默认 24）
-  gap?: number;                          // 间距
-  direction?: 'row' | 'column';         // flex 方向
-  wrap?: boolean;                        // flex 换行
+  gap?: string | number;                 // 间距（flex/grid 通用）
+  // ── antd Flex props ──
+  vertical?: boolean;                    // 是否垂直排列（默认 true）
+  wrap?: boolean;                        // 自动换行
+  justify?: string;                      // 主轴对齐
+  align?: string;                        // 交叉轴对齐
 }
 
 /** 组件布局定位 */
@@ -1179,18 +1353,24 @@ interface DataSourceConfig {
 
 ### 组件注册表
 
-组件注册表是渲染器的核心基础设施，维护组件类型到实现的映射。注册表数据完全可序列化，支持导出/导入。
+组件注册表是渲染器的核心基础设施，维护组件类型到**元数据**和**实现**的双重映射。
 
 ```typescript
 interface ComponentRegistry {
-  /** 注册组件 */
+  /** 注册单个组件（元数据） */
   register(entry: ComponentRegistration): void;
 
-  /** 批量注册（组件库切换时使用） */
+  /** 批量注册 */
   registerAll(entries: ComponentRegistration[]): void;
 
-  /** 查询组件实现 */
+  /** 注册整个组件库（元数据 + 实现 + Schema） */
+  registerLibrary(library: ComponentLibrary, components: Record<string, React.ComponentType>, schemas: Record<string, JSONSchema>): void;
+
+  /** 查询组件元数据 */
   resolve(type: string): ComponentRegistration | null;
+
+  /** 查询组件实现（返回实际 React 组件） */
+  resolveComponent(type: string): React.ComponentType | null;
 
   /** 查询所有已注册组件（供设计器左侧面板使用） */
   list(): ComponentRegistration[];
@@ -1211,7 +1391,7 @@ interface ComponentRegistration {
   name: string;                          // 显示名称
   category: 'basic' | 'advanced' | 'layout' | 'custom' | 'business';
   icon?: string;                         // 图标标识
-  component: string;                     // 组件实现引用（模块路径 or 运行时组件名）
+  component: string;                     // 组件标识（序列化用），运行时通过 resolveComponent() 解析为实际组件
   propsSchema: JSONSchema;               // 属性 JSON Schema（自动渲染引擎消费）
   defaultProps?: Record<string, any>;     // 默认属性
   acceptsChildren?: boolean;             // 是否为容器组件
@@ -1241,7 +1421,7 @@ interface RenderContext {
   $context: {
     currentUser: UserInfo;               // 当前登录用户
     currentRecord?: Record<string, any>; // 当前业务记录（详情/编辑页）
-    route: { path: string; params: Record<string, string>; query: Record<string, string> };
+    route: { path: string; params: Record<string, string>; query: Record<string, string> };  // params 含 tenantId/appId/pageId
     global: Record<string, any>;         // 全局变量
   };
 
@@ -1393,13 +1573,23 @@ interface PlatformAdapter {
 
 #### TS → JSON Schema 编译管道
 
-组件 Props 的 TypeScript 类型定义在**构建时**编译为 JSON Schema，产物存储按归属区分：
+组件 Props 的 TypeScript 类型定义在**构建时**编译为 JSON Schema。antd 组件通过 `scripts/generate-antd-schemas.ts` 自动化生成：
+
+```bash
+# 从 antd 的 TS 类型定义自动生成 JSON Schema
+npx tsx scripts/generate-antd-schemas.ts
+
+# 输出到 packages/renderer/src/schemas/antd-generated/
+# 65 个组件 JSON Schema（61 个自动生成 + 4 个手写补充）
+```
+
+产物存储按归属区分：
 
 ```
 构建时
   │
-  ├─ 平台内置组件 Props → 编译产物存入 Platform/components/{type}/propsSchema.json
-  │   （随平台代码发布，不可修改）
+  ├─ antd 组件 Props → 自动生成到 packages/renderer/src/schemas/antd-generated/*.json
+  │   （65 个组件，基于 typescript-json-schema 从 antd d.ts 生成）
   │
   └─ 租户应用自定义组件/卡片 → 编译产物存入 App/{appId}/components/{type}/propsSchema.json
       （随应用导出，可跨环境迁移）

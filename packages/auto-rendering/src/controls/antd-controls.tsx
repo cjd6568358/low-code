@@ -200,6 +200,7 @@ export function registerAntdControls(
   registry.register('boolean', null, AntdAutoSwitch);
   registry.register('object', null, AntdAutoInput);
   registry.register('array', null, AntdAutoInput);
+  registry.register('enum', null, AntdAutoSelect);
 
   // 命名控件（通过 x-component 引用）
   registry.registerControl('Input', AntdAutoInput);
