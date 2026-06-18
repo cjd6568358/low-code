@@ -72,7 +72,7 @@
 
 | code | name | version | 说明 |
 |------|------|---------|------|
-| antd | Ant Design | 5.x | 默认组件库 |
+| antd | Ant Design | 6.x | 默认组件库 |
 | element-plus | Element Plus | 2.x | Vue 生态组件库 |
 | custom | 自定义 | - | 用户自定义组件库 |
 

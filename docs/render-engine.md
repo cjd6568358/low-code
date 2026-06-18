@@ -83,7 +83,9 @@
 | `components` | type → React 组件实现映射 |
 | `schemas` | type → 组件 JSON Schema（含 BaseProps 继承，allOf 结构） |
 
-**JSON Schema 自动生成**：antd 组件的 JSON Schema 通过 `scripts/generate-antd-schemas.ts` 基于 `typescript-json-schema` 从 antd 的 TS 类型定义自动生成，输出到 `packages/renderer/src/schemas/antd-generated/`。65 个组件中 61 个自动生成，4 个（cascader/list/statistic/table）因复杂泛型手写补充。
+**JSON Schema 自动生成**：antd 组件的 JSON Schema 通过 `scripts/generate-antd-schemas.ts` 基于 `typescript-json-schema` 从 antd 的 TS 类型定义自动生成，输出到 `packages/renderer/src/schemas/antd-generated/`。65 个组件全部生成成功。对于有复杂泛型的组件（datepicker/cascader/list/table/statistic/tour），使用简化的替代类型生成，完整属性通过 `antd-library.ts` 手写 schema 补充。
+
+**Schema 合并策略**：`withBaseProps()` 将 BaseProps（disabled/size/variant/status/className/style）与组件特有 props 扁平合并为同一个 `properties` 对象（非 allOf 嵌套），确保 `AutoFormRenderer` 能直接读取所有属性。
 
 ```jsonc
 // 示例：Input 的 JSON Schema（自动生成）
@@ -105,7 +107,7 @@
 
 | 库名 | BaseProps | 组件数 | 说明 |
 |------|-----------|--------|------|
-| `antd` | disabled, size, variant, status, className, style | 65 | antd 5.x 全量组件（数据录入 19 + 数据展示 19 + 反馈 9 + 导航 7 + 布局 8 + 通用 3） |
+| `antd` | disabled, size, variant, status, className, style | 65 | antd 6.x 全量组件（数据录入 19 + 数据展示 19 + 反馈 9 + 导航 7 + 布局 8 + 通用 3） |
 
 组件面板按 antd 官方分类组织：通用 / 布局 / 导航 / 数据录入 / 数据展示 / 反馈。
 
@@ -260,33 +262,40 @@ if (!node.parentId) {
 
 ##### 7. 事件模型总结
 
-采用 **DesignerNode + Portal** 架构，极简 wrapper div + Portal overlay：
+采用 **display:contents wrapper + Portal overlay** 架构：
 
 ```
-DesignerNode（极简 wrapper div）
-  ├── draggable          ← 拖拽源
-  ├── onMouseDown        ← 选中（stopPropagation）
-  ├── onClick            ← 阻止冒泡到画布（stopPropagation）
-  ├── onDragStart/End/Over/Leave/Drop ← 拖拽事件
-  ├── style={{ opacity, cursor }}     ← 拖拽视觉反馈
-  └── div (pointer-events: none)      ← 组件不拦截鼠标事件
-       └─ ComponentImpl
-
-Portal overlay（渲染到画布级容器，无额外 DOM）
-  ├── 选中框（position: fixed, CSS border）
-  ├── 工具栏（position: fixed, 复制/移动/删除）
-  └── Drop 指示器（position: fixed, before/after/inside）
+DesignerNode
+  ├── div (display: contents)         ← 不生成布局盒，不影响组件宽度
+  │    └── ComponentImpl              ← 组件原样渲染
+  └── Portal overlay（position: fixed, 渲染到 portalContainer）
+       ├── 交互拦截层 + 选中框        ← pointer-events: auto，阻止组件交互
+       ├── 工具栏                      ← 复制/移动/删除
+       └── Drop 指示器                 ← before/after/inside
 ```
 
-**为什么用 Portal 而不是 absolute 定位的子元素**：
-- wrapper div 无需 border/padding/margin，不破坏组件自身宽度
-- overlay 使用 `position: fixed` + `getBoundingClientRect()`，精确定位到组件实际位置
-- 画布滚动时通过 `scrollTick` 计数器触发 overlay 位置重新计算
+**关键设计决策**：
 
-**为什么保留 wrapper div 而不是直接注入 props**：
-- antd 组件不一定把 ref/onClick/draggable 透传到根 DOM 节点
-- wrapper 作为统一的事件边界，保证选中/拖拽行为一致
-- wrapper 无视觉样式（无 border/padding/margin），不影响组件布局
+| 方案 | 问题 |
+|------|------|
+| `display: inline-block` wrapper | flex 容器 `align-items: stretch` 时宽度不对 |
+| 直接 `cloneElement` 注入 props | antd FC 组件不透传 ref/data-* 到 DOM |
+| 纯 Portal（无 wrapper） | `getBoundingClientRect()` 需要 DOM 节点做测量锚点 |
+| **display: contents wrapper** ✅ | 不生成布局盒 + 是真实 DOM 节点可测量 |
+
+**display:contents 的特性**：
+- 不生成布局盒 → 组件宽度/高度完全由子元素决定，wrapper 不影响布局
+- 仍是 DOM 节点 → `getBoundingClientRect()` 返回第一个子元素的 rect → Portal overlay 精确定位
+- 事件冒泡正常 → wrapper 上的事件处理器能接收到子元素的事件
+
+**Portal overlay 用 position:fixed**：
+- `getBoundingClientRect()` 返回 viewport 坐标，`position:fixed` 也是 viewport 坐标系 → 精确对齐
+- 画布滚动时通过 `scrollTick` 计数器触发重新测量，overlay 位置实时更新
+
+**面板拖入支持**：
+- 从组件面板拖入时 `e.dataTransfer.types` 包含 `'component-type'`
+- `handleDragOver` 检测到面板拖入后跳过 `dragSourceRef` 检查，正常计算 drop 位置
+- 拖入指示线（before/after/inside）正确显示
 
 ### 右侧 — 属性配置面板
 
