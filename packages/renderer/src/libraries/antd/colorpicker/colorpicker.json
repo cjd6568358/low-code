@@ -1,0 +1,64 @@
+{
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "字段名称",
+      "x-group": "基础属性",
+      "x-priority": 0
+    },
+    "label": {
+      "type": "string",
+      "title": "字段标签",
+      "x-group": "基础属性",
+      "x-priority": 1
+    },
+    "visible": {
+      "type": "boolean",
+      "title": "是否可见",
+      "x-group": "基础属性",
+      "x-priority": 2
+    },
+    "style": {
+      "type": "object",
+      "title": "内联样式",
+      "x-group": "样式",
+      "x-priority": 50
+    },
+    "value": {
+      "title": "颜色值",
+      "x-group": "基础属性",
+      "x-priority": 10,
+      "type": "string"
+    },
+    "defaultValue": {
+      "title": "默认颜色",
+      "x-group": "基础属性",
+      "x-priority": 11,
+      "type": "string"
+    },
+    "showText": {
+      "title": "显示文字",
+      "x-group": "基础属性",
+      "x-priority": 12,
+      "type": "boolean"
+    },
+    "size": {
+      "title": "尺寸",
+      "x-group": "基础属性",
+      "x-priority": 13,
+      "type": "string",
+      "enum": [
+        "large",
+        "middle",
+        "small"
+      ]
+    },
+    "disabled": {
+      "title": "禁用",
+      "x-group": "基础属性",
+      "x-priority": 14,
+      "type": "boolean"
+    }
+  }
+}

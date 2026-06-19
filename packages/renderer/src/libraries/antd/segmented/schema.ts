@@ -1,0 +1,51 @@
+/**
+ * 分段器 组件 Schema 定义
+ *
+ * Props 接口 extends BaseProps，继承公共属性。
+ * JSDoc 注释中直接定义中文标题 + x-group + x-priority。
+ * JSON Schema 从 TS 类型直接生成，包含所有注解。
+ */
+import type { BaseProps } from '../base-props';
+
+/** 分段器 组件属性 */
+export interface SegmentedProps extends BaseProps {
+  /**
+   * 选项
+   * @group 基础属性
+   * @priority 10
+
+   */
+  options?: any[];
+
+  /**
+   * 值
+   * @group 基础属性
+   * @priority 11
+
+   */
+  value?: string | number;
+
+  /**
+   * 撑满
+   * @group 基础属性
+   * @priority 12
+
+   */
+  block?: boolean;
+
+  /**
+   * 尺寸
+   * @group 基础属性
+   * @priority 13
+   * @enum ["large","middle","small"]
+   */
+  size?: string;
+
+  /**
+   * 禁用
+   * @group 基础属性
+   * @priority 14
+
+   */
+  disabled?: boolean;
+}

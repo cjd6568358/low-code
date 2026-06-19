@@ -2,9 +2,8 @@ import React, { useCallback, useState, useRef, useEffect } from 'react';
 import { Switch, Tooltip } from 'antd';
 import { useDesigner } from '../core/DesignerContext';
 import type { ComponentNode } from '@low-code/shared';
-import { SlotComponent } from '@low-code/renderer';
 import type { ComponentRegistryImpl } from '@low-code/renderer';
-import { DesignerNode } from './DesignerNode';
+import { DesignOverlay } from '../../components/platform/DesignOverlay';
 
 // ─── 常量 ─────────────────────────────────────────────────
 
@@ -359,26 +358,26 @@ export function DesignCanvas({ registry }: DesignCanvasProps) {
     return () => window.removeEventListener('keydown', handler);
   }, [handleDuplicate, handleDelete, handleSelect]);
 
-  // ─── 组件节点渲染（render prop，零 wrapper DOM） ──────────
+  // ─── 组件节点渲染（HOC 注入 + Portal overlay，零 wrapper DOM） ──
 
   const renderNode = useCallback(
     (node: ComponentNode): React.ReactNode => {
       const isSelected = selectedComponentId === node.id;
       const isDragSource = dragState.sourceId === node.id;
       const isContainer = isContainerNode(node, registry);
-      const ComponentImpl = node.type === 'slot'
-        ? SlotComponent
-        : (registry as ComponentRegistryImpl).resolveComponent(node.type) || 'div';
+      const ComponentImpl = ((registry as ComponentRegistryImpl).resolveComponent(node.type) || 'div') as React.ComponentType<any>;
 
       const childNodes = (node.children || [])
         .map((id) => schema.components.find((c) => c.id === id))
         .filter(Boolean) as ComponentNode[];
 
-      const designerNodeProps = {
+      // DesignOverlay props（设计态所有交互由 overlay 处理）
+      const overlayProps = previewMode === 'design' && portalRef.current ? {
         node,
         isSelected,
         isDragSource,
         registry,
+        portalContainer: portalRef.current,
         onCopy: handleCopy,
         onMove: handleMove,
         onDelete: handleDelete,
@@ -392,15 +391,35 @@ export function DesignCanvas({ registry }: DesignCanvasProps) {
         dropPosition: dragState.dropPosition?.position ?? null,
         dragSourceId: dragState.sourceId,
         siblings: getSiblingIds(node, schema.components),
-        previewMode,
-      };
+        scrollTick,
+      } : null;
 
-      // 容器组件 — 选中 outline 由 DesignerNode Portal overlay 处理
+      // 设计态标识
+      const isDesign = previewMode === 'design';
+      const isNative = typeof ComponentImpl === 'string';
+
+      // 设计态注入 props（仅平台组件接受，原生元素不注入）
+      const designProps = isDesign && !isNative ? {
+        designMode: true,
+        _designId: node.id,
+        _draggable: true,
+        _isDragSource: isDragSource,
+        _onSelect: (e: React.MouseEvent) => { e.stopPropagation(); handleSelect(node.id); },
+        _onDragStart: (e: React.DragEvent) => { e.stopPropagation(); handleDragStart(e, node.id); },
+        _onDragEnd: (e: React.DragEvent) => { e.stopPropagation(); handleDragEnd(e); },
+        _onDragOver: (e: React.DragEvent) => { e.stopPropagation(); handleDragOver(e, node.id); },
+        _onDragLeave: (e: React.DragEvent) => { e.stopPropagation(); handleDragLeave(e, node.id); },
+        _onDrop: (e: React.DragEvent) => { e.stopPropagation(); handleDrop(e, node.id); },
+        _onClickCapture: (e: React.MouseEvent) => { e.stopPropagation(); },
+      } : {};
+
+      // 容器组件
       if (isContainer) {
         return (
-          <DesignerNode key={node.id} {...designerNodeProps}>
+          <React.Fragment key={node.id}>
             <ComponentImpl
               {...node.props}
+              {...designProps}
               style={{
                 border: '1px dashed #c8c8c8',
                 borderRadius: 6,
@@ -455,15 +474,20 @@ export function DesignCanvas({ registry }: DesignCanvasProps) {
                 {childNodes.length > 0 ? '+ 拖入更多' : '拖入组件'}
               </div>
             </ComponentImpl>
-          </DesignerNode>
+            {overlayProps && <DesignOverlay {...overlayProps} />}
+          </React.Fragment>
         );
       }
 
       // 普通组件（叶子节点）
       return (
-        <DesignerNode key={node.id} {...designerNodeProps}>
-          <ComponentImpl {...node.props} />
-        </DesignerNode>
+        <React.Fragment key={node.id}>
+          <ComponentImpl
+            {...node.props}
+            {...designProps}
+          />
+          {overlayProps && <DesignOverlay {...overlayProps} />}
+        </React.Fragment>
       );
     },
     [schema.components, selectedComponentId, previewMode, dragState, registry,
@@ -476,8 +500,8 @@ export function DesignCanvas({ registry }: DesignCanvasProps) {
   const rootComponents = schema.components.filter((c) => !c.parentId);
 
   const deviceStyles: Record<string, React.CSSProperties> = {
-    web: { width: '100%', maxWidth: '100%' },
-    mobile: { width: 375, maxWidth: 375, margin: '0 auto', border: '1px solid #e8e8e8', borderRadius: 20, minHeight: 667 },
+    web: { width: '100%', maxWidth: '100%', height: '100%' },
+    mobile: { width: 375, height: 667, maxWidth: 375, margin: '0 auto', border: '1px solid #e8e8e8', borderRadius: 20 },
   };
 
   // ─── 渲染 ──────────────────────────────────────────────
@@ -527,6 +551,8 @@ export function DesignCanvas({ registry }: DesignCanvasProps) {
           />
           <span style={{ fontSize: 12, color: previewDevice === 'mobile' ? '#1890ff' : '#999' }}>📱 Mobile</span>
         </div>
+
+        <div style={{ width: 1, height: 16, backgroundColor: '#e8e8e8' }} />
 
         {/* 中间：保存按钮 */}
         <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>

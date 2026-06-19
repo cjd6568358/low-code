@@ -1,0 +1,76 @@
+{
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "字段名称",
+      "x-group": "基础属性",
+      "x-priority": 0
+    },
+    "label": {
+      "type": "string",
+      "title": "字段标签",
+      "x-group": "基础属性",
+      "x-priority": 1
+    },
+    "visible": {
+      "type": "boolean",
+      "title": "是否可见",
+      "x-group": "基础属性",
+      "x-priority": 2
+    },
+    "style": {
+      "type": "object",
+      "title": "内联样式",
+      "x-group": "样式",
+      "x-priority": 50
+    },
+    "title": {
+      "title": "标题",
+      "x-group": "基础属性",
+      "x-priority": 10
+    },
+    "extra": {
+      "title": "额外操作",
+      "x-group": "基础属性",
+      "x-priority": 11
+    },
+    "bordered": {
+      "title": "边框",
+      "x-group": "基础属性",
+      "x-priority": 12,
+      "type": "boolean"
+    },
+    "hoverable": {
+      "title": "悬浮效果",
+      "x-group": "基础属性",
+      "x-priority": 13,
+      "type": "boolean"
+    },
+    "loading": {
+      "title": "加载中",
+      "x-group": "基础属性",
+      "x-priority": 14,
+      "type": "boolean"
+    },
+    "size": {
+      "title": "尺寸",
+      "x-group": "基础属性",
+      "x-priority": 15,
+      "type": "string",
+      "enum": [
+        "default",
+        "small"
+      ]
+    },
+    "type": {
+      "title": "类型",
+      "x-group": "基础属性",
+      "x-priority": 16,
+      "type": "string",
+      "enum": [
+        "inner"
+      ]
+    }
+  }
+}

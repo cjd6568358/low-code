@@ -1,0 +1,65 @@
+{
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "字段名称",
+      "x-group": "基础属性",
+      "x-priority": 0
+    },
+    "label": {
+      "type": "string",
+      "title": "字段标签",
+      "x-group": "基础属性",
+      "x-priority": 1
+    },
+    "visible": {
+      "type": "boolean",
+      "title": "是否可见",
+      "x-group": "基础属性",
+      "x-priority": 2
+    },
+    "style": {
+      "type": "object",
+      "title": "内联样式",
+      "x-group": "样式",
+      "x-priority": 50
+    },
+    "items": {
+      "title": "菜单数据",
+      "x-group": "基础属性",
+      "x-priority": 10
+    },
+    "mode": {
+      "title": "模式",
+      "x-group": "基础属性",
+      "x-priority": 11,
+      "type": "string",
+      "enum": [
+        "vertical",
+        "horizontal",
+        "inline"
+      ]
+    },
+    "theme": {
+      "title": "主题",
+      "x-group": "基础属性",
+      "x-priority": 12,
+      "type": "string",
+      "enum": [
+        "light",
+        "dark"
+      ]
+    },
+    "defaultSelectedKeys": {
+      "title": "默认选中",
+      "x-group": "基础属性",
+      "x-priority": 13
+    },
+    "defaultOpenKeys": {
+      "title": "默认展开",
+      "x-group": "基础属性",
+      "x-priority": 14
+    }
+  }
+}

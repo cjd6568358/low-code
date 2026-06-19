@@ -1,25 +1,23 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import { useDesigner } from '../core/DesignerContext';
-import type { ComponentNode, JSONSchema7, ComponentPermissionConfig } from '@low-code/shared';
+import type { ComponentNode, JSONSchema7, ComponentPermissionConfig, ActionChain } from '@low-code/shared';
 import { AutoFormRenderer, controlRegistry, registerAntdControls } from '@low-code/auto-rendering';
 import { mockDictionaryService } from '@low-code/auto-rendering';
-import { SlotEditor, type SlotConfig } from './SlotEditor';
+import { EventActionChainEditor, type ComponentMethod } from './EventActionChainEditor';
+import { ConditionBuilder } from './ConditionBuilder';
+import { VariablePicker } from './VariablePicker';
+import { StyleEditor } from './StyleEditor';
+import { DataSourcePanel } from './DataSourcePanel';
 
 // 注册 antd 控件到自动渲染引擎
 registerAntdControls(controlRegistry);
-
-/** 可用组件类型列表（用于插槽 accept 选择） */
-const AVAILABLE_COMPONENT_TYPES = [
-  'input', 'textarea', 'number', 'select', 'radio', 'checkbox',
-  'switch', 'datepicker', 'timepicker', 'upload', 'button',
-  'table', 'form', 'card', 'flex', 'grid', 'divider', 'tabs', 'text',
-];
 
 /** 属性面板 — 右侧（严格按文档实现） */
 export function PropertyPanel({ registry }: { registry: any }) {
   const { state, dispatch } = useDesigner();
   const { selectedComponentId, schema } = state;
-  const [activeTab, setActiveTab] = useState<'props' | 'events' | 'style' | 'rules'>('props');
+  const [activeTab, setActiveTab] = useState<'props' | 'advanced' | 'events' | 'style' | 'rules'>('props');
+  const [bindingTarget, setBindingTarget] = useState<string | null>(null);
 
   const selectedNode = useMemo(() => {
     if (!selectedComponentId) return null;
@@ -31,8 +29,6 @@ export function PropertyPanel({ registry }: { registry: any }) {
     return registry.resolve(selectedNode.type);
   }, [selectedNode, registry]);
 
-  const isSlot = selectedNode?.type === 'slot';
-
   // 属性变更处理
   const handlePropsChange = (newProps: Record<string, any>) => {
     if (!selectedNode) return;
@@ -41,30 +37,6 @@ export function PropertyPanel({ registry }: { registry: any }) {
       payload: {
         id: selectedNode.id,
         changes: { props: { ...selectedNode.props, ...newProps } },
-      },
-    });
-  };
-
-  // 插槽配置变更
-  const handleSlotConfigChange = (config: SlotConfig) => {
-    if (!selectedNode) return;
-    dispatch({
-      type: 'UPDATE_COMPONENT',
-      payload: {
-        id: selectedNode.id,
-        changes: {
-          props: {
-            ...selectedNode.props,
-            name: config.name,
-            title: config.title,
-            description: config.description,
-            accept: config.accept,
-            maxItems: config.maxItems,
-            exposeVariables: config.exposeVariables,
-            exposeMethods: config.exposeMethods,
-            exposeEvents: config.exposeEvents,
-          },
-        },
       },
     });
   };
@@ -124,7 +96,7 @@ export function PropertyPanel({ registry }: { registry: any }) {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontWeight: 600, fontSize: '14px' }}>
-            {isSlot ? '📌 插槽' : registration?.name || selectedNode.type}
+            {registration?.name || selectedNode.type}
           </span>
           <span style={{ fontSize: '12px', color: '#999' }}>ID: {selectedNode.id}</span>
         </div>
@@ -138,6 +110,7 @@ export function PropertyPanel({ registry }: { registry: any }) {
       <div style={{ display: 'flex', borderBottom: '1px solid #e8e8e8', backgroundColor: '#fff' }}>
         {([
           { key: 'props', label: '属性' },
+          { key: 'advanced', label: '高级' },
           { key: 'events', label: '事件' },
           { key: 'style', label: '样式' },
           { key: 'rules', label: '规则' },
@@ -159,29 +132,9 @@ export function PropertyPanel({ registry }: { registry: any }) {
 
       {/* 属性配置区 */}
       <div style={{ flex: 1, overflow: 'auto', padding: '16px' }}>
-        {/* 插槽组件专用配置 */}
-        {isSlot && (
-          <div style={{ marginBottom: '16px' }}>
-            <SlotEditor
-              value={{
-                name: selectedNode.props.name || '',
-                title: selectedNode.props.title || '',
-                description: selectedNode.props.description,
-                accept: selectedNode.props.accept,
-                maxItems: selectedNode.props.maxItems,
-                exposeVariables: selectedNode.props.exposeVariables,
-                exposeMethods: selectedNode.props.exposeMethods,
-                exposeEvents: selectedNode.props.exposeEvents,
-              }}
-              onChange={handleSlotConfigChange}
-              componentTypes={AVAILABLE_COMPONENT_TYPES}
-              templateComponents={schema.components.map((c) => ({ id: c.id, type: c.type }))}
-            />
-          </div>
-        )}
 
         {/* 属性 Tab */}
-        {activeTab === 'props' && !isSlot && (
+        {activeTab === 'props' && (
           <>
             {/* 基础信息 */}
             <Section title="基础信息">
@@ -207,17 +160,82 @@ export function PropertyPanel({ registry }: { registry: any }) {
               </Field>
             </Section>
 
-            {/* 组件属性（从 propsSchema 自动渲染） */}
-            {propsSchema && Object.keys(propsSchema.properties || {}).length > 0 && (
-              <Section title="组件属性">
+            {/* 基础属性（过滤 x-group !== '高级属性' 的字段，去掉 x-group 避免重复分组） */}
+            {propsSchema && (() => {
+              const filteredEntries = Object.entries(propsSchema.properties || {}).filter(
+                ([, prop]: [string, any]) => prop['x-group'] !== '高级属性'
+              );
+              // 去掉 x-group，避免 AutoFormRenderer 内部再次分组
+              const strippedProperties = Object.fromEntries(
+                filteredEntries.map(([key, prop]: [string, any]) => {
+                  const { 'x-group': _, ...rest } = prop;
+                  return [key, rest];
+                })
+              );
+              const basicSchema = { ...propsSchema, properties: strippedProperties };
+              return filteredEntries.length > 0 ? (
                 <AutoFormRenderer
-                  schema={propsSchema}
+                  schema={basicSchema}
                   value={selectedNode.props}
                   onChange={handlePropsChange}
                   layoutMode="sections"
                   dictionaryService={mockDictionaryService}
+                  onVariablePickerOpen={(fieldName: string) => setBindingTarget(fieldName)}
                 />
-              </Section>
+              ) : null;
+            })()}
+
+            {/* VariablePicker 弹窗 */}
+            {bindingTarget && (
+              <VariablePicker
+                visible={!!bindingTarget}
+                value={selectedNode.props[bindingTarget] || ''}
+                onChange={(val) => handlePropsChange({ [bindingTarget]: val })}
+                onClose={() => setBindingTarget(null)}
+              />
+            )}
+          </>
+        )}
+
+        {/* 高级属性 Tab */}
+        {activeTab === 'advanced' && (
+          <>
+            {/* 高级属性（过滤 x-group === '高级属性'，去掉 x-group 避免重复分组） */}
+            {propsSchema && (() => {
+              const filteredEntries = Object.entries(propsSchema.properties || {}).filter(
+                ([, prop]: [string, any]) => prop['x-group'] === '高级属性'
+              );
+              const strippedProperties = Object.fromEntries(
+                filteredEntries.map(([key, prop]: [string, any]) => {
+                  const { 'x-group': _, ...rest } = prop;
+                  return [key, rest];
+                })
+              );
+              const advancedSchema = { ...propsSchema, properties: strippedProperties };
+              return filteredEntries.length > 0 ? (
+                <AutoFormRenderer
+                  schema={advancedSchema}
+                  value={selectedNode.props}
+                  onChange={handlePropsChange}
+                  layoutMode="sections"
+                  dictionaryService={mockDictionaryService}
+                  onVariablePickerOpen={(fieldName: string) => setBindingTarget(fieldName)}
+                />
+              ) : (
+                <div style={{ textAlign: 'center', color: '#999', padding: '24px', fontSize: '12px' }}>
+                  暂无高级属性
+                </div>
+              );
+            })()}
+
+            {/* VariablePicker 弹窗 */}
+            {bindingTarget && (
+              <VariablePicker
+                visible={!!bindingTarget}
+                value={selectedNode.props[bindingTarget] || ''}
+                onChange={(val) => handlePropsChange({ [bindingTarget]: val })}
+                onClose={() => setBindingTarget(null)}
+              />
             )}
           </>
         )}
@@ -225,57 +243,51 @@ export function PropertyPanel({ registry }: { registry: any }) {
         {/* 事件 Tab */}
         {activeTab === 'events' && (
           <Section title="事件配置">
-            <div style={{ fontSize: '12px', color: '#999', marginBottom: '8px' }}>
-              为组件事件配置动作链，支持串联多个动作
-            </div>
-            {selectedNode.events && Object.keys(selectedNode.events).length > 0 ? (
-              Object.entries(selectedNode.events).map(([eventName, chains]) => (
-                <div key={eventName} style={{
-                  padding: '8px', border: '1px solid #e8e8e8', borderRadius: '4px',
-                  marginBottom: '8px', fontSize: '12px', backgroundColor: '#fff',
-                }}>
-                  <div style={{ fontWeight: 600, marginBottom: '4px' }}>{eventName}</div>
-                  <div style={{ color: '#999' }}>{chains.length} 条动作链</div>
-                </div>
-              ))
-            ) : (
-              <div style={{ color: '#bbb', textAlign: 'center', padding: '16px', fontSize: '12px' }}>
-                暂无事件配置
-              </div>
-            )}
+            <EventActionChainEditor
+              events={selectedNode.events || {}}
+              onChange={handleEventsChange}
+              availableEvents={registration?.propsSchema?.properties ? Object.keys(registration.propsSchema.properties).filter((k) => k.startsWith('on')).map((k) => ({ name: k, title: k })) : []}
+              availableMethods={[]}
+              availableFields={[]}
+            />
           </Section>
         )}
 
         {/* 样式 Tab */}
         {activeTab === 'style' && (
-          <Section title="样式配置">
-            <Field label="CSS 类名">
+          <>
+            <Section title="CSS 类名">
               <input type="text" value={selectedNode.props.className || ''}
                 onChange={(e) => handlePropsChange({ className: e.target.value })}
                 placeholder="自定义 CSS 类名"
                 style={inputStyle} />
-            </Field>
-            <Field label="内联样式 (JSON)">
-              <textarea
-                value={JSON.stringify(selectedNode.props.style || {}, null, 2)}
-                onChange={(e) => {
-                  try { handlePropsChange({ style: JSON.parse(e.target.value) }); } catch { /* ignore */ }
-                }}
-                rows={4}
-                style={{ ...inputStyle, fontFamily: 'monospace' }} />
-            </Field>
-          </Section>
+            </Section>
+            <Section title="内联样式">
+              <StyleEditor
+                value={selectedNode.props.style || {}}
+                onChange={(style) => handlePropsChange({ style })}
+              />
+            </Section>
+          </>
         )}
 
         {/* 规则 Tab */}
         {activeTab === 'rules' && (
           <>
-            {/* 显隐规则 */}
-            <Section title="显隐规则">
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
+            {/* 组件级显隐规则 */}
+            <Section title="组件可见性">
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', marginBottom: '8px' }}>
                 <input type="checkbox" checked={selectedNode.visible !== false}
                   onChange={(e) => handleVisibleChange(e.target.checked)} />
                 可见
+              </label>
+              <div style={{ fontSize: '12px', color: '#999', marginBottom: '8px' }}>
+                可切换为条件表达式模式，按条件控制组件显隐
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
+                <input type="checkbox" checked={typeof selectedNode.visible === 'string'}
+                  onChange={(e) => handleVisibleChange(e.target.checked ? '$context.currentUser' : true)} />
+                使用条件表达式
               </label>
               {typeof selectedNode.visible === 'string' && (
                 <div style={{ marginTop: '8px' }}>
@@ -289,11 +301,16 @@ export function PropertyPanel({ registry }: { registry: any }) {
               )}
             </Section>
 
-            {/* 条件赋值 */}
-            <Section title="条件赋值">
-              <div style={{ fontSize: '12px', color: '#999', padding: '8px', backgroundColor: '#f0f7ff', borderRadius: '4px' }}>
-                条件赋值规则在页面级 rules 中配置，支持多条件分支赋值、变量取值、表达式计算
+            {/* 页面级条件规则 */}
+            <Section title="页面条件规则">
+              <div style={{ fontSize: '12px', color: '#999', marginBottom: '8px' }}>
+                配置页面级条件规则，支持显隐、禁用、设置值等动作
               </div>
+              <ConditionBuilder
+                rules={schema.rules || []}
+                onChange={(rules) => dispatch({ type: 'SET_SCHEMA', payload: { ...schema, rules } })}
+                componentIds={schema.components.map((c) => c.id)}
+              />
             </Section>
 
             {/* 权限配置 */}
@@ -486,6 +503,14 @@ function PageSettingsPanel() {
               />
             </Field>
           )}
+        </Section>
+
+        {/* 数据源配置 */}
+        <Section title="数据源">
+          <DataSourcePanel
+            dataSources={schema.dataSource || []}
+            onChange={(dataSource) => dispatch({ type: 'SET_SCHEMA', payload: { ...schema, dataSource } })}
+          />
         </Section>
       </div>
     </div>

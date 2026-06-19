@@ -8,10 +8,6 @@ export interface VariablePickerProps {
   onChange: (value: string, bindingType: 'static' | 'variable' | 'expression') => void;
   onClose: () => void;
   variableSources?: VariableSource[];
-  /** 插槽暴露变量（自动生成 $slot 变量树） */
-  slotVariables?: Record<string, Record<string, string>>;
-  /** 插槽暴露方法（自动生成 $slot.method 引用） */
-  slotMethods?: Record<string, Array<{ name: string; title: string }>>;
 }
 
 export interface VariableSource {
@@ -36,38 +32,11 @@ export interface VariableSource {
  * - 其他组件 — 页面中其他组件的可读属性
  */
 export function VariablePicker(props: VariablePickerProps) {
-  const { visible, value = '', bindingType: propBindingType, onChange, onClose, variableSources, slotVariables, slotMethods } = props;
+  const { visible, value = '', bindingType: propBindingType, onChange, onClose, variableSources } = props;
 
   const [bindingType, setBindingType] = useState<'static' | 'variable' | 'expression'>(propBindingType || 'static');
   const [inputValue, setInputValue] = useState(value);
   const [searchKeyword, setSearchKeyword] = useState('');
-
-  // 构建 $slot 变量树
-  const slotSources: VariableSource[] = useMemo(() => {
-    if (!slotVariables && !slotMethods) return [];
-    const slots: VariableSource[] = [];
-    const allSlotNames = new Set([
-      ...Object.keys(slotVariables || {}),
-      ...Object.keys(slotMethods || {}),
-    ]);
-    for (const slotName of allSlotNames) {
-      const children: VariableSource[] = [];
-      // 暴露变量
-      if (slotVariables?.[slotName]) {
-        for (const varName of Object.keys(slotVariables[slotName])) {
-          children.push({ label: varName, key: `$slot.${slotName}.${varName}`, children: [] });
-        }
-      }
-      // 暴露方法（作为可调用引用）
-      if (slotMethods?.[slotName]) {
-        for (const method of slotMethods[slotName]) {
-          children.push({ label: `📎 ${method.title}`, key: `$slot.${slotName}.${method.name}`, children: [] });
-        }
-      }
-      slots.push({ label: `📌 ${slotName}`, key: `$slot.${slotName}`, children });
-    }
-    return slots;
-  }, [slotVariables, slotMethods]);
 
   // 默认变量源
   const defaultSources: VariableSource[] = useMemo(() => [
@@ -105,13 +74,7 @@ export function VariablePicker(props: VariablePickerProps) {
       key: '$api',
       children: [],
     },
-    // 插槽暴露变量/方法
-    ...(slotSources.length > 0 ? [{
-      label: '插槽接口',
-      key: '$slot',
-      children: slotSources,
-    }] : []),
-  ], [slotSources]);
+  ], []);
 
   const sources = variableSources || defaultSources;
 

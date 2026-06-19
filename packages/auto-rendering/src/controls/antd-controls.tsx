@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Input, InputNumber, Select, Switch, DatePicker, Checkbox, Radio, TimePicker } from 'antd';
+import { ColumnEditor } from './column-editor';
 import type { ControlProps } from '../core/ControlRegistry';
 
 const { TextArea } = Input;
@@ -212,4 +213,5 @@ export function registerAntdControls(
   registry.registerControl('TimePicker', AntdAutoTimePicker);
   registry.registerControl('Checkbox', AntdAutoCheckbox);
   registry.registerControl('Radio', AntdAutoRadio);
+  registry.registerControl('ColumnEditor', ColumnEditor);
 }

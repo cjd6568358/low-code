@@ -1,0 +1,63 @@
+{
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "字段名称",
+      "x-group": "基础属性",
+      "x-priority": 0
+    },
+    "label": {
+      "type": "string",
+      "title": "字段标签",
+      "x-group": "基础属性",
+      "x-priority": 1
+    },
+    "visible": {
+      "type": "boolean",
+      "title": "是否可见",
+      "x-group": "基础属性",
+      "x-priority": 2
+    },
+    "style": {
+      "type": "object",
+      "title": "内联样式",
+      "x-group": "样式",
+      "x-priority": 50
+    },
+    "options": {
+      "title": "选项数据",
+      "x-group": "基础属性",
+      "x-priority": 10
+    },
+    "placeholder": {
+      "title": "占位提示",
+      "x-group": "基础属性",
+      "x-priority": 11,
+      "type": "string"
+    },
+    "value": {
+      "title": "值",
+      "x-group": "基础属性",
+      "x-priority": 12,
+      "type": "string"
+    },
+    "prefix": {
+      "title": "触发前缀",
+      "x-group": "基础属性",
+      "x-priority": 13
+    },
+    "disabled": {
+      "title": "禁用",
+      "x-group": "基础属性",
+      "x-priority": 14,
+      "type": "boolean"
+    },
+    "rows": {
+      "title": "行数",
+      "x-group": "基础属性",
+      "x-priority": 15,
+      "type": "number"
+    }
+  }
+}

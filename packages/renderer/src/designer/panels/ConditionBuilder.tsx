@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import type { PageRule } from '@low-code/shared';
-import { CONDITION_OPERATORS } from '@low-code/renderer';
 
 /** 条件构建器属性 */
 export interface ConditionBuilderProps {

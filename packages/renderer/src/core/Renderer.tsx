@@ -300,10 +300,45 @@ export function PageRenderer(config: RendererConfig) {
         .filter(Boolean)
         .map((child) => renderNode(child!));
 
-      // 10. 合并事件处理器到 props
+      // 10. 构建平台能力 props
+      // 提取绑定字段（从 node.props.value 的绑定表达式中解析）
+      const rawValue = node.props.value;
+      let bindField: string | undefined;
+      if (typeof rawValue === 'string' && rawValue.startsWith('$form.')) {
+        bindField = rawValue.slice(6); // 去掉 "$form." 前缀
+      } else if (rawValue && typeof rawValue === 'object' && rawValue.__binding === 'variable') {
+        const path = rawValue.value;
+        if (typeof path === 'string' && path.startsWith('$form.')) {
+          bindField = path.slice(6);
+        }
+      }
+
+      const platformProps: Record<string, any> = {
+        node,
+        field: {
+          getValue: () => resolvedProps.value,
+          setValue: (value: any) => {
+            if (bindField) {
+              onFormValueChange?.(bindField, value);
+            }
+          },
+          bindField,
+        },
+        events: mapEventHandlersToProps(eventHandlers),
+        linkage: {
+          evaluate: (eventName: string, eventData?: any) => {
+            if (eventName === 'onChange' && bindField) {
+              linkageEngine.onFieldChange(bindField, eventData, context);
+            }
+          },
+        },
+      };
+
+      // 11. 合并所有 props
       const finalProps: Record<string, any> = {
         ...resolvedProps,
-        ...mapEventHandlersToProps(eventHandlers),
+        ...platformProps.events,
+        ...platformProps,
         'data-component-id': node.id,
         style: { ...resolvedProps.style, ...layoutStyle },
         disabled: ruleResult.disabled || resolvedProps.disabled,

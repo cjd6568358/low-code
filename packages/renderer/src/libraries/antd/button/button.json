@@ -1,0 +1,96 @@
+{
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "字段名称",
+      "x-group": "基础属性",
+      "x-priority": 0
+    },
+    "label": {
+      "type": "string",
+      "title": "字段标签",
+      "x-group": "基础属性",
+      "x-priority": 1
+    },
+    "visible": {
+      "type": "boolean",
+      "title": "是否可见",
+      "x-group": "基础属性",
+      "x-priority": 2
+    },
+    "style": {
+      "type": "object",
+      "title": "内联样式",
+      "x-group": "样式",
+      "x-priority": 50
+    },
+    "children": {
+      "title": "按钮内容",
+      "x-group": "基础属性",
+      "x-priority": 10
+    },
+    "type": {
+      "type": "string",
+      "title": "按钮类型",
+      "enum": ["primary", "default", "dashed", "text", "link"],
+      "x-group": "基础属性",
+      "x-priority": 11
+    },
+    "htmlType": {
+      "type": "string",
+      "title": "HTML 类型",
+      "enum": ["submit", "reset", "button"],
+      "x-group": "基础属性",
+      "x-priority": 12
+    },
+    "shape": {
+      "type": "string",
+      "title": "形状",
+      "enum": ["default", "circle", "round"],
+      "x-group": "基础属性",
+      "x-priority": 13
+    },
+    "loading": {
+      "title": "加载状态",
+      "x-group": "基础属性",
+      "x-priority": 14
+    },
+    "icon": {
+      "title": "图标",
+      "x-group": "高级属性",
+      "x-priority": 20
+    },
+    "iconPlacement": {
+      "type": "string",
+      "title": "图标位置",
+      "enum": ["start", "end"],
+      "x-group": "高级属性",
+      "x-priority": 21
+    },
+    "ghost": {
+      "type": "boolean",
+      "title": "幽灵按钮",
+      "x-group": "高级属性",
+      "x-priority": 22
+    },
+    "danger": {
+      "type": "boolean",
+      "title": "危险按钮",
+      "x-group": "高级属性",
+      "x-priority": 23
+    },
+    "block": {
+      "type": "boolean",
+      "title": "块级按钮",
+      "x-group": "高级属性",
+      "x-priority": 24
+    },
+    "iconPosition": {
+      "type": "string",
+      "title": "图标位置（已废弃）",
+      "enum": ["start", "end"],
+      "x-hidden": true
+    }
+  }
+}

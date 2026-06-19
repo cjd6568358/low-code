@@ -1,0 +1,59 @@
+{
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "字段名称",
+      "x-group": "基础属性",
+      "x-priority": 0
+    },
+    "label": {
+      "type": "string",
+      "title": "字段标签",
+      "x-group": "基础属性",
+      "x-priority": 1
+    },
+    "visible": {
+      "type": "boolean",
+      "title": "是否可见",
+      "x-group": "基础属性",
+      "x-priority": 2
+    },
+    "style": {
+      "type": "object",
+      "title": "内联样式",
+      "x-group": "样式",
+      "x-priority": 50
+    },
+    "menu": {
+      "title": "菜单配置",
+      "x-group": "基础属性",
+      "x-priority": 10
+    },
+    "placement": {
+      "title": "弹出位置",
+      "x-group": "基础属性",
+      "x-priority": 11,
+      "type": "string",
+      "enum": [
+        "bottomLeft",
+        "bottomCenter",
+        "bottomRight",
+        "topLeft",
+        "topCenter",
+        "topRight"
+      ]
+    },
+    "trigger": {
+      "title": "触发方式",
+      "x-group": "基础属性",
+      "x-priority": 12
+    },
+    "arrow": {
+      "title": "箭头",
+      "x-group": "基础属性",
+      "x-priority": 13,
+      "type": "boolean"
+    }
+  }
+}

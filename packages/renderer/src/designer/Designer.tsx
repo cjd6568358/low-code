@@ -20,7 +20,7 @@ export interface DesignerProps {
   /**
    * 组件库标识（应用级配置，设计器中不可切换）
    * 在应用创建时指定，后续所有页面/卡片搭建共用
-   * 支持：'antd'（默认）、'builtin'（原生 HTML）
+   * 当前仅支持 'antd'
    */
   library?: string;
   /** Schema 变更回调 */
@@ -44,6 +44,7 @@ const LIBRARY_REGISTRY: Record<string, {
       categoryMap: antdCategoryMap,
       containerTypes: antdContainerTypes,
     },
+    // 所有组件已通过 withPlatform HOC 包装
     components: antdComponentImpls,
     schemas: antdSchemas,
   },

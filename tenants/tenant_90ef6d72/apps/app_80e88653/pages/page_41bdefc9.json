@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "version": 10,
+  "version": 11,
   "name": "9890009",
   "createdAt": 1781608598544,
-  "updatedAt": 1781793783416,
+  "updatedAt": 1781861829209,
   "references": {},
   "pageId": "41bdefc9",
   "layout": {
@@ -30,26 +30,23 @@
       "props": {}
     },
     {
-      "id": "button_1781791776171",
-      "type": "button",
-      "label": "按钮1",
-      "props": {
-        "children": "999",
-        "type": "primary",
-        "htmlType": "button",
-        "shape": "default",
-        "danger": false,
-        "loading": false,
-        "size": "middle",
-        "variant": "filled",
-        "status": "warning",
-        "iconPosition": "end"
-      }
-    },
-    {
       "id": "textarea_1781765600372",
       "type": "textarea",
       "props": {}
+    },
+    {
+      "id": "slider_1781861407003",
+      "type": "slider",
+      "label": "slider1",
+      "props": {}
+    },
+    {
+      "id": "button_1781861802923",
+      "type": "button",
+      "props": {
+        "children": "提交",
+        "type": "primary"
+      }
     }
   ]
 }

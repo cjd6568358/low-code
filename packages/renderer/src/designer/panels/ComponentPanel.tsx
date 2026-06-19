@@ -1,7 +1,6 @@
 import React, { useMemo } from 'react';
 import { useDesigner } from '../core/DesignerContext';
 import type { ComponentRegistration } from '@low-code/shared';
-import { COMPONENT_TYPES } from '@low-code/renderer';
 
 /** 组件面板 — 左侧 */
 export function ComponentPanel({ registry }: { registry: any }) {
@@ -31,7 +30,7 @@ export function ComponentPanel({ registry }: { registry: any }) {
         }
       }
 
-      const category = comp.category || 'basic';
+      const category = comp.category || 'general';
       if (!groups.has(category)) {
         groups.set(category, []);
       }
@@ -41,14 +40,23 @@ export function ComponentPanel({ registry }: { registry: any }) {
     return groups;
   }, [allComponents, searchKeyword, currentLibrary]);
 
-  // 分类标签映射
+  // 分类标签映射（参照 antd 官方分类）
   const categoryLabels: Record<string, string> = {
-    basic: '基础组件',
-    advanced: '高级组件',
-    layout: '布局组件',
+    general: '通用',
+    layout: '布局',
+    navigation: '导航',
+    'data-entry': '数据录入',
+    'data-display': '数据展示',
+    feedback: '反馈',
     custom: '自定义',
     business: '业务组件',
+    // 兼容旧分类
+    basic: '基础组件',
+    advanced: '高级组件',
   };
+
+  // 分类排序顺序
+  const categoryOrder = ['general', 'layout', 'navigation', 'data-entry', 'data-display', 'feedback', 'custom', 'business'];
 
   // 拖拽开始
   const handleDragStart = (e: React.DragEvent, type: string) => {
@@ -100,7 +108,13 @@ export function ComponentPanel({ registry }: { registry: any }) {
 
       {/* 组件列表 — 可滚动区域 */}
       <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '8px' }}>
-        {Array.from(groupedComponents.entries()).map(([category, components]) => (
+        {Array.from(groupedComponents.entries())
+          .sort(([a], [b]) => {
+            const ai = categoryOrder.indexOf(a);
+            const bi = categoryOrder.indexOf(b);
+            return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+          })
+          .map(([category, components]) => (
           <div key={category} style={{ marginBottom: '12px' }}>
             <div
               style={{

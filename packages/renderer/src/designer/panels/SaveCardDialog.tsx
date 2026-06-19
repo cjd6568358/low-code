@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import type { ComponentNode, CustomCardDefinition, ExposedProp, EventDefinition, SlotDefinition, MethodDefinition } from '@low-code/shared';
+import type { ComponentNode, CustomCardDefinition, ExposedProp, EventDefinition, MethodDefinition } from '@low-code/shared';
 
 /** 保存为卡片对话框属性 */
 export interface SaveCardDialogProps {
@@ -27,17 +27,15 @@ export function SaveCardDialog(props: SaveCardDialogProps) {
   const [description, setDescription] = useState('');
   const [exposedProps, setExposedProps] = useState<ExposedProp[]>([]);
   const [exposedEvents, setExposedEvents] = useState<EventDefinition[]>([]);
-  const [exposedSlots, setExposedSlots] = useState<SlotDefinition[]>([]);
   const [exposedMethods, setExposedMethods] = useState<MethodDefinition[]>([]);
 
   // 自动推荐
   const recommendations = useMemo(() => {
-    if (selectedNodes.length === 0) return { props: [], events: [], methods: [], slots: [] };
+    if (selectedNodes.length === 0) return { props: [], events: [], methods: [] };
 
     const recProps: ExposedProp[] = [];
     const recEvents: EventDefinition[] = [];
     const recMethods: MethodDefinition[] = [];
-    const recSlots: SlotDefinition[] = [];
 
     // 表单控件类型
     const formControlTypes = new Set([
@@ -103,42 +101,9 @@ export function SaveCardDialog(props: SaveCardDialogProps) {
           payload: {},
         });
       }
-
-      // 4. 自动收集插槽：模板中的 slot 组件（含暴露信息）
-      if (node.type === 'slot') {
-        const slotDef: any = {
-          name: node.props.name || node.id,
-          title: node.props.title || node.id,
-          description: node.props.description,
-          accept: node.props.accept,
-          maxItems: node.props.maxItems,
-        };
-
-        // 收集暴露接口
-        const expose: any = {};
-        if (node.props.exposeVariables?.length > 0) {
-          expose.variables = {};
-          for (const ev of node.props.exposeVariables) {
-            if (ev.name && ev.expression) {
-              expose.variables[ev.name] = ev.expression;
-            }
-          }
-        }
-        if (node.props.exposeMethods?.length > 0) {
-          expose.methods = node.props.exposeMethods;
-        }
-        if (node.props.exposeEvents?.length > 0) {
-          expose.events = node.props.exposeEvents;
-        }
-        if (Object.keys(expose).length > 0) {
-          slotDef.expose = expose;
-        }
-
-        recSlots.push(slotDef);
-      }
     }
 
-    return { props: recProps, events: recEvents, methods: recMethods, slots: recSlots };
+    return { props: recProps, events: recEvents, methods: recMethods };
   }, [selectedNodes]);
 
   // 初始化推荐数据
@@ -147,7 +112,6 @@ export function SaveCardDialog(props: SaveCardDialogProps) {
       setExposedProps(recommendations.props);
       setExposedEvents(recommendations.events);
       setExposedMethods(recommendations.methods);
-      setExposedSlots(recommendations.slots);
     }
   }, [visible, recommendations]);
 
@@ -180,7 +144,6 @@ export function SaveCardDialog(props: SaveCardDialogProps) {
       interface: {
         props: exposedProps,
         methods: exposedMethods,
-        slots: exposedSlots,
         events: exposedEvents,
       },
       template,
@@ -331,16 +294,6 @@ export function SaveCardDialog(props: SaveCardDialogProps) {
             <div key={i} style={{ padding: '8px', border: '1px solid #e8e8e8', borderRadius: '4px', marginBottom: '8px' }}>
               <div style={{ fontWeight: 600 }}>{evt.name}</div>
               <div style={{ fontSize: '12px', color: '#999' }}>{evt.title}</div>
-            </div>
-          ))}
-        </Section>
-
-        {/* 插槽 */}
-        <Section title="插槽" count={exposedSlots.length}>
-          {exposedSlots.map((slot, i) => (
-            <div key={i} style={{ padding: '8px', border: '1px solid #e8e8e8', borderRadius: '4px', marginBottom: '8px' }}>
-              <div style={{ fontWeight: 600 }}>{slot.name}</div>
-              <div style={{ fontSize: '12px', color: '#999' }}>{slot.title}</div>
             </div>
           ))}
         </Section>

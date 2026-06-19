@@ -1,0 +1,82 @@
+{
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "字段名称",
+      "x-group": "基础属性",
+      "x-priority": 0
+    },
+    "label": {
+      "type": "string",
+      "title": "字段标签",
+      "x-group": "基础属性",
+      "x-priority": 1
+    },
+    "visible": {
+      "type": "boolean",
+      "title": "是否可见",
+      "x-group": "基础属性",
+      "x-priority": 2
+    },
+    "style": {
+      "type": "object",
+      "title": "内联样式",
+      "x-group": "样式",
+      "x-priority": 50
+    },
+    "children": {
+      "title": "文本内容",
+      "x-group": "基础属性",
+      "x-priority": 10
+    },
+    "type": {
+      "title": "文本类型",
+      "x-group": "基础属性",
+      "x-priority": 11,
+      "type": "string",
+      "enum": [
+        "secondary",
+        "success",
+        "warning",
+        "danger"
+      ]
+    },
+    "code": {
+      "title": "代码样式",
+      "x-group": "基础属性",
+      "x-priority": 12,
+      "type": "boolean"
+    },
+    "mark": {
+      "title": "标记样式",
+      "x-group": "基础属性",
+      "x-priority": 13,
+      "type": "boolean"
+    },
+    "underline": {
+      "title": "下划线",
+      "x-group": "基础属性",
+      "x-priority": 14,
+      "type": "boolean"
+    },
+    "delete": {
+      "title": "删除线",
+      "x-group": "基础属性",
+      "x-priority": 15,
+      "type": "boolean"
+    },
+    "strong": {
+      "title": "加粗",
+      "x-group": "基础属性",
+      "x-priority": 16,
+      "type": "boolean"
+    },
+    "italic": {
+      "title": "斜体",
+      "x-group": "基础属性",
+      "x-priority": 17,
+      "type": "boolean"
+    }
+  }
+}

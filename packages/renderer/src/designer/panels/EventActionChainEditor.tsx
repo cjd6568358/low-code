@@ -1,6 +1,20 @@
 import React, { useState } from 'react';
 import type { ActionChain, ActionStep } from '@low-code/shared';
-import { ACTION_TYPES } from '@low-code/renderer';
+
+/** 动作类型列表（设计器事件配置用） */
+const ACTION_TYPES = [
+  { value: 'navigate', label: '打开页面' },
+  { value: 'setValue', label: '设置值' },
+  { value: 'setValues', label: '批量设置值' },
+  { value: 'apiCall', label: 'API 调用' },
+  { value: 'invokeMethod', label: '调用组件方法' },
+  { value: 'message', label: '消息提示' },
+  { value: 'showModal', label: '打开弹窗' },
+  { value: 'copyToClipboard', label: '复制到剪贴板' },
+  { value: 'refreshComponent', label: '刷新组件' },
+  { value: 'condition', label: '条件分支' },
+  { value: 'customScript', label: '自定义脚本' },
+];
 
 /** 组件方法描述 */
 export interface ComponentMethod {

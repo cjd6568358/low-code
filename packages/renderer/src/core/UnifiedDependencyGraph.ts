@@ -256,9 +256,9 @@ export class UnifiedDependencyGraph {
     // 4. 生成按拓扑排序的更新顺序
     const updateOrder = this.generateUpdateOrder([
       ...directAffectedNodes,
-      ...indirectAffectedComponents.map(id => `component:${id}`),
-      ...affectedDataSources.map(id => `datasource:${id}`),
-      ...affectedFields.map(id => `field:${id}`),
+      ...Array.from(indirectAffectedComponents).map(id => `component:${id}`),
+      ...Array.from(affectedDataSources).map(id => `datasource:${id}`),
+      ...Array.from(affectedFields).map(id => `field:${id}`),
     ]);
 
     return {

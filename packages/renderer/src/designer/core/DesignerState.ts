@@ -22,9 +22,6 @@ export interface DesignerState {
   currentLibrary: string;
   /** 组件搜索关键词 */
   searchKeyword: string;
-  /** 操作历史（用于撤销/重做） */
-  history: PageSchema[];
-  historyIndex: number;
 }
 
 /** 设计器动作 */
@@ -42,15 +39,13 @@ export type DesignerAction =
   | { type: 'SET_SEARCH'; payload: string }
   | { type: 'UPDATE_THEME'; payload: Partial<ThemeConfig> }
   | { type: 'UPDATE_LAYOUT'; payload: PageSchema['layout'] }
-  | { type: 'UPDATE_PAGE_META'; payload: { name?: string } }
-  | { type: 'UNDO' }
-  | { type: 'REDO' };
+  | { type: 'UPDATE_PAGE_META'; payload: { name?: string } };
 
 /** 设计器 Reducer */
 export function designerReducer(state: DesignerState, action: DesignerAction): DesignerState {
   switch (action.type) {
     case 'SET_SCHEMA':
-      return { ...state, schema: action.payload, history: [...state.history, state.schema], historyIndex: state.history.length };
+      return { ...state, schema: action.payload };
 
     case 'ADD_COMPONENT': {
       const { node, parentId, index } = action.payload;
@@ -82,13 +77,7 @@ export function designerReducer(state: DesignerState, action: DesignerAction): D
       }
 
       const newSchema = { ...state.schema, components };
-      return {
-        ...state,
-        schema: newSchema,
-        selectedComponentId: node.id,
-        history: [...state.history, state.schema],
-        historyIndex: state.history.length,
-      };
+      return { ...state, schema: newSchema, selectedComponentId: node.id };
     }
 
     case 'UPDATE_COMPONENT': {
@@ -96,13 +85,7 @@ export function designerReducer(state: DesignerState, action: DesignerAction): D
       const components = state.schema.components.map((c) =>
         c.id === id ? { ...c, ...changes } : c,
       );
-      const newSchema = { ...state.schema, components };
-      return {
-        ...state,
-        schema: newSchema,
-        history: [...state.history, state.schema],
-        historyIndex: state.history.length,
-      };
+      return { ...state, schema: { ...state.schema, components } };
     }
 
     case 'REMOVE_COMPONENT': {
@@ -139,8 +122,6 @@ export function designerReducer(state: DesignerState, action: DesignerAction): D
         ...state,
         schema: newSchema,
         selectedComponentId: state.selectedComponentId === id ? null : state.selectedComponentId,
-        history: [...state.history, state.schema],
-        historyIndex: state.history.length,
       };
     }
 
@@ -190,13 +171,7 @@ export function designerReducer(state: DesignerState, action: DesignerAction): D
             }
           }
 
-          const newSchema = { ...state.schema, components };
-          return {
-            ...state,
-            schema: newSchema,
-            history: [...state.history, state.schema],
-            historyIndex: state.history.length,
-          };
+          return { ...state, schema: { ...state.schema, components } };
         }
       }
 
@@ -215,13 +190,7 @@ export function designerReducer(state: DesignerState, action: DesignerAction): D
         }
       }
 
-      const newSchema = { ...state.schema, components };
-      return {
-        ...state,
-        schema: newSchema,
-        history: [...state.history, state.schema],
-        historyIndex: state.history.length,
-      };
+      return { ...state, schema: { ...state.schema, components } };
     }
 
     case 'SELECT_COMPONENT':
@@ -247,52 +216,15 @@ export function designerReducer(state: DesignerState, action: DesignerAction): D
         ...state.schema,
         theme: { ...state.schema.theme, ...action.payload } as ThemeConfig,
       };
-      return {
-        ...state,
-        schema: newSchema,
-        history: [...state.history, state.schema],
-        historyIndex: state.history.length,
-      };
+      return { ...state, schema: newSchema };
     }
 
     case 'UPDATE_LAYOUT': {
-      const newSchema = { ...state.schema, layout: action.payload };
-      return {
-        ...state,
-        schema: newSchema,
-        history: [...state.history, state.schema],
-        historyIndex: state.history.length,
-      };
+      return { ...state, schema: { ...state.schema, layout: action.payload } };
     }
 
     case 'UPDATE_PAGE_META': {
-      const newSchema = { ...state.schema, ...action.payload };
-      return {
-        ...state,
-        schema: newSchema,
-        history: [...state.history, state.schema],
-        historyIndex: state.history.length,
-      };
-    }
-
-    case 'UNDO': {
-      if (state.historyIndex <= 0) return state;
-      const newIndex = state.historyIndex - 1;
-      return {
-        ...state,
-        schema: state.history[newIndex],
-        historyIndex: newIndex,
-      };
-    }
-
-    case 'REDO': {
-      if (state.historyIndex >= state.history.length - 1) return state;
-      const newIndex = state.historyIndex + 1;
-      return {
-        ...state,
-        schema: state.history[newIndex],
-        historyIndex: newIndex,
-      };
+      return { ...state, schema: { ...state.schema, ...action.payload } };
     }
 
     default:
@@ -317,7 +249,5 @@ export function createInitialDesignerState(schema?: PageSchema): DesignerState {
     previewDevice: 'web',
     currentLibrary: 'antd',
     searchKeyword: '',
-    history: [],
-    historyIndex: -1,
   };
 }

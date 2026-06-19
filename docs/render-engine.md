@@ -55,7 +55,7 @@
 
 ### 左侧 — 组件面板
 
-- **组件分类**：基础组件、高级组件、业务组件、自定义组件库
+- **组件分类**：参照 antd 官方分类 — 通用 / 布局 / 导航 / 数据录入 / 数据展示 / 反馈
 - **拖拽添加**：从面板拖拽组件到设计区，自动生成组件配置
 - **组件搜索**：支持按名称/标签快速检索组件
 - **组件库标识**：显示当前应用指定的组件库（只读，不可切换）
@@ -68,7 +68,7 @@
 
 ### 组件库架构
 
-组件库在**应用创建时指定**，后续所有页面/卡片搭建共用同一套组件库，设计器中**不可切换**。当前仅实现 **antd**（65 个全量组件），后续可扩展其他组件库。
+组件库在**应用创建时指定**，后续所有页面/卡片搭建共用同一套组件库，设计器中**不可切换**。当前仅实现 **antd**（66 个全量组件），后续可扩展其他组件库。
 
 ```typescript
 // 应用创建时指定组件库
@@ -80,34 +80,46 @@
 | 产物 | 说明 |
 |------|------|
 | `basePropsSchema` | 公共 BaseProps 的 JSON Schema（如 antd 的 disabled/size/variant/status） |
-| `components` | type → React 组件实现映射 |
-| `schemas` | type → 组件 JSON Schema（含 BaseProps 继承，allOf 结构） |
+| `components` | type → React 组件实现映射（全部通过 withPlatform HOC 包装） |
+| `schemas` | type → 组件 JSON Schema（自动生成 + 注解合并 + BaseProps） |
 
-**JSON Schema 自动生成**：antd 组件的 JSON Schema 通过 `scripts/generate-antd-schemas.ts` 基于 `typescript-json-schema` 从 antd 的 TS 类型定义自动生成，输出到 `packages/renderer/src/schemas/antd-generated/`。65 个组件全部生成成功。对于有复杂泛型的组件（datepicker/cascader/list/table/statistic/tour），使用简化的替代类型生成，完整属性通过 `antd-library.ts` 手写 schema 补充。
+**JSON Schema 生成流程**：
 
-**Schema 合并策略**：`withBaseProps()` 将 BaseProps（disabled/size/variant/status/className/style）与组件特有 props 扁平合并为同一个 `properties` 对象（非 allOf 嵌套），确保 `AutoFormRenderer` 能直接读取所有属性。
-
-```jsonc
-// 示例：Input 的 JSON Schema（自动生成）
-{
-  "$id": "antd-input",
-  "title": "InputProps",
-  "type": "object",
-  "properties": {
-    "placeholder": { "type": "string", "title": "placeholder" },
-    "maxLength": { "type": "number", "title": "maxLength" },
-    "disabled": { "type": "boolean", "title": "disabled" },
-    "size": { "enum": ["small", "middle", "large"], "type": "string", "title": "size" },
-    ...
-  }
-}
 ```
+antd 6.x .d.ts 类型定义
+        │
+        ▼
+scripts/generate-antd-schemas.ts（typescript-json-schema）
+        │
+        ▼
+packages/renderer/src/schemas/antd-generated/*.json（完整属性定义）
+        │
+        ▼
+mergeWithAnnotations(自动生成, 手写注解)（x-group/x-priority/x-binding 等 UI 注解）
+        │
+        ▼
+withBaseProps(合并结果)（注入 disabled/size/variant/status/className/style）
+        │
+        ▼
+antdSchemas（最终 schema，供属性面板渲染）
+```
+
+**Schema 合并策略**：
+1. `typescript-json-schema` 从 antd 6.x TS 类型自动生成完整属性定义
+2. `mergeWithAnnotations()` 合并手写 UI 注解（`x-group`/`x-priority`/`x-binding`/`x-component`/`x-placeholder`）
+   - 合并规则：手写注解覆盖自动生成的属性（保留 type/title，加上 UI 注解）
+   - 手写有但自动生成没有的属性保留（自定义属性）
+   - 当前仅 6 个组件有手写注解（input/textarea/number/select/button/table/form），其余使用空注解
+3. `withBaseProps()` 注入公共 BaseProps（`disabled`/`size`/`variant`/`status`/`className`/`style`）
+4. 最终 schema 为扁平 `properties` 结构，`AutoFormRenderer` 直接读取
 
 **当前组件库**：
 
 | 库名 | BaseProps | 组件数 | 说明 |
 |------|-----------|--------|------|
-| `antd` | disabled, size, variant, status, className, style | 65 | antd 6.x 全量组件（数据录入 19 + 数据展示 19 + 反馈 9 + 导航 7 + 布局 8 + 通用 3） |
+| `antd` | disabled, size, variant, status, className, style | 66 | antd 6.x 全量组件（通用 2 + 布局 6 + 导航 7 + 数据录入 19 + 数据展示 20 + 反馈 9 + 补充 3） |
+
+组件面板按 antd 官方分类组织：通用 / 布局 / 导航 / 数据录入 / 数据展示 / 反馈。
 
 组件面板按 antd 官方分类组织：通用 / 布局 / 导航 / 数据录入 / 数据展示 / 反馈。
 
@@ -144,7 +156,7 @@ interface ThemeConfig {
 
 ### 中间 — 设计区 + 预览
 
-- **只读预览态**：设计区中所有组件以只读预览态渲染（disabled + readOnly），禁用 onChange/onClick 等交互行为，仅响应拖拽和选中操作
+- **交互拦截**：设计态不传 `disabled`/`readOnly`（会吞鼠标事件），由 DesignOverlay Portal 的 `pointer-events: auto` 拦截所有交互，仅响应拖拽和选中操作
 - **拖拽开发**：基于 DND (Drag and Drop) 实现可视化页面搭建，支持面板→画布添加、画布内排序、跨布局容器自由拖拽
 - **跨布局拖拽**：组件可在不同父容器之间自由拖拽移动。拖入容器组件中部区域时自动变为该容器的子组件（指示线显示蓝色高亮包围）
 - **拖拽阴影效果**：拖拽组件时显示半透明阴影预览（opacity 0.3），原位置保留淡影标识来源
@@ -158,22 +170,15 @@ interface ThemeConfig {
 
 设计区的拖拽选中是多个交互系统的耦合点，以下是经过反复调试总结的关键设计决策和踩坑记录。
 
-##### 1. 组件选中：禁用 `disabled`，用 `pointer-events: none`
+##### 1. 组件交互拦截：不传 `disabled`，用 Portal overlay 拦截
 
-**问题**：设计模式下需要禁用组件交互（onChange/onClick），最初传 `disabled: true` 给表单组件。但 `disabled` 的 `<input>` / `<select>` 会**吞掉鼠标事件**，导致 mousedown 无法冒泡到外层 wrapper，组件选不中。
+**问题**：设计模式下需要禁用组件交互（onChange/onClick），最初传 `disabled: true` 给表单组件。但 `disabled` 的 `<input>` / `<select>` 会**吞掉鼠标事件**，导致 mousedown 无法冒泡，组件选不中。
 
-**错误方案 — 透明遮罩**：
-```jsx
-<ComponentImpl disabled />
-<div style={{ position: 'absolute', inset: 0, zIndex: 1 }}
-     onMouseDown={handleSelect} />  // 遮罩拦截点击
-```
-遮罩虽然解决了选中，但**遮住了拖拽**——遮罩没有 `draggable`，鼠标点在遮罩上无法启动拖拽。
-
-**正确方案 — `pointer-events: none`**：
-```jsx
-<div style={{ pointerEvents: 'none' }}>
-  <ComponentImpl />  {/* 不传 disabled */}
+**最终方案 — DesignOverlay Portal**：
+- 组件不传 `disabled`/`readOnly`，保持原始渲染
+- DesignOverlay 通过 Portal 渲染 `position: fixed` 的透明层，`pointer-events: auto` 拦截所有交互
+- overlay 同时承载选中框、工具栏、拖拽事件、drop 指示器
+- 通过 `scrollTick` 计数器在画布滚动时重新测量组件位置
 </div>
 ```
 - 组件内部元素完全不接收鼠标事件，事件直接穿透到 wrapper
@@ -262,16 +267,26 @@ if (!node.parentId) {
 
 ##### 7. 事件模型总结
 
-采用 **display:contents wrapper + Portal overlay** 架构：
+采用 **withPlatform HOC + DesignOverlay Portal** 架构：
 
 ```
-DesignerNode
-  ├── div (display: contents)         ← 不生成布局盒，不影响组件宽度
-  │    └── ComponentImpl              ← 组件原样渲染
-  └── Portal overlay（position: fixed, 渲染到 portalContainer）
-       ├── 交互拦截层 + 选中框        ← pointer-events: auto，阻止组件交互
-       ├── 工具栏                      ← 复制/移动/删除
-       └── Drop 指示器                 ← before/after/inside
+DesignCanvas.renderNode()
+  ├── 传 designMode={true} + _designId + _onSelect + ... 给组件
+  └── 传 overlayProps 给 DesignOverlay
+
+PlatformComponent（withPlatform HOC 包装的 antd 组件）
+  ├── designMode=true 时才注入设计态 props
+  ├── className += "lc-did-{id}"      ← HOC 注入唯一标记，用于 overlay 定位
+  ├── draggable={true}                ← HOC 注入，设计态可拖拽
+  ├── onMouseDown={onSelect}          ← HOC 注入，选中事件
+  ├── onDragStart/End/Over/...        ← HOC 注入，拖拽事件
+  └── style={{ opacity: 0.3 }}       ← HOC 注入，拖拽源透明度
+
+DesignOverlay（Portal，position: fixed）
+  ├── useLayoutEffect 每次渲染后同步测量（rect 浅比较避免无限循环）
+  ├── 交互拦截层 + 选中框             ← pointer-events: auto，阻止组件交互
+  ├── 工具栏                           ← 复制/移动/删除
+  └── Drop 指示器                      ← before/after/inside
 ```
 
 **关键设计决策**：
@@ -279,18 +294,25 @@ DesignerNode
 | 方案 | 问题 |
 |------|------|
 | `display: inline-block` wrapper | flex 容器 `align-items: stretch` 时宽度不对 |
-| 直接 `cloneElement` 注入 props | antd FC 组件不透传 ref/data-* 到 DOM |
-| 纯 Portal（无 wrapper） | `getBoundingClientRect()` 需要 DOM 节点做测量锚点 |
-| **display: contents wrapper** ✅ | 不生成布局盒 + 是真实 DOM 节点可测量 |
+| `display: contents` wrapper | 测量不可靠，浏览器兼容性问题 |
+| `data-component-id` 属性注入 | antd 部分组件（如 Slider）不透传 `data-*` 到 DOM |
+| **className 标记 + Portal** ✅ | className 通过 `...rest` 可靠传播到 DOM |
 
-**display:contents 的特性**：
-- 不生成布局盒 → 组件宽度/高度完全由子元素决定，wrapper 不影响布局
-- 仍是 DOM 节点 → `getBoundingClientRect()` 返回第一个子元素的 rect → Portal overlay 精确定位
-- 事件冒泡正常 → wrapper 上的事件处理器能接收到子元素的事件
+**withPlatform HOC 工作原理**：
+- 注册时执行一次（`withPlatform(AntdInput)`），结果是稳定引用
+- 设计态注入 `lc-did-{id}` className 标记（antd 组件通过 `...rest` 传播到 DOM）
+- 通过 `DESIGN_KEYS` 过滤 `_` 前缀设计态 props，不泄露到 DOM
+- 通过 `PLATFORM_KEYS` 过滤平台能力 props（`node`/`field`/`events`/`linkage`/`designMode`）
+- `enhanceValueOnChange()` 自动关联 `value` ↔ `onChange` ↔ 联动规则
+- 运行时注入平台能力（`field`/`events`/`linkage`）
 
-**Portal overlay 用 position:fixed**：
-- `getBoundingClientRect()` 返回 viewport 坐标，`position:fixed` 也是 viewport 坐标系 → 精确对齐
-- 画布滚动时通过 `scrollTick` 计数器触发重新测量，overlay 位置实时更新
+**DesignOverlay Portal**：
+- 通过 `document.querySelector('.lc-did-{id}')` 定位组件 DOM 元素
+- `position: fixed` + `getBoundingClientRect()` 精确覆盖组件
+- `useLayoutEffect` 无依赖数组，每次渲染后同步测量（组件移动/resize/滚动都能响应）
+- rect 浅比较：值没变时返回同一引用，避免无限 re-render 循环
+- `pointer-events: auto` 拦截组件交互，`onMouseDown` 处理选中
+- 设计态不传 `disabled`/`readOnly`（会吞鼠标事件），完全由 overlay 拦截交互
 
 **面板拖入支持**：
 - 从组件面板拖入时 `e.dataTransfer.types` 包含 `'component-type'`
@@ -1585,12 +1607,14 @@ interface PlatformAdapter {
 组件 Props 的 TypeScript 类型定义在**构建时**编译为 JSON Schema。antd 组件通过 `scripts/generate-antd-schemas.ts` 自动化生成：
 
 ```bash
-# 从 antd 的 TS 类型定义自动生成 JSON Schema
+# 从 antd 6.x 的 TS 类型定义自动生成 JSON Schema
 npx tsx scripts/generate-antd-schemas.ts
 
 # 输出到 packages/renderer/src/schemas/antd-generated/
-# 65 个组件 JSON Schema（61 个自动生成 + 4 个手写补充）
+# 65 个组件 JSON Schema 全部自动生成
 ```
+
+生成后通过 `mergeWithAnnotations()` 合并手写 UI 注解（`x-group`/`x-priority`/`x-binding` 等），再通过 `withBaseProps()` 注入公共 BaseProps。
 
 产物存储按归属区分：
 

@@ -16,55 +16,14 @@ export { ComponentRefreshManager } from './core/ComponentRefreshManager';
 export { UnifiedDependencyGraph } from './core/UnifiedDependencyGraph';
 export { ServerVariableResolver } from './core/ServerVariableResolver';
 
-// Components
-export { antdComponents } from './components/antd-components';
-
-// Libraries（组件库定义：BaseProps + 组件实现 + JSON Schema）
+// Libraries（组件库定义：组件实现 + 分类映射 + JSON Schema）
 export {
-  antdBasePropsSchema, antdComponentImpls, antdCategoryMap, antdContainerTypes, antdSchemas,
-} from './libraries';
-
-// Schemas
-export { componentSchemas } from './schemas';
-export {
-  InputPropsSchema,
-  TextareaPropsSchema,
-  NumberPropsSchema,
-  SelectPropsSchema,
-  RadioPropsSchema,
-  CheckboxPropsSchema,
-  SwitchPropsSchema,
-  DatePickerPropsSchema,
-  TimePickerPropsSchema,
-  UploadPropsSchema,
-  ButtonPropsSchema,
-  TablePropsSchema,
-  FormPropsSchema,
-  CardPropsSchema,
-  FlexPropsSchema,
-  DividerPropsSchema,
-  TabsPropsSchema,
-  TextPropsSchema,
-} from './schemas';
-export { SlotComponent } from './components/SlotComponent';
-export type { SlotComponentProps } from './components/SlotComponent';
-
-// Mock
-export { sampleFormSchema, sampleDashboardSchema } from './mock/sampleSchema';
-export {
-  COMPONENT_TYPES,
-  COMPONENT_LIBRARIES,
-  LAYOUT_TYPES,
-  DEVICE_TYPES,
-  ACTION_TYPES,
-  CONDITION_OPERATORS,
-  LINKAGE_TYPES,
-  FIELD_TYPES,
-  FORMAT_FIELD_TYPES,
-  FORM_CONTROL_TYPES,
-  getMockDictionary,
-  getDictionaryCodes,
-} from './mock/dictionaries';
+  antdComponentImpls, antdCategoryMap, antdContainerTypes, antdSchemas,
+  ANTD_MANIFEST,
+} from './libraries/antd';
+export type { AntdComponentMeta } from './libraries/antd';
+export { antdPlatformComponents as antdComponents } from './libraries/antd/components';
+export { antdSchemas as componentSchemas } from './libraries/antd';
 
 // Designer（页面/卡片设计器）
 export { Designer } from './designer/Designer';
@@ -80,6 +39,8 @@ export { ConditionBuilder } from './designer/panels/ConditionBuilder';
 export { EventActionChainEditor } from './designer/panels/EventActionChainEditor';
 export { SaveCardDialog } from './designer/panels/SaveCardDialog';
 export { VariablePicker } from './designer/panels/VariablePicker';
+export { StyleEditor } from './designer/panels/StyleEditor';
+export { DataSourcePanel } from './designer/panels/DataSourcePanel';
 
 // Re-export shared types for convenience
 export type {
@@ -104,7 +65,6 @@ export type {
   CustomCardDefinition,
   CardInterface,
   PropBinding,
-  SlotDefinition,
   EventDefinition,
   JSONSchema7,
   LinkageRule,

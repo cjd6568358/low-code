@@ -1,0 +1,69 @@
+{
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "字段名称",
+      "x-group": "基础属性",
+      "x-priority": 0
+    },
+    "label": {
+      "type": "string",
+      "title": "字段标签",
+      "x-group": "基础属性",
+      "x-priority": 1
+    },
+    "visible": {
+      "type": "boolean",
+      "title": "是否可见",
+      "x-group": "基础属性",
+      "x-priority": 2
+    },
+    "style": {
+      "type": "object",
+      "title": "内联样式",
+      "x-group": "样式",
+      "x-priority": 50
+    },
+    "count": {
+      "title": "数量",
+      "x-group": "基础属性",
+      "x-priority": 10,
+      "type": "number"
+    },
+    "dot": {
+      "title": "红点",
+      "x-group": "基础属性",
+      "x-priority": 11,
+      "type": "boolean"
+    },
+    "showZero": {
+      "title": "显示零",
+      "x-group": "基础属性",
+      "x-priority": 12,
+      "type": "boolean"
+    },
+    "overflowCount": {
+      "title": "封顶值",
+      "x-group": "基础属性",
+      "x-priority": 13,
+      "type": "number"
+    },
+    "color": {
+      "title": "颜色",
+      "x-group": "基础属性",
+      "x-priority": 14,
+      "type": "string"
+    },
+    "size": {
+      "title": "尺寸",
+      "x-group": "基础属性",
+      "x-priority": 15,
+      "type": "string",
+      "enum": [
+        "default",
+        "small"
+      ]
+    }
+  }
+}

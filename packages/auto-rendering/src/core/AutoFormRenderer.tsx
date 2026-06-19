@@ -16,6 +16,8 @@ export interface AutoFormRendererProps {
   errors?: Record<string, string[]>;
   readOnly?: boolean;
   expressionEngine?: ExpressionEngine;
+  /** 打开变量选择器回调（字段名 → 打开对应绑定） */
+  onVariablePickerOpen?: (fieldName: string) => void;
 }
 
 /**
@@ -142,17 +144,38 @@ export function AutoFormRenderer(props: AutoFormRendererProps) {
               {fieldSchema.description}
             </div>
           )}
-          <ControlComponent
-            value={value[key]}
-            onChange={(v: any) => handleFieldChange(key, v)}
-            schema={fieldSchema}
-            disabled={isDisabled}
-            placeholder={placeholder}
-            errors={fieldErrors}
-            dictionaryService={dictionaryService}
-            expressionEngine={expressionEngine}
-            {...componentProps}
-          />
+          <div style={{ display: 'flex', gap: '4px', alignItems: 'flex-start' }}>
+            <div style={{ flex: 1 }}>
+              <ControlComponent
+                value={value[key]}
+                onChange={(v: any) => handleFieldChange(key, v)}
+                schema={fieldSchema}
+                disabled={isDisabled}
+                placeholder={placeholder}
+                errors={fieldErrors}
+                dictionaryService={dictionaryService}
+                expressionEngine={expressionEngine}
+                {...componentProps}
+              />
+            </div>
+            <button
+              onClick={() => props.onVariablePickerOpen?.(key)}
+              style={{
+                padding: '4px 6px',
+                border: '1px solid #d9d9d9',
+                borderRadius: '4px',
+                backgroundColor: '#fff',
+                cursor: 'pointer',
+                fontSize: '12px',
+                color: '#1890ff',
+                marginTop: '2px',
+                flexShrink: 0,
+              }}
+              title="数据绑定"
+            >
+              🔗
+            </button>
+          </div>
           {fieldErrors && fieldErrors.length > 0 && (
             <div style={{ color: '#ff4d4f', fontSize: '12px', marginTop: '4px' }}>
               {fieldErrors[0]}
