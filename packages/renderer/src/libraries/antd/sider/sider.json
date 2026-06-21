@@ -1,17 +1,53 @@
 {
+  "description": "侧边栏 组件属性",
   "type": "object",
   "properties": {
+    "collapsed": {
+      "type": "boolean",
+      "title": "是否折叠",
+      "x-group": "基础属性",
+      "x-priority": 10
+    },
+    "collapsible": {
+      "type": "boolean",
+      "title": "可折叠",
+      "x-group": "基础属性",
+      "x-priority": 11
+    },
+    "width": {
+      "type": "number",
+      "title": "宽度",
+      "x-group": "基础属性",
+      "x-priority": 12
+    },
+    "collapsedWidth": {
+      "type": "number",
+      "title": "折叠宽度",
+      "x-group": "基础属性",
+      "x-priority": 13
+    },
+    "reverseArrow": {
+      "type": "boolean",
+      "title": "翻转箭头",
+      "x-group": "基础属性",
+      "x-priority": 14
+    },
+    "theme": {
+      "type": "string",
+      "enum": [
+        "dark",
+        "light"
+      ],
+      "title": "主题",
+      "x-group": "基础属性",
+      "x-priority": 15
+    },
     "name": {
       "type": "string",
       "title": "字段名称",
       "x-group": "基础属性",
-      "x-priority": 0
-    },
-    "label": {
-      "type": "string",
-      "title": "字段标签",
-      "x-group": "基础属性",
-      "x-priority": 1
+      "x-priority": 0,
+      "x-no-binding": "不支持变量/表达式绑定"
     },
     "visible": {
       "type": "boolean",
@@ -24,46 +60,6 @@
       "title": "内联样式",
       "x-group": "样式",
       "x-priority": 50
-    },
-    "collapsed": {
-      "title": "是否折叠",
-      "x-group": "基础属性",
-      "x-priority": 10,
-      "type": "boolean"
-    },
-    "collapsible": {
-      "title": "可折叠",
-      "x-group": "基础属性",
-      "x-priority": 11,
-      "type": "boolean"
-    },
-    "width": {
-      "title": "宽度",
-      "x-group": "基础属性",
-      "x-priority": 12,
-      "type": "number"
-    },
-    "collapsedWidth": {
-      "title": "折叠宽度",
-      "x-group": "基础属性",
-      "x-priority": 13,
-      "type": "number"
-    },
-    "reverseArrow": {
-      "title": "翻转箭头",
-      "x-group": "基础属性",
-      "x-priority": 14,
-      "type": "boolean"
-    },
-    "theme": {
-      "title": "主题",
-      "x-group": "基础属性",
-      "x-priority": 15,
-      "type": "string",
-      "enum": [
-        "light",
-        "dark"
-      ]
     }
   }
 }

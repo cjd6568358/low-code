@@ -7,6 +7,9 @@
  */
 import type { BaseProps } from '../base-props';
 
+// React 类型已替换：React.ReactNode → string, React.CSSProperties → Record<string, unknown>
+// 低代码平台不支持写 React 组件，属性面板统一用字符串配置
+
 /** 卡片 组件属性 */
 export interface CardProps extends BaseProps {
   /**
@@ -15,7 +18,7 @@ export interface CardProps extends BaseProps {
    * @priority 10
 
    */
-  title?: React.ReactNode;
+  title?: string;
 
   /**
    * 额外操作
@@ -23,7 +26,7 @@ export interface CardProps extends BaseProps {
    * @priority 11
 
    */
-  extra?: React.ReactNode;
+  extra?: string;
 
   /**
    * 边框
@@ -53,15 +56,11 @@ export interface CardProps extends BaseProps {
    * 尺寸
    * @group 基础属性
    * @priority 15
-   * @enum ["default","small"]
-   */
-  size?: string;
 
   /**
    * 类型
    * @group 基础属性
    * @priority 16
-   * @enum ["inner"]
    */
-  type?: string;
+  type?: 'inner';
 }

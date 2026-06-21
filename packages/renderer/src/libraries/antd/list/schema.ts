@@ -7,6 +7,9 @@
  */
 import type { BaseProps } from '../base-props';
 
+// React 类型已替换：React.ReactNode → string, React.CSSProperties → Record<string, unknown>
+// 低代码平台不支持写 React 组件，属性面板统一用字符串配置
+
 /** 列表 组件属性 */
 export interface ListProps extends BaseProps {
   /**
@@ -45,9 +48,6 @@ export interface ListProps extends BaseProps {
    * 尺寸
    * @group 基础属性
    * @priority 14
-   * @enum ["default","large","small"]
-   */
-  size?: string;
 
   /**
    * 头部
@@ -55,7 +55,7 @@ export interface ListProps extends BaseProps {
    * @priority 20
 
    */
-  header?: React.ReactNode;
+  header?: string;
 
   /**
    * 底部
@@ -63,7 +63,7 @@ export interface ListProps extends BaseProps {
    * @priority 21
 
    */
-  footer?: React.ReactNode;
+  footer?: string;
 
   /**
    * 分页

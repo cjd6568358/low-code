@@ -53,7 +53,6 @@ export interface SiderProps extends BaseProps {
    * 主题
    * @group 基础属性
    * @priority 15
-   * @enum ["light","dark"]
    */
-  theme?: string;
+  theme?: 'light' | 'dark';
 }

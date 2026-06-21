@@ -4,6 +4,8 @@ export interface ExpressionEngine {
   validate(expression: string): { valid: boolean; errors: string[] };
   analyzeDependencies(expression: string): string[];
   safeEvaluate(expression: string, context: Record<string, any>, timeout?: number): any;
+  /** 异步求值，支持 await 表达式（用于数据源等异步场景） */
+  evaluateAsync(expression: string, context: Record<string, any>, timeout?: number): Promise<any>;
 }
 
 /** 字典项 */

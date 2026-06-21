@@ -149,7 +149,6 @@ function Toolbar({ node, registry, siblings, rect, onCopy, onMove, onDelete }: T
     padding: '1px 5px', border: '1px solid #d9d9d9', borderRadius: 3,
     backgroundColor: '#fff', cursor: 'pointer', fontSize: 11, lineHeight: '18px',
   };
-
   return (
     <div
       style={{
@@ -168,7 +167,7 @@ function Toolbar({ node, registry, siblings, rect, onCopy, onMove, onDelete }: T
         backgroundColor: '#1890ff', color: '#fff', fontSize: 11,
         padding: '1px 6px', borderRadius: 3,
       }}>
-        {node.label || registration?.name || node.type}
+        {node.name || registration?.name || node.type}
       </span>
       <button onClick={onCopy} title="复制 (Ctrl+C)" style={btnStyle}>📋</button>
       <button onClick={() => onMove('left')} title="左移" disabled={isFirst}

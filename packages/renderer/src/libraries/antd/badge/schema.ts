@@ -48,12 +48,4 @@ export interface BadgeProps extends BaseProps {
 
    */
   color?: string;
-
-  /**
-   * 尺寸
-   * @group 基础属性
-   * @priority 15
-   * @enum ["default","small"]
-   */
-  size?: string;
 }

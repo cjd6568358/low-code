@@ -21,17 +21,15 @@ export interface ProgressProps extends BaseProps {
    * 类型
    * @group 基础属性
    * @priority 11
-   * @enum ["line","circle","dashboard"]
    */
-  type?: string;
+  type?: 'line' | 'circle' | 'dashboard';
 
   /**
    * 状态
    * @group 基础属性
    * @priority 12
-   * @enum ["success","exception","normal","active"]
    */
-  status?: string;
+  status?: 'success' | 'exception' | 'normal' | 'active';
 
   /**
    * 显示信息

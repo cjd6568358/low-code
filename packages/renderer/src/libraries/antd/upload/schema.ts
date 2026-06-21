@@ -45,9 +45,8 @@ export interface UploadProps extends BaseProps {
    * 列表类型
    * @group 基础属性
    * @priority 14
-   * @enum ["text","picture","picture-card"]
    */
-  listType?: string;
+  listType?: 'text' | 'picture' | 'picture-card';
 
   /**
    * 禁用

@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "version": 11,
+  "version": 23,
   "name": "9890009",
   "createdAt": 1781608598544,
-  "updatedAt": 1781861829209,
+  "updatedAt": 1782044612899,
   "references": {},
   "pageId": "41bdefc9",
   "layout": {
@@ -15,29 +15,46 @@
     {
       "id": "rate_1781713793409",
       "type": "rate",
-      "props": {}
+      "props": {},
+      "name": "评分_01"
     },
     {
       "id": "radio_1781791768238",
       "type": "radio",
-      "label": "单选1",
+      "name": "单选1",
       "props": {}
     },
     {
       "id": "switch_1781791660364",
       "type": "switch",
-      "label": "开关1",
+      "name": "开关1",
+      "props": {}
+    },
+    {
+      "id": "number_1781765580372",
+      "type": "number",
+      "name": "数字输入_01",
       "props": {}
     },
     {
       "id": "textarea_1781765600372",
       "type": "textarea",
-      "props": {}
+      "props": {
+        "placeholder": {
+          "type": "expression",
+          "value": "async () => {\n  console.log(2);\n  return $component.rate_1781713793409.value\n}"
+        },
+        "rows": {
+          "type": "variable",
+          "value": "$component.number_1781765580372.value"
+        }
+      },
+      "name": "文本域_01"
     },
     {
       "id": "slider_1781861407003",
       "type": "slider",
-      "label": "slider1",
+      "name": "slider1",
       "props": {}
     },
     {
@@ -46,7 +63,9 @@
       "props": {
         "children": "提交",
         "type": "primary"
-      }
+      },
+      "name": "按钮_01"
     }
-  ]
+  ],
+  "dataSource": "async () => {\n  console.log(1);\n  const result = await $fetch.get(\"/api/apps/80e88653/pages/41bdefc9\")\n  return result.resource\n}"
 }

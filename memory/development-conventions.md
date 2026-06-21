@@ -286,7 +286,64 @@ CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);
 
 ---
 
-## 8. 测试规范
+## 8. 类型变更规范
+
+### 8.1 类型变更检查清单
+
+**当修改类型定义（type/interface/enum）时，必须执行以下检查流程**：
+
+```
+1. 修改类型定义文件
+   │
+   ├─ 2. 搜索所有引用
+   │     grep -r "类型名" packages/
+   │     grep -r "旧值" packages/
+   │
+   ├─ 3. 列出需要同步修改的文件清单
+   │
+   ├─ 4. 逐一修改并验证
+   │
+   ├─ 5. 运行完整类型检查
+   │     cd packages/xxx && npx tsc --noEmit
+   │
+   └─ 6. 更新相关文档
+```
+
+### 8.2 常见遗漏场景
+
+| 场景 | 检查点 |
+|------|--------|
+| 类型值变更 | 搜索所有使用旧值的位置（如 `'var'` → `'variable'`） |
+| 接口字段变更 | 搜索所有实现和使用该接口的位置 |
+| 枚举值变更 | 搜索所有 switch/case 和条件判断 |
+| 导出类型变更 | 检查所有导入该类型的文件 |
+
+### 8.3 级联修改清单模板
+
+```markdown
+## 类型变更：[类型名]
+
+### 变更内容
+- 旧值：xxx
+- 新值：yyy
+
+### 需要同步修改的文件
+- [ ] shared/types/schema.ts — 类型定义
+- [ ] renderer/core/DataBindingResolver.ts — 类型判断
+- [ ] renderer/hooks/useExpressionValue.ts — 类型判断
+- [ ] renderer/designer/panels/VariablePicker.tsx — 保存逻辑
+- [ ] renderer/designer/panels/DataSourcePanel.tsx — 保存逻辑
+- [ ] docs/render-engine.md — 文档
+- [ ] docs/auto-rendering-engine.md — 文档
+
+### 验证
+- [ ] 运行 `npx tsc --noEmit` 无错误
+- [ ] 运行 `yarn build` 成功
+```
+
+---
+
+## 9. 测试规范
 
 ### 8.1 测试框架
 

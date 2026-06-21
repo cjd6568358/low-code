@@ -1,17 +1,55 @@
 {
+  "description": "分页 组件属性",
   "type": "object",
   "properties": {
+    "total": {
+      "type": "number",
+      "title": "总数",
+      "x-group": "基础属性",
+      "x-priority": 10
+    },
+    "current": {
+      "type": "number",
+      "title": "当前页",
+      "x-group": "基础属性",
+      "x-priority": 11
+    },
+    "pageSize": {
+      "type": "number",
+      "title": "每页条数",
+      "x-group": "基础属性",
+      "x-priority": 12
+    },
+    "showSizeChanger": {
+      "type": "boolean",
+      "title": "显示条数切换",
+      "x-group": "基础属性",
+      "x-priority": 13
+    },
+    "showQuickJumper": {
+      "type": "boolean",
+      "title": "快速跳转",
+      "x-group": "基础属性",
+      "x-priority": 14
+    },
+    "showTotal": {
+      "type": "boolean",
+      "title": "显示总数",
+      "x-group": "基础属性",
+      "x-priority": 15
+    },
+    "simple": {
+      "type": "boolean",
+      "title": "简洁模式",
+      "x-group": "高级属性",
+      "x-priority": 20
+    },
     "name": {
       "type": "string",
       "title": "字段名称",
       "x-group": "基础属性",
-      "x-priority": 0
-    },
-    "label": {
-      "type": "string",
-      "title": "字段标签",
-      "x-group": "基础属性",
-      "x-priority": 1
+      "x-priority": 0,
+      "x-no-binding": "不支持变量/表达式绑定"
     },
     "visible": {
       "type": "boolean",
@@ -24,58 +62,6 @@
       "title": "内联样式",
       "x-group": "样式",
       "x-priority": 50
-    },
-    "total": {
-      "title": "总数",
-      "x-group": "基础属性",
-      "x-priority": 10,
-      "type": "number"
-    },
-    "current": {
-      "title": "当前页",
-      "x-group": "基础属性",
-      "x-priority": 11,
-      "type": "number"
-    },
-    "pageSize": {
-      "title": "每页条数",
-      "x-group": "基础属性",
-      "x-priority": 12,
-      "type": "number"
-    },
-    "showSizeChanger": {
-      "title": "显示条数切换",
-      "x-group": "基础属性",
-      "x-priority": 13,
-      "type": "boolean"
-    },
-    "showQuickJumper": {
-      "title": "快速跳转",
-      "x-group": "基础属性",
-      "x-priority": 14,
-      "type": "boolean"
-    },
-    "showTotal": {
-      "title": "显示总数",
-      "x-group": "基础属性",
-      "x-priority": 15,
-      "type": "boolean"
-    },
-    "simple": {
-      "title": "简洁模式",
-      "x-group": "高级属性",
-      "x-priority": 20,
-      "type": "boolean"
-    },
-    "size": {
-      "title": "尺寸",
-      "x-group": "高级属性",
-      "x-priority": 21,
-      "type": "string",
-      "enum": [
-        "default",
-        "small"
-      ]
     }
   }
 }

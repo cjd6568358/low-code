@@ -7,6 +7,9 @@
  */
 import type { BaseProps } from '../base-props';
 
+// React 类型已替换：React.ReactNode → string, React.CSSProperties → Record<string, unknown>
+// 低代码平台不支持写 React 组件，属性面板统一用字符串配置
+
 /** 抽屉 组件属性 */
 export interface DrawerProps extends BaseProps {
   /**
@@ -15,7 +18,7 @@ export interface DrawerProps extends BaseProps {
    * @priority 10
 
    */
-  title?: React.ReactNode;
+  title?: string;
 
   /**
    * 打开
@@ -29,9 +32,8 @@ export interface DrawerProps extends BaseProps {
    * 位置
    * @group 基础属性
    * @priority 12
-   * @enum ["top","right","bottom","left"]
    */
-  placement?: string;
+  placement?: 'top' | 'right' | 'bottom' | 'left';
 
   /**
    * 宽度
@@ -71,7 +73,7 @@ export interface DrawerProps extends BaseProps {
    * @priority 20
 
    */
-  footer?: React.ReactNode;
+  footer?: string;
 
   /**
    * 加载中

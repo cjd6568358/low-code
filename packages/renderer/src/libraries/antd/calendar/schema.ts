@@ -13,9 +13,8 @@ export interface CalendarProps extends BaseProps {
    * 模式
    * @group 基础属性
    * @priority 10
-   * @enum ["month","year"]
    */
-  mode?: string;
+  mode?: 'month' | 'year';
 
   /**
    * 全屏

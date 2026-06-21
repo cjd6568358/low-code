@@ -1,17 +1,31 @@
 {
+  "description": "多选 组件属性",
   "type": "object",
   "properties": {
+    "checked": {
+      "type": "boolean",
+      "title": "选中",
+      "x-group": "基础属性",
+      "x-priority": 10
+    },
+    "disabled": {
+      "type": "boolean",
+      "title": "禁用",
+      "x-group": "基础属性",
+      "x-priority": 11
+    },
+    "indeterminate": {
+      "type": "boolean",
+      "title": "半选",
+      "x-group": "基础属性",
+      "x-priority": 12
+    },
     "name": {
       "type": "string",
       "title": "字段名称",
       "x-group": "基础属性",
-      "x-priority": 0
-    },
-    "label": {
-      "type": "string",
-      "title": "字段标签",
-      "x-group": "基础属性",
-      "x-priority": 1
+      "x-priority": 0,
+      "x-no-binding": "不支持变量/表达式绑定"
     },
     "visible": {
       "type": "boolean",
@@ -24,24 +38,6 @@
       "title": "内联样式",
       "x-group": "样式",
       "x-priority": 50
-    },
-    "checked": {
-      "title": "选中",
-      "x-group": "基础属性",
-      "x-priority": 10,
-      "type": "boolean"
-    },
-    "disabled": {
-      "title": "禁用",
-      "x-group": "基础属性",
-      "x-priority": 11,
-      "type": "boolean"
-    },
-    "indeterminate": {
-      "title": "半选",
-      "x-group": "基础属性",
-      "x-priority": 12,
-      "type": "boolean"
     }
   }
 }

@@ -63,7 +63,12 @@
 ### 右侧 — 属性配置面板
 
 - **未选中组件时**：显示**页面设置面板**，可编辑页面 `name` 和布局配置（gap、方向、列数）
-- **选中组件时**：显示组件属性面板（属性/事件/样式/规则四个 Tab）
+- **选中组件时**：显示组件属性面板（属性/高级/事件/样式/规则五个 Tab）
+  - **属性**：`x-group === '基础属性'` 的字段（白名单过滤）
+  - **高级**：`x-group === '高级属性'` 的字段
+  - **事件**：事件动作链编排
+  - **样式**：`className` + `StyleEditor`（内联样式）
+  - **规则**：联动规则配置（ConditionBuilder）
 - **布局类型约束**：布局类型（flex/grid）在页面创建后**不可修改**，防止组件定位错乱
 
 ### 组件库架构
@@ -79,47 +84,42 @@
 
 | 产物 | 说明 |
 |------|------|
-| `basePropsSchema` | 公共 BaseProps 的 JSON Schema（如 antd 的 disabled/size/variant/status） |
 | `components` | type → React 组件实现映射（全部通过 withPlatform HOC 包装） |
-| `schemas` | type → 组件 JSON Schema（自动生成 + 注解合并 + BaseProps） |
+| `schemas` | type → 组件 JSON Schema（从 schema.ts 自动生成，含 BaseProps + 注解） |
 
 **JSON Schema 生成流程**：
 
 ```
-antd 6.x .d.ts 类型定义
+packages/renderer/src/libraries/antd/*/schema.ts（Props 接口 + JSDoc 注解）
         │
         ▼
-scripts/generate-antd-schemas.ts（typescript-json-schema）
+packages/build-tools/src/SchemaCompiler（typescript-json-schema + 后处理）
         │
         ▼
-packages/renderer/src/schemas/antd-generated/*.json（完整属性定义）
-        │
-        ▼
-mergeWithAnnotations(自动生成, 手写注解)（x-group/x-priority/x-binding 等 UI 注解）
-        │
-        ▼
-withBaseProps(合并结果)（注入 disabled/size/variant/status/className/style）
-        │
-        ▼
-antdSchemas（最终 schema，供属性面板渲染）
+packages/renderer/src/libraries/antd/*/*.json（最终 JSON Schema，含 x-group/x-priority）
 ```
 
-**Schema 合并策略**：
-1. `typescript-json-schema` 从 antd 6.x TS 类型自动生成完整属性定义
-2. `mergeWithAnnotations()` 合并手写 UI 注解（`x-group`/`x-priority`/`x-binding`/`x-component`/`x-placeholder`）
-   - 合并规则：手写注解覆盖自动生成的属性（保留 type/title，加上 UI 注解）
-   - 手写有但自动生成没有的属性保留（自定义属性）
-   - 当前仅 6 个组件有手写注解（input/textarea/number/select/button/table/form），其余使用空注解
-3. `withBaseProps()` 注入公共 BaseProps（`disabled`/`size`/`variant`/`status`/`className`/`style`）
-4. 最终 schema 为扁平 `properties` 结构，`AutoFormRenderer` 直接读取
+**编译管道**（`packages/build-tools`）：
+
+1. `typescript-json-schema` 从 `schema.ts` 的 Props 接口生成 JSON Schema
+2. 后处理：`description` → `title`，`group` → `x-group`，`priority` → `x-priority`
+3. `$ref` 外部类型（React.ReactNode 等）→ 转为 `{ type: "string" }`
+4. `CSSProperties` 展开 → 简化为 `{ type: "object" }`
+5. 无 `x-group` 的属性 → 默认归入 `"基础属性"`
+
+**schema.ts 规范**：
+- 每个组件一个目录：`component.tsx` + `schema.ts` + `{type}.json` + `index.ts`
+- Props 接口 `extends BaseProps`，继承公共属性
+- JSDoc 注解定义 UI 元数据：`@group`、`@priority`、`@ignore` 等
+- 枚举值用 union literal type（`'primary' | 'default' | 'dashed'`），不用 `@enum`
+- React 类型已替换：`React.ReactNode` → `string`，`React.CSSProperties` → `Record<string, unknown>`
+- 废弃属性用 `@ignore` 标记，不出现在 JSON Schema 中
 
 **当前组件库**：
 
 | 库名 | BaseProps | 组件数 | 说明 |
 |------|-----------|--------|------|
-| `antd` | disabled, size, variant, status, className, style | 66 | antd 6.x 全量组件（通用 2 + 布局 6 + 导航 7 + 数据录入 19 + 数据展示 20 + 反馈 9 + 补充 3） |
-
-组件面板按 antd 官方分类组织：通用 / 布局 / 导航 / 数据录入 / 数据展示 / 反馈。
+| `antd` | name, visible, style | 66 | antd 6.x 全量组件（通用 2 + 布局 6 + 导航 7 + 数据录入 19 + 数据展示 20 + 反馈 9 + 补充 3） |
 
 组件面板按 antd 官方分类组织：通用 / 布局 / 导航 / 数据录入 / 数据展示 / 反馈。
 
@@ -326,13 +326,13 @@ DesignOverlay（Portal，position: fixed）
 #### 工作流程
 
 ```
-组件 TS 类型定义 (Props Interface)
+组件 schema.ts（Props 接口 + JSDoc 注解）
         │
         ▼
-  TS → JSON Schema 转换 (ts-json-schema-generator)
+  SchemaCompiler（typescript-json-schema + 后处理）
         │
         ▼
-  注入 x-group / x-priority 等扩展字段
+  {type}.json（含 x-group / x-priority 等扩展字段）
         │
         ▼
   注册到自动渲染引擎 → antd 控件渲染属性配置表单
@@ -343,31 +343,35 @@ DesignOverlay（Portal，position: fixed）
 #### TS 转 JSON Schema 示例
 
 ```typescript
-// 组件 TS 定义
+// schema.ts — 组件 TS 定义
 interface InputProps extends BaseProps {
-  /** @group 基础属性 */
-  /** @priority 1 */
+  /**
+   * 占位提示
+   * @group 基础属性
+   * @priority 10
+   */
   placeholder?: string;
 
-  /** @group 基础属性 */
-  /** @priority 2 */
+  /**
+   * 最大长度
+   * @group 基础属性
+   * @priority 11
+   */
   maxLength?: number;
 
-  /** @group 基础属性 */
-  /** @priority 3 */
+  /**
+   * 允许清除
+   * @group 基础属性
+   * @priority 12
+   */
   allowClear?: boolean;
 
-  /** @group 高级属性 */
-  /** @priority 10 */
-  addonBefore?: React.ReactNode;
-
-  /** @group 校验规则 */
-  /** @priority 20 */
-  required?: boolean;
-
-  /** @group 校验规则 */
-  /** @priority 21 */
-  pattern?: string;
+  /**
+   * 前置标签
+   * @group 高级属性
+   * @priority 20
+   */
+  addonBefore?: string;  // 原 React.ReactNode，已转为 string
 }
 ```
 
@@ -376,12 +380,10 @@ interface InputProps extends BaseProps {
 {
   "type": "object",
   "properties": {
-    "placeholder": { "type": "string", "title": "占位提示", "x-priority": 1, "x-group": "基础属性" },
-    "maxLength": { "type": "number", "title": "最大长度", "x-priority": 2, "x-group": "基础属性" },
-    "allowClear": { "type": "boolean", "title": "允许清除", "x-priority": 3, "x-group": "基础属性" },
-    "addonBefore": { "type": "string", "title": "前置标签", "x-priority": 10, "x-group": "高级属性" },
-    "required": { "type": "boolean", "title": "必填", "x-priority": 20, "x-group": "校验规则" },
-    "pattern": { "type": "string", "title": "正则校验", "x-priority": 21, "x-group": "校验规则" }
+    "placeholder": { "type": "string", "title": "占位提示", "x-priority": 10, "x-group": "基础属性" },
+    "maxLength": { "type": "number", "title": "最大长度", "x-priority": 11, "x-group": "基础属性" },
+    "allowClear": { "type": "boolean", "title": "允许清除", "x-priority": 12, "x-group": "基础属性" },
+    "addonBefore": { "type": "string", "title": "前置标签", "x-priority": 20, "x-group": "高级属性" }
   }
 }
 ```
@@ -406,11 +408,15 @@ interface InputProps extends BaseProps {
 ```typescript
 // 基础属性抽象
 interface BaseProps {
-  visible?: boolean;
-  disabled?: boolean;
-  className?: string;
-  style?: React.CSSProperties;
-  // ...通用属性
+  /**
+   * 字段名称
+   * @group 基础属性
+   * @priority 0
+   * @no-binding 不支持变量/表达式绑定
+   */
+  name?: string;
+  visible?: boolean;  // 是否可见
+  style?: Record<string, unknown>;  // 内联样式（React.CSSProperties 已替换）
 }
 
 // 组件级属性继承
@@ -426,6 +432,104 @@ interface SelectProps extends BaseProps {
   showSearch?: boolean;
 }
 ```
+
+### 字段名唯一性校验
+
+组件的 `name` 字段用于表单绑定和变量引用，在同一页面内必须唯一。
+
+**校验时机**：
+1. **修改时校验**：属性面板修改字段名时，实时检查是否与其他组件重名
+2. **保存时校验**：保存页面前，批量检查所有组件的字段名唯一性
+
+**字段名生成规则**：
+- 使用 `antdCategoryMap` 中的组件中文名作为前缀
+- 格式：`{组件名}_{序号}`（如 `输入框_01`、`按钮_02`）
+- 序号自动递增，避免冲突
+
+### x-no-binding 注解
+
+标记属性不支持变量/表达式绑定，属性面板将隐藏切换按钮，仅显示常量输入框。
+
+**TS Schema 注解**：
+```typescript
+/**
+ * 字段名称
+ * @no-binding 不支持变量/表达式绑定
+ */
+name?: string;
+```
+
+**生成的 JSON Schema**：
+```json
+{
+  "name": {
+    "type": "string",
+    "title": "字段名称",
+    "x-no-binding": "不支持变量/表达式绑定"
+  }
+}
+```
+
+### 变量/表达式类型校验
+
+属性面板支持变量绑定和表达式配置，为避免运行时类型错误，保存时会进行类型校验。
+
+#### 校验规则
+
+| 场景 | 行为 |
+|------|------|
+| 变量引用 → 类型匹配 | 直接保存 |
+| 变量引用 → 类型不匹配 | 弹出二次确认对话框 |
+| 表达式 → 返回 Promise | **禁止保存**，显示错误提示 |
+| 表达式 → 自动推断类型匹配 | 直接保存 |
+| 表达式 → 自动推断类型不匹配 | 弹出二次确认对话框 |
+| 表达式 → 无法推断（any） | 可手动声明返回类型 |
+
+#### 类型兼容性规则
+
+- `any` 类型兼容所有类型
+- `number` 和 `string` 可互转（数字字符串场景）
+- `integer` 是 `number` 的子类型
+- `object` 兼容 `array`
+- `null`/`undefined` 兼容所有类型（可选属性场景）
+
+#### 禁止返回 Promise
+
+表达式中不允许返回 Promise 类型，以下调用会被检测并禁止：
+
+- `$fetch.get()` / `$fetch.post()` 等 HTTP 请求方法
+- `$table.xxx.execute()` / `$table.xxx.first()` 等查询执行方法
+- `$computation.evaluate()` 运算引擎求值
+- `await` 表达式
+- `new Promise()` 构造
+
+#### any 类型警告
+
+当变量引用或表达式中包含类型为 `any` 的环境变量时，控制台会输出警告信息：
+
+- `$component.xxx.value` — 组件值类型为 any，建议使用具体属性路径
+- `$data.xxx.data` — 数据源返回类型为 any，建议使用 .data 属性
+
+#### 表达式类型推断
+
+系统会自动推断表达式的返回类型，支持以下场景：
+
+| 表达式 | 推断类型 | 依据 |
+|--------|----------|------|
+| `$user.name` | string | 变量路径解析 |
+| `return $user.name` | string | 提取 return 后表达式 |
+| `$user.name + "test"` | string | 字符串拼接 |
+| `$user.id === "xxx"` | boolean | 比较运算符 |
+| `$platform.web && $user.id` | boolean | 逻辑运算符 |
+| `Number($user.id)` | number | 类型转换函数 |
+
+对于无法自动推断的复杂表达式，可在表达式编辑器中手动声明返回类型。
+
+#### 实现文件
+
+- `packages/renderer/src/core/expression-type-infer.ts` — 表达式类型推断工具
+- `packages/renderer/src/designer/panels/VariablePicker.tsx` — 变量选择器（集成类型校验）
+- `packages/renderer/src/designer/panels/TypeMismatchModal.tsx` — 类型不匹配确认对话框
 
 ## 自定义卡片规范
 
@@ -1083,11 +1187,17 @@ interface CardEventDef {
 
 ##### 属性类型 → UI 控件映射
 
-控件映射规则由 [自动渲染引擎](auto-rendering-engine.md#控件注册表) 统一管理，卡片属性面板复用同一套映射。每个控件右侧均提供 **🔗 数据绑定按钮**，点击后打开变量选择器（见下文）。
+控件映射规则由 [自动渲染引擎](auto-rendering-engine.md#控件注册表) 统一管理，卡片属性面板复用同一套映射。每个字段 label 右侧提供 **Button Group（常量/变量/表达式）**，默认选中"常量"，切换模式时自动弹出变量选择器（见下文）。
 
-##### 数据绑定 — 变量选择器
+##### 数据绑定 — 值模式切换与变量选择器
 
-点击 🔗 按钮后弹出变量选择器，支持以下绑定方式：
+每个字段支持三种值模式，通过 label 右侧的 Button Group 切换：
+
+- **常量**（默认）：直接输入静态值
+- **变量**：点击后弹出变量选择器，选择变量引用
+- **表达式**：点击后弹出变量选择器，切换到表达式 tab
+
+切换模式时会清除已有值。选中变量/表达式后，输入区域显示 Tag 样式的绑定标识，点击可重新打开变量选择器修改。
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -1326,22 +1436,29 @@ interface PageSchema {
   layout: LayoutConfig;                  // 全局布局配置
   components: ComponentNode[];           // 组件树
   rules?: PageRule[];                    // 页面级条件规则
-  dataSource?: DataSourceConfig[];       // 页面数据源（API 配置）
+  dataSource?: string;                   // 页面数据源表达式（结果赋给 $data）
   theme?: ThemeConfig;                   // 页面级主题覆盖
   meta?: Record<string, any>;           // 扩展元数据
 }
 
 /** 组件节点 — 页面描述的基本单元 */
 interface ComponentNode {
-  id: string;                            // 组件实例唯一 ID
+  id: string;                            // 组件实例唯一 ID（格式：{type}_{timestamp}，如 textarea_1781765600372）
   type: string;                          // 组件类型，匹配组件注册表
+  name: string;                          // 字段名（中文名称，如 文本域_01，用于表单绑定和变量引用）
   parentId?: string;                     // 父组件 ID（树形结构）
-  props: Record<string, any>;            // 组件属性（静态值或变量绑定表达式）
+  props: Record<string, PropValue>;      // 组件属性（支持字面量/变量引用/表达式）
   events?: Record<string, ActionChain[]>; // 事件 → 动作链映射
   layout?: ComponentLayout;              // 布局定位信息
   visible?: boolean | string;            // 显隐（布尔值或条件表达式）
   children?: string[];                   // 子组件 ID 列表（有序）
 }
+
+/** 属性值类型 — 支持字面量、变量引用、表达式 */
+type PropValue =
+  | any                                    // 字面量（string/number/boolean/object）
+  | { type: 'variable', value: string }    // 变量引用
+  | { type: 'expression', value: string }; // 表达式
 
 /**
  * 页面根节点布局配置
@@ -1371,15 +1488,14 @@ interface ComponentLayout {
   alignSelf?: string;                    // flex 对齐
 }
 
-/** 数据源配置 — 页面级 API 声明 */
-interface DataSourceConfig {
-  id: string;                            // 数据源 ID
-  name: string;                          // 数据源名称
-  type: 'api' | 'static' | 'computed';
-  config: ApiConfig | StaticConfig | ComputedConfig;
-  autoLoad?: boolean;                    // 页面加载时自动请求
-  dependencies?: string[];               // 依赖的其他数据源 ID
-}
+/** 页面数据源 — 单表达式模式 */
+// PageSchema.dataSource: string | undefined
+// 配置了即自动加载（页面加载时执行），结果赋给 $data
+// 多个请求用 Promise.all() 在表达式内部处理
+// 示例：
+//   单个请求：await $fetch.get("/api/users")
+//   多个请求：await Promise.all([$fetch.get("/api/users"), $fetch.get("/api/orders")])
+//   服务端查询：await $table.user.filter(u => u.active).execute()
 ```
 
 ### 组件注册表
@@ -1437,33 +1553,124 @@ interface ComponentRegistration {
 
 页面 Schema 中的属性值支持三种形式，运行时统一解析：
 
-| 值形式 | 示例 | 运行时行为 |
-|--------|------|-----------|
-| 静态值 | `"张三"`、`42`、`true` | 直接使用 |
-| 变量引用 | `"$context.currentRecord.name"` | 从运行时上下文按路径取值 |
-| 表达式 | `` "`${firstName} ${lastName}`" `` | 运算引擎沙箱求值 |
-
-#### 运行时上下文
+#### PropValue 数据格式
 
 ```typescript
-/** 运行时上下文 — 所有变量引用的数据源 */
+type PropValue =
+  | any                                    // 字面量（string/number/boolean/object）
+  | { type: 'variable', value: string }    // 变量引用
+  | { type: 'expression', value: string }; // 表达式
+```
+
+**JSON 示例**：
+```json
+{
+  "props": {
+    "placeholder": "啊啊啊",
+    "a": { "type": "variable", "value": "$platform.web" },
+    "b": { "type": "expression", "value": "async () => { return $user.name; }" }
+  }
+}
+```
+
+| 值形式 | JSON 格式 | 运行时行为 |
+|--------|----------|-----------|
+| 字面量 | `"张三"`、`42`、`true` | 直接使用 |
+| 变量引用 | `{ "type": "variable", "value": "$user.name" }` | 同步解析，从运行时上下文按路径取值 |
+| 表达式 | `{ "type": "expression", "value": "async () => { ... }" }` | 异步执行，支持依赖收集和变更传播 |
+
+**运行时解析流程**：
+```
+遍历 props
+  │
+  ├─ 字面量 → 直接使用
+  ├─ { type: 'variable' } → 同步解析变量引用
+  └─ { type: 'expression' } → 异步执行表达式 + 依赖收集
+```
+
+**依赖收集与变更传播**：
+- 表达式执行时自动提取 `$xxx.yyy` 格式的变量依赖
+- 依赖注册到 DependencyGraph
+- 变量变更时自动重新执行依赖的表达式
+
+**设计器侧显示规则**：
+
+| 模式 | 属性面板显示 | 设计画布显示 |
+|------|------------|------------|
+| 常量 | 原值 | 原值 |
+| 变量 | `变量` 标签 + 变量路径（如 `$platform.web`） | `[变量] $platform.web` |
+| 表达式 | `表达式` 标签（不显示具体值） | `[表达式]` |
+
+#### 运行时上下文（环境变量体系）
+
+页面运行时提供统一的环境变量体系，所有变量引用和表达式均基于此上下文求值。
+
+| 变量 | 类型 | 说明 | 可用模式 |
+|------|------|------|---------|
+| `$user` | `Record<string, any>` | 当前登录用户（动态字段，从用户表读取） | 变量引用 + 表达式 |
+| `$platform` | `{ web, mobile, miniApp }` | 当前运行平台标识 | 变量引用 + 表达式 |
+| `$route` | `{ params, query, path }` | 路由信息（params 含 tenantId/appId/pageId） | 变量引用 + 表达式 |
+| `$component` | `Record<string, ComponentState>` | 页面组件实例状态（通过组件 ID 引用） | 变量引用 + 表达式 |
+| `$data` | `any` | 页面数据源表达式执行结果（配置即自动加载，页面渲染前完成） | 变量引用 + 表达式 |
+| `$table` | `ServerVariableProxy` | 服务端表查询（惰性求值，运行时转换为 HTTP 请求） | **仅表达式** |
+| `$computation` | `ComputationEngine` | 运算引擎（执行服务端运算逻辑） | **仅表达式** |
+| `$fetch` | `FetchProxy` | 第三方 HTTP 请求 | **仅表达式** |
+| `$workflow` | `WorkflowContext` | 流程上下文（流程页面内有效） | **仅表达式** |
+
+> **变量引用 vs 表达式**：变量引用为点路径取值（如 `$user.name`），不支持 `$table/$computation/$fetch`；表达式为 JS 语法（如 `$user.name + ' - ' + $platform.web`），支持所有环境变量，实质为异步函数。
+
+```typescript
+/** 运行时环境变量上下文 */
 interface RenderContext {
-  /** 页面上下文 */
-  $context: {
-    currentUser: UserInfo;               // 当前登录用户
-    currentRecord?: Record<string, any>; // 当前业务记录（详情/编辑页）
-    route: { path: string; params: Record<string, string>; query: Record<string, string> };  // params 含 tenantId/appId/pageId
-    global: Record<string, any>;         // 全局变量
+  /** 当前用户（动态字段） */
+  $user: {
+    id: string;
+    name: string;
+    roles: string[];
+    department: string;
+    departmentName: string;
+    position: string;
+    [key: string]: any;
   };
 
-  /** 表单数据（表单页内有效） */
-  $form: Record<string, any>;
+  /** 平台标识 */
+  $platform: {
+    web: boolean;
+    mobile: boolean;
+    miniApp: boolean;
+  };
 
-  /** API 数据源返回值 */
-  $api: Record<string, { data: any; loading: boolean; error: Error | null }>;
+  /** 路由信息 */
+  $route: {
+    params: Record<string, string>;
+    query: Record<string, string>;
+    path: string;
+  };
 
-  /** 组件实例状态 */
-  $components: Record<string, Record<string, any>>;
+  /** 页面组件实例状态 */
+  $component: Record<string, {
+    value: any;
+    visible: boolean;
+    disabled: boolean;
+    loading: boolean;
+    [key: string]: any;
+  }>;
+
+  /** 页面级数据源聚合 */
+  $data: Record<string, {
+    data: any;
+    loading: boolean;
+    error: Error | null;
+  }>;
+
+  /** 服务端表查询（惰性求值） */
+  $table: ServerVariableProxy;
+
+  /** 运算引擎 */
+  $computation: ComputationEngine;
+
+  /** 第三方请求 */
+  $fetch: FetchProxy;
 
   /** 流程上下文（流程页面内有效） */
   $workflow?: {
@@ -1482,15 +1689,337 @@ interface RenderContext {
   │
   ├─ 遍历每个 prop 值
   │   ├─ typeof === 静态值 → 直接注入
-  │   ├─ 以 "$context." / "$form." / "$api." 开头 → 按路径从 RenderContext 取值
-  │   └─ 包含 "${" 或运算函数 → 运算引擎沙箱求值
+  │   ├─ 以 "$user." / "$platform." / "$route." 等开头 → 按路径从 RenderContext 取值（变量引用）
+  │   └─ 包含 "${" 或多变量组合 → 运算引擎沙箱求值（表达式，异步函数）
   │
   ├─ 值变更时（双向绑定场景）
-  │   └─ 写回 $form[fieldPath]，触发联动重算
+  │   └─ 写回 $data[fieldPath]，触发联动重算
   │
   └─ 依赖追踪
       └─ 记录每个组件依赖的变量路径，变量变化时仅重渲染依赖组件
 ```
+
+#### 跨应用变量引用
+
+当 `$table/$computation/$workflow` 涉及跨应用引用时，使用 appId（8位hex）标识目标应用，代码提示展示应用名称：
+
+```
+$table.[appId].[表名]          — 例如: $table.80e88653.user    // 山水OA
+$computation.[appId].[运算名]   — 例如: $computation.80e88653.calcTotal
+$workflow.[appId].[流程名]      — 例如: $workflow.80e88653.approval
+```
+
+**跨应用资源校验规则**：
+
+| 类型 | 语法 | 校验 |
+|------|------|------|
+| 当前应用 | `$table.user` | 直接访问，无需校验 |
+| 跨应用 | `$table.80e88653.user` | 需校验目标应用 `expose` 配置 |
+
+校验流程：
+1. 解析变量路径，区分当前应用/跨应用
+2. 跨应用时，查询目标应用的 `app.expose[resourceType]`
+3. 若目标资源未在 `expose` 中声明，报错拒绝
+4. 校验通过后，在 `page.references` 中注册依赖
+
+#### 环境变量动态注册
+
+部分环境变量（`$component`、`$data`、`$table`）的属性是动态生成的，需要在运行时注册：
+
+```typescript
+// 注册页面组件到 $component
+environmentRegistry.registerPageComponents({
+  'input_01': { type: 'input', label: '客户名称' },
+  'select_02': { type: 'select', label: '客户等级' },
+  'btn_submit': { type: 'button', label: '提交按钮' },
+});
+
+// 注册页面数据源到 $data
+environmentRegistry.registerPageDataSources({
+  'orderList': { type: 'expression', description: '订单列表数据' },
+  'customerInfo': { type: 'expression', description: '客户信息' },
+});
+
+// 注册可用数据表到 $table
+environmentRegistry.registerAvailableTables({
+  'user': { description: '用户表' },
+  'order': { description: '订单表' },
+});
+```
+
+**VariablePicker 组件自动处理动态注册**：
+
+```typescript
+<VariablePicker
+  visible={true}
+  mode="variable"
+  value="$component.input_01.value"
+  onChange={handleChange}
+  onClear={handleClear}
+  onClose={handleClose}
+  // 传入页面组件列表，VariablePicker 打开时自动注册
+  pageComponents={{
+    'input_01': { type: 'input', label: '客户名称' },
+    'select_02': { type: 'select', label: '客户等级' },
+  }}
+/>
+```
+
+**代码提示效果**：
+
+输入 `$component.` 时显示页面组件列表：
+```
+$component.input_01    — 客户名称 (input_01)
+$component.select_02   — 客户等级 (select_02)
+$component.btn_submit  — 提交按钮 (btn_submit)
+```
+
+输入 `$component.input_01.` 时显示组件属性：
+```
+$component.input_01.value     — 组件当前值
+$component.input_01.visible   — 是否可见
+$component.input_01.disabled  — 是否禁用
+$component.input_01.loading   — 是否加载中
+```
+
+#### 变量依赖追踪与变更传播
+
+**依赖收集时机**：
+- 组件挂载时，解析 props 中的变量引用/表达式，收集依赖
+- 组件 props 变更时，重新收集依赖
+
+**变更传播策略**：延迟批量更新（节流/防抖）
+
+```
+变量变更（如 $user.name 更新）
+  │
+  ├─ 1. 更新 RenderContext 中的值
+  │
+  ├─ 2. 查询依赖图：哪些组件/字段依赖 $user.name？
+  │     └─ 返回：[component_a.props.label, component_b.props.value]
+  │
+  ├─ 3. 延迟批量更新（同一事件循环内的多次变更合并）
+  │     └─ 按拓扑排序重新计算
+  │
+  └─ 4. 触发组件重渲染
+```
+
+**依赖优先级与循环检测**：
+
+依赖图（DependencyGraph）负责管理变量依赖关系，支持：
+
+1. **拓扑排序**：确定求值顺序，避免依赖未就绪的变量
+2. **循环检测**：在注册依赖时检测循环依赖，避免死循环
+3. **变更传播**：变量变更时，按拓扑排序通知所有依赖组件
+
+```
+依赖图示例：
+  $user.name → component_a.props.label
+  $user.name → component_b.props.value
+  $data.order.amount → component_b.props.value
+
+拓扑排序结果：
+  1. component_a.props.label（依赖 $user.name）
+  2. component_b.props.value（依赖 $user.name + $data.order.amount）
+
+循环检测：
+  若 A → B → C → A，检测到循环，报错拒绝注册
+```
+
+**变量引用 vs 表达式的执行差异**：
+
+| 特性 | 变量引用 | 表达式 |
+|------|---------|--------|
+| 语法 | `$user.name`（点路径） | `$user.name + ' - ' + $platform.web`（JS 语法） |
+| 执行方式 | 同步，按路径取值 | 异步，沙箱执行（async IIFE） |
+| 依赖管理 | DependencyGraph 精准通知 | DependencyGraph 精准通知 |
+| 禁用变量 | `$table/$computation/$fetch/$workflow` | 全部可用 |
+
+**表达式引擎行为**：
+
+```typescript
+// evaluateAsync — 异步求值（支持 await）
+const result = await expressionEngine.evaluateAsync('await $fetch.get("/api/users")', context);
+
+// 自动调用函数定义 — 用户写函数形式时自动执行
+// 输入：async () => { return await $fetch.get("/api/users") }
+// 编译为：(async () => { return (async () => { return await $fetch.get(...) })(); })()
+// 自动调用函数，而不是返回函数引用
+
+// safeEvaluate — 同步求值（不支持 await，用于条件规则等）
+const visible = expressionEngine.safeEvaluate('$user.role === "admin"', context);
+```
+
+**响应式上下文（ReactiveEnvContext）**：
+
+统一管理所有环境变量（`$user`、`$component`、`$data` 等），提供精准变更通知：
+
+```typescript
+import { ReactiveEnvContext } from '@low-code/renderer';
+
+// 创建（稳定引用，不会因内部值变化而改变）
+const reactiveCtx = new ReactiveEnvContext({
+  $user: { name: '张三' },
+  $component: {},
+  $data: {},
+  $fetch: createFetchProxy(),
+});
+
+// 更新变量 — 自动通过 DependencyGraph 通知依赖组件
+reactiveCtx.set('$component.input_01.value', '新值');
+reactiveCtx.set('$data', apiResult);
+
+// 批量更新 — 单次通知
+reactiveCtx.batchUpdate({
+  '$component.input_01.value': 'a',
+  '$component.select_01.value': 'b',
+});
+
+// 获取上下文（稳定引用，传给表达式引擎）
+const context = reactiveCtx.getContext();
+```
+
+**统一绑定解析（useBindings）**：
+
+变量引用和表达式使用同一套依赖管理逻辑：
+
+```typescript
+// useBindings hook — 统一处理字面量、变量引用、表达式
+const { resolvedProps, loading, errors } = useBindings(
+  componentId,     // 组件 ID
+  rawProps,        // 原始 props（含 {type:'variable', value:'$component.xxx'} 等）
+  context,         // 稳定的上下文引用
+  expressionEngine,
+  reactiveCtx,     // 响应式上下文（用于版本追踪）
+);
+
+// 工作流程：
+// 1. 分离字面量、变量引用、表达式
+// 2. 所有依赖统一注册到 DependencyGraph
+// 3. 依赖变更时精准通知：
+//    - 变量引用 → setVarVersion → syncResolved 重算（同步）
+//    - 表达式 → 仅重算受影响的表达式（异步）
+//    - 无依赖的绑定不受影响
+```
+
+**依赖图前缀匹配**：
+
+`DependencyGraph.notifyVariableChange` 支持前缀匹配，确保父子路径关系正确通知：
+
+```
+注册依赖：$component.number_xxx
+变更路径：$component.number_xxx.value
+匹配结果：✓ 前缀匹配（$component.number_xxx 是 $component.number_xxx.value 的前缀）
+
+注册依赖：$component.number_xxx
+变更路径：$component.number_xxx_extra.value
+匹配结果：✗ 不匹配（number_xxx 不是 number_xxx_extra 的前缀，有 . 分隔）
+```
+
+**回显机制**：
+
+```
+组件渲染
+  │
+  ├─ 1. 读取 Schema 中的 props 定义
+  │     { "label": "$user.name", "value": "${$data.order.amount * 1.1}" }
+  │
+  ├─ 2. 读取该组件的绑定模式配置
+  │     { "label": "variable", "value": "expression" }
+  │
+  ├─ 3. 分层处理
+  │     ├─ 变量引用（同步）：直接按路径取值
+  │     │   label = resolveValue("$user.name", "variable") → "张三"
+  │     └─ 表达式（异步）：沙箱执行
+  │         value = await resolveValue("${$data.order.amount * 1.1}", "expression") → 1100
+  │
+  ├─ 4. 注册依赖关系（用于后续变更传播）
+  │     ├─ label 依赖 ["$user.name"]
+  │     └─ value 依赖 ["$data.order.amount"]
+  │
+  └─ 5. 渲染组件
+        <Component label="张三" value={1100} />
+```
+
+#### 核心实现组件
+
+**EnvironmentRegistry** — 环境变量注册表
+- 管理所有环境变量的元数据（类型、描述、子属性）
+- 生成变量树数据（用于 VariablePicker）
+- 生成 Monaco 代码提示数据
+- 跨应用变量展示和校验
+- 依赖收集
+
+**DependencyGraph** — 依赖图管理器
+- 管理变量依赖关系
+- 拓扑排序（确定求值顺序）
+- 循环检测（避免死循环）
+- 变更传播（变量变更时通知依赖组件）
+
+**RenderContextBuilder** — 运行时上下文构建器
+- 构建页面运行时的环境变量上下文
+- 加载用户信息、路由信息、平台信息
+- 管理组件状态注册
+- 监听数据源变更
+
+**VariableBindingEngine** — 变量绑定引擎
+- 依赖收集：解析变量引用/表达式，提取依赖路径
+- 依赖注册：将组件/字段与变量路径的依赖关系注册到依赖图
+- 值解析：将变量引用/表达式解析为实际值（分层处理：同步/异步）
+- 变更传播：变量值变化时，延迟批量更新依赖组件
+- 缓存管理：表达式执行结果缓存
+
+**MonacoEditor** — Monaco 编辑器包装组件
+- 提供代码编辑能力
+- 支持变量代码提示（基于环境变量注册表）
+
+#### 表达式编辑器
+
+表达式编辑器基于 Monaco Editor，支持 JavaScript 语法高亮和自动补全。
+
+**编辑器结构**：
+```javascript
+/**
+ * 可用环境变量：
+ * $user — 当前登录用户信息
+ * $platform — 当前运行平台标识
+ * $route — 当前路由信息
+ * $component — 页面组件实例状态
+ * $data — 页面级数据源聚合
+ * $table — 服务端表查询（仅表达式）
+ * $computation — 运算引擎（仅表达式）
+ * $fetch — 第三方请求（仅表达式）
+ * $workflow — 流程上下文（仅表达式）
+ *
+ * 示例：
+ * const name = $user.name;
+ * const platform = $platform.web;
+ * return name + " - " + platform;
+ */
+async () => {
+  // 用户在此编写代码
+}
+```
+
+**保存逻辑**：保存时自动过滤开头的 JSDoc 注释，只保存函数本身。
+
+**自动补全行为**：
+- 输入 `$`：显示所有一级环境变量
+- 输入 `$platform.`：显示 `$platform` 的子属性（`web`、`mobile`、`miniApp`）
+- 输入 `$component.`：显示页面组件列表（动态注册）
+- 提示格式：`[类型] 中文说明`，跨应用资源显示 `[应用名] 资源名`
+
+#### 已知问题
+
+**Monaco 内置补全干扰**：
+- Monaco Editor 的 JavaScript 语言服务会提供内置补全建议（小扳手图标）
+- 当输入 `$platform.` 时，除了自定义的子属性提示外，Monaco 内置补全可能还会显示 `$platform` 本身
+- 当前通过 `wordBasedSuggestions: 'off'` 禁用基于单词的建议，但 Monaco 的语言服务补全仍可能出现
+- 这是 Monaco Editor 的限制，目前无法完全禁用语言服务的补全
+
+**$component 动态注册**：
+- `$component` 的子属性（页面组件）需要在 VariablePicker 打开时动态注册
+- 注册依赖 `pageComponents` prop 的传入，如果传入时机晚于 VariablePicker 打开，可能不会显示
 
 ### 条件规则引擎
 
@@ -1604,28 +2133,38 @@ interface PlatformAdapter {
 
 #### TS → JSON Schema 编译管道
 
-组件 Props 的 TypeScript 类型定义在**构建时**编译为 JSON Schema。antd 组件通过 `scripts/generate-antd-schemas.ts` 自动化生成：
+组件 Props 的 TypeScript 类型定义通过 `packages/build-tools` 编译为 JSON Schema：
 
 ```bash
-# 从 antd 6.x 的 TS 类型定义自动生成 JSON Schema
-npx tsx scripts/generate-antd-schemas.ts
+# 扫描所有组件，批量生成 JSON Schema
+npx tsx packages/build-tools/src/cli.ts scan
 
-# 输出到 packages/renderer/src/schemas/antd-generated/
-# 65 个组件 JSON Schema 全部自动生成
+# 编译单个接口
+npx tsx packages/build-tools/src/cli.ts compile <file> <interfaceName>
+
+# 从 antd 类型定义同步类型到 schema.ts
+npx tsx packages/build-tools/src/cli.ts sync-types
 ```
 
-生成后通过 `mergeWithAnnotations()` 合并手写 UI 注解（`x-group`/`x-priority`/`x-binding` 等），再通过 `withBaseProps()` 注入公共 BaseProps。
+**SchemaCompiler 工作流程**：
+1. `typescript-json-schema` 从 `schema.ts` 读取 Props 接口，生成基础 JSON Schema
+2. 后处理：`description` → `title`，`group` → `x-group`，`priority` → `x-priority`
+3. `$ref` 外部类型（React.ReactNode 等）→ 转为 `{ type: "string" }`
+4. `@ignore` 标记的属性被排除（`typescript-json-schema` 原生支持）
+5. 无 `x-group` 的属性默认归入 `"基础属性"`
 
-产物存储按归属区分：
+产物存储：
 
 ```
-构建时
-  │
-  ├─ antd 组件 Props → 自动生成到 packages/renderer/src/schemas/antd-generated/*.json
-  │   （65 个组件，基于 typescript-json-schema 从 antd d.ts 生成）
-  │
-  └─ 租户应用自定义组件/卡片 → 编译产物存入 App/{appId}/components/{type}/propsSchema.json
-      （随应用导出，可跨环境迁移）
+packages/renderer/src/libraries/antd/
+  ├── button/
+  │   ├── component.tsx    # 组件实现（withPlatform 包装）
+  │   ├── schema.ts        # Props 接口定义（JSDoc 含 x-group/x-priority）
+  │   ├── button.json      # 编译产物：属性 JSON Schema
+  │   └── index.ts         # 统一导出
+  ├── input/
+  │   └── ...
+  └── ...（66 个组件）
 ```
 
 JSDoc 注解到扩展字段的映射规则：
@@ -1637,10 +2176,12 @@ JSDoc 注解到扩展字段的映射规则：
 | `@component xxx` | `x-component: "xxx"` | 自定义控件 |
 | `@visible expr` | `x-visible: "expr"` | 条件显隐 |
 | `@disabled expr` | `x-disabled: "expr"` | 条件禁用 |
-| `@hidden` | `x-hidden: true` | 强制隐藏 |
+| `@ignore` | 属性被排除 | 废弃属性不出现在 schema 中 |
 | `@dictionary xxx` | `x-dictionary: "xxx"` | 字典引用 |
 | `@dataSource xxx` | `x-dataSource: "xxx"` | 变量绑定数据源 |
 | `@validator xxx` | `x-validator: "xxx"` | 校验规则 |
+| `@no-binding` | `x-no-binding: "..."` | 禁止变量/表达式绑定 |
+| `@value-type xxx` | `x-value-type: "xxx"` | 组件值的 TypeScript 类型（从 antd 类型定义自动提取） |
 
 #### 产物存储规范
 

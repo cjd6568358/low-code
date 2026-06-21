@@ -13,9 +13,8 @@ export interface FormProps extends BaseProps {
    * 布局
    * @group 基础属性
    * @priority 10
-   * @enum ["horizontal","vertical","inline"]
    */
-  layout?: string;
+  layout?: 'horizontal' | 'vertical' | 'inline';
 
   /**
    * 标签列宽
@@ -37,9 +36,8 @@ export interface FormProps extends BaseProps {
    * 标签对齐
    * @group 基础属性
    * @priority 13
-   * @enum ["left","right"]
    */
-  labelAlign?: string;
+  labelAlign?: 'left' | 'right';
 
   /**
    * 冒号

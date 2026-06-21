@@ -1,6 +1,7 @@
 // Core
 export { ComponentRegistryImpl, componentRegistry } from './core/ComponentRegistry';
 export { DataBindingResolver } from './core/DataBindingResolver';
+export type { ResolvedProps } from './core/DataBindingResolver';
 export { ConditionRuleEngine } from './core/ConditionRuleEngine';
 export { ActionRegistryImpl, createDefaultActionRegistry } from './core/ActionRegistry';
 export { EventCompiler } from './core/EventCompiler';
@@ -15,6 +16,51 @@ export { DependencyTracker } from './core/DependencyTracker';
 export { ComponentRefreshManager } from './core/ComponentRefreshManager';
 export { UnifiedDependencyGraph } from './core/UnifiedDependencyGraph';
 export { ServerVariableResolver } from './core/ServerVariableResolver';
+export { ReactiveEnvContext } from './core/ReactiveEnvContext';
+export { useBindings } from './hooks/useBindings';
+export { DependencyGraphImpl, dependencyGraph as expressionDependencyGraph, extractDependencies } from './core/DependencyGraph';
+
+// Environment & Variable Binding
+export { environmentRegistry, dependencyGraph } from './core/EnvironmentRegistry';
+export type {
+  MonacoCompletionItem,
+  CrossAppSource,
+  VariableTreeNode,
+  VariablePathParseResult,
+  CrossAppValidationResult,
+} from './core/EnvironmentRegistry';
+export { RenderContextBuilder, createDefaultRenderContextBuilder } from './core/RenderContext';
+export type {
+  AuthService,
+  PlatformAdapter as RenderPlatformAdapter,
+  RouterService,
+  DataSourceManager as RenderDataSourceManager,
+  ServerVariableResolver as RenderServerVariableResolver,
+  ComputationEngineService,
+  FetchService,
+  WorkflowService,
+} from './core/RenderContext';
+export { VariableBindingEngineImpl, variableBindingEngine } from './core/VariableBindingEngine';
+
+// Hooks
+export {
+  useExpressionValue,
+  useExpressionValues,
+  useResolvedProps,
+  isExpressionBinding,
+  isVariableBinding,
+} from './hooks';
+export type {
+  UseExpressionValueOptions,
+  UseExpressionValueResult,
+  WithExpressionResolverOptions,
+} from './hooks';
+
+// Components
+export { MonacoEditor } from './components/MonacoEditor';
+export type { MonacoEditorProps, CompletionItem } from './components/MonacoEditor';
+export { ResolvedComponent } from './core/ResolvedComponent';
+export type { ResolvedComponentProps } from './core/ResolvedComponent';
 
 // Libraries（组件库定义：组件实现 + 分类映射 + JSON Schema）
 export {

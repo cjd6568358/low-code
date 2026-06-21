@@ -1,17 +1,64 @@
 {
+  "description": "步骤条 组件属性",
   "type": "object",
   "properties": {
+    "items": {
+      "type": "array",
+      "title": "步骤数据",
+      "x-group": "基础属性",
+      "x-priority": 10
+    },
+    "current": {
+      "type": "number",
+      "title": "当前步骤",
+      "x-group": "基础属性",
+      "x-priority": 11
+    },
+    "direction": {
+      "type": "string",
+      "enum": [
+        "horizontal",
+        "vertical"
+      ],
+      "title": "方向",
+      "x-group": "基础属性",
+      "x-priority": 12
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "default",
+        "inline",
+        "navigation"
+      ],
+      "title": "尺寸",
+      "x-group": "基础属性",
+      "x-priority": 14
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "error",
+        "finish",
+        "process",
+        "wait"
+      ],
+      "title": "状态",
+      "x-group": "基础属性",
+      "x-priority": 15
+    },
+    "progressDot": {
+      "type": "boolean",
+      "title": "点状步骤",
+      "x-group": "高级属性",
+      "x-priority": 20
+    },
     "name": {
       "type": "string",
       "title": "字段名称",
       "x-group": "基础属性",
-      "x-priority": 0
-    },
-    "label": {
-      "type": "string",
-      "title": "字段标签",
-      "x-group": "基础属性",
-      "x-priority": 1
+      "x-priority": 0,
+      "x-no-binding": "不支持变量/表达式绑定"
     },
     "visible": {
       "type": "boolean",
@@ -24,66 +71,6 @@
       "title": "内联样式",
       "x-group": "样式",
       "x-priority": 50
-    },
-    "items": {
-      "title": "步骤数据",
-      "x-group": "基础属性",
-      "x-priority": 10
-    },
-    "current": {
-      "title": "当前步骤",
-      "x-group": "基础属性",
-      "x-priority": 11,
-      "type": "number"
-    },
-    "direction": {
-      "title": "方向",
-      "x-group": "基础属性",
-      "x-priority": 12,
-      "type": "string",
-      "enum": [
-        "horizontal",
-        "vertical"
-      ]
-    },
-    "size": {
-      "title": "尺寸",
-      "x-group": "基础属性",
-      "x-priority": 13,
-      "type": "string",
-      "enum": [
-        "default",
-        "small"
-      ]
-    },
-    "type": {
-      "title": "类型",
-      "x-group": "基础属性",
-      "x-priority": 14,
-      "type": "string",
-      "enum": [
-        "default",
-        "navigation",
-        "inline"
-      ]
-    },
-    "status": {
-      "title": "状态",
-      "x-group": "基础属性",
-      "x-priority": 15,
-      "type": "string",
-      "enum": [
-        "wait",
-        "process",
-        "finish",
-        "error"
-      ]
-    },
-    "progressDot": {
-      "title": "点状步骤",
-      "x-group": "高级属性",
-      "x-priority": 20,
-      "type": "boolean"
     }
   }
 }

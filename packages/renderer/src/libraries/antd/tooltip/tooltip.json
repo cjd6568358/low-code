@@ -1,17 +1,51 @@
 {
+  "description": "文字提示 组件属性",
   "type": "object",
   "properties": {
+    "title": {
+      "type": "string",
+      "title": "提示内容",
+      "x-group": "基础属性",
+      "x-priority": 10
+    },
+    "placement": {
+      "type": "string",
+      "enum": [
+        "bottom",
+        "bottomLeft",
+        "bottomRight",
+        "left",
+        "leftBottom",
+        "leftTop",
+        "right",
+        "rightBottom",
+        "rightTop",
+        "top",
+        "topLeft",
+        "topRight"
+      ],
+      "title": "位置",
+      "x-group": "基础属性",
+      "x-priority": 11
+    },
+    "color": {
+      "type": "string",
+      "title": "颜色",
+      "x-group": "基础属性",
+      "x-priority": 12
+    },
+    "arrow": {
+      "type": "boolean",
+      "title": "箭头",
+      "x-group": "基础属性",
+      "x-priority": 13
+    },
     "name": {
       "type": "string",
       "title": "字段名称",
       "x-group": "基础属性",
-      "x-priority": 0
-    },
-    "label": {
-      "type": "string",
-      "title": "字段标签",
-      "x-group": "基础属性",
-      "x-priority": 1
+      "x-priority": 0,
+      "x-no-binding": "不支持变量/表达式绑定"
     },
     "visible": {
       "type": "boolean",
@@ -24,43 +58,6 @@
       "title": "内联样式",
       "x-group": "样式",
       "x-priority": 50
-    },
-    "title": {
-      "title": "提示内容",
-      "x-group": "基础属性",
-      "x-priority": 10
-    },
-    "placement": {
-      "title": "位置",
-      "x-group": "基础属性",
-      "x-priority": 11,
-      "type": "string",
-      "enum": [
-        "top",
-        "left",
-        "right",
-        "bottom",
-        "topLeft",
-        "topRight",
-        "bottomLeft",
-        "bottomRight",
-        "leftTop",
-        "leftBottom",
-        "rightTop",
-        "rightBottom"
-      ]
-    },
-    "color": {
-      "title": "颜色",
-      "x-group": "基础属性",
-      "x-priority": 12,
-      "type": "string"
-    },
-    "arrow": {
-      "title": "箭头",
-      "x-group": "基础属性",
-      "x-priority": 13,
-      "type": "boolean"
     }
   }
 }

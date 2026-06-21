@@ -13,9 +13,8 @@ export interface SplitterProps extends BaseProps {
    * 布局方向
    * @group 基础属性
    * @priority 10
-   * @enum ["horizontal","vertical"]
    */
-  layout?: string;
+  layout?: 'horizontal' | 'vertical';
 
   /**
    * 懒加载

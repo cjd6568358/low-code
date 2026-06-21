@@ -7,6 +7,9 @@
  */
 import type { BaseProps } from '../base-props';
 
+// React 类型已替换：React.ReactNode → string, React.CSSProperties → Record<string, unknown>
+// 低代码平台不支持写 React 组件，属性面板统一用字符串配置
+
 /** 文本 组件属性 */
 export interface TextProps extends BaseProps {
   /**
@@ -15,15 +18,14 @@ export interface TextProps extends BaseProps {
    * @priority 10
 
    */
-  children?: React.ReactNode;
+  children?: string;
 
   /**
    * 文本类型
    * @group 基础属性
    * @priority 11
-   * @enum ["secondary","success","warning","danger"]
    */
-  type?: string;
+  type?: 'secondary' | 'success' | 'warning' | 'danger';
 
   /**
    * 代码样式

@@ -7,6 +7,9 @@
  */
 import type { BaseProps } from '../base-props';
 
+// React 类型已替换：React.ReactNode → string, React.CSSProperties → Record<string, unknown>
+// 低代码平台不支持写 React 组件，属性面板统一用字符串配置
+
 /** 悬浮按钮 组件属性 */
 export interface FloatButtonProps extends BaseProps {
   /**
@@ -15,7 +18,7 @@ export interface FloatButtonProps extends BaseProps {
    * @priority 10
 
    */
-  icon?: React.ReactNode;
+  icon?: string;
 
   /**
    * 描述
@@ -23,23 +26,21 @@ export interface FloatButtonProps extends BaseProps {
    * @priority 11
 
    */
-  description?: React.ReactNode;
+  description?: string;
 
   /**
    * 类型
    * @group 基础属性
    * @priority 12
-   * @enum ["default","primary"]
    */
-  type?: string;
+  type?: 'default' | 'primary';
 
   /**
    * 形状
    * @group 基础属性
    * @priority 13
-   * @enum ["circle","square"]
    */
-  shape?: string;
+  shape?: 'circle' | 'square';
 
   /**
    * 提示
@@ -47,7 +48,7 @@ export interface FloatButtonProps extends BaseProps {
    * @priority 20
 
    */
-  tooltip?: string | React.ReactNode;
+  tooltip?: string;
 
   /**
    * 徽标

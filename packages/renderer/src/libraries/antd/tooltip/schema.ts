@@ -7,6 +7,9 @@
  */
 import type { BaseProps } from '../base-props';
 
+// React 类型已替换：React.ReactNode → string, React.CSSProperties → Record<string, unknown>
+// 低代码平台不支持写 React 组件，属性面板统一用字符串配置
+
 /** 文字提示 组件属性 */
 export interface TooltipProps extends BaseProps {
   /**
@@ -15,15 +18,14 @@ export interface TooltipProps extends BaseProps {
    * @priority 10
 
    */
-  title?: React.ReactNode;
+  title?: string;
 
   /**
    * 位置
    * @group 基础属性
    * @priority 11
-   * @enum ["top","left","right","bottom","topLeft","topRight","bottomLeft","bottomRight","leftTop","leftBottom","rightTop","rightBottom"]
    */
-  placement?: string;
+  placement?: 'top' | 'left' | 'right' | 'bottom' | 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight' | 'leftTop' | 'leftBottom' | 'rightTop' | 'rightBottom';
 
   /**
    * 颜色

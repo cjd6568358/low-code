@@ -29,9 +29,8 @@ export interface TourProps extends BaseProps {
    * 类型
    * @group 基础属性
    * @priority 12
-   * @enum ["default","primary"]
    */
-  type?: string;
+  type?: 'default' | 'primary';
 
   /**
    * 遮罩

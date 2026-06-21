@@ -13,17 +13,15 @@ export interface DividerProps extends BaseProps {
    * 方向
    * @group 基础属性
    * @priority 10
-   * @enum ["horizontal","vertical"]
    */
-  type?: string;
+  type?: 'horizontal' | 'vertical';
 
   /**
    * 文字位置
    * @group 基础属性
    * @priority 11
-   * @enum ["left","center","right"]
    */
-  orientation?: string;
+  orientation?: 'left' | 'center' | 'right';
 
   /**
    * 虚线

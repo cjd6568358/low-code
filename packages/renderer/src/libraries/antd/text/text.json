@@ -1,17 +1,67 @@
 {
+  "description": "文本 组件属性",
   "type": "object",
   "properties": {
+    "children": {
+      "type": "string",
+      "title": "文本内容",
+      "x-group": "基础属性",
+      "x-priority": 10
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "danger",
+        "secondary",
+        "success",
+        "warning"
+      ],
+      "title": "文本类型",
+      "x-group": "基础属性",
+      "x-priority": 11
+    },
+    "code": {
+      "type": "boolean",
+      "title": "代码样式",
+      "x-group": "基础属性",
+      "x-priority": 12
+    },
+    "mark": {
+      "type": "boolean",
+      "title": "标记样式",
+      "x-group": "基础属性",
+      "x-priority": 13
+    },
+    "underline": {
+      "type": "boolean",
+      "title": "下划线",
+      "x-group": "基础属性",
+      "x-priority": 14
+    },
+    "delete": {
+      "type": "boolean",
+      "title": "删除线",
+      "x-group": "基础属性",
+      "x-priority": 15
+    },
+    "strong": {
+      "type": "boolean",
+      "title": "加粗",
+      "x-group": "基础属性",
+      "x-priority": 16
+    },
+    "italic": {
+      "type": "boolean",
+      "title": "斜体",
+      "x-group": "基础属性",
+      "x-priority": 17
+    },
     "name": {
       "type": "string",
       "title": "字段名称",
       "x-group": "基础属性",
-      "x-priority": 0
-    },
-    "label": {
-      "type": "string",
-      "title": "字段标签",
-      "x-group": "基础属性",
-      "x-priority": 1
+      "x-priority": 0,
+      "x-no-binding": "不支持变量/表达式绑定"
     },
     "visible": {
       "type": "boolean",
@@ -24,59 +74,6 @@
       "title": "内联样式",
       "x-group": "样式",
       "x-priority": 50
-    },
-    "children": {
-      "title": "文本内容",
-      "x-group": "基础属性",
-      "x-priority": 10
-    },
-    "type": {
-      "title": "文本类型",
-      "x-group": "基础属性",
-      "x-priority": 11,
-      "type": "string",
-      "enum": [
-        "secondary",
-        "success",
-        "warning",
-        "danger"
-      ]
-    },
-    "code": {
-      "title": "代码样式",
-      "x-group": "基础属性",
-      "x-priority": 12,
-      "type": "boolean"
-    },
-    "mark": {
-      "title": "标记样式",
-      "x-group": "基础属性",
-      "x-priority": 13,
-      "type": "boolean"
-    },
-    "underline": {
-      "title": "下划线",
-      "x-group": "基础属性",
-      "x-priority": 14,
-      "type": "boolean"
-    },
-    "delete": {
-      "title": "删除线",
-      "x-group": "基础属性",
-      "x-priority": 15,
-      "type": "boolean"
-    },
-    "strong": {
-      "title": "加粗",
-      "x-group": "基础属性",
-      "x-priority": 16,
-      "type": "boolean"
-    },
-    "italic": {
-      "title": "斜体",
-      "x-group": "基础属性",
-      "x-priority": 17,
-      "type": "boolean"
     }
   }
 }

@@ -7,6 +7,9 @@
  */
 import type { BaseProps } from '../base-props';
 
+// React 类型已替换：React.ReactNode → string, React.CSSProperties → Record<string, unknown>
+// 低代码平台不支持写 React 组件，属性面板统一用字符串配置
+
 /** 数字输入 组件属性 */
 export interface InputNumberProps extends BaseProps {
   /**
@@ -47,7 +50,7 @@ export interface InputNumberProps extends BaseProps {
    * @priority 20
 
    */
-  prefix?: React.ReactNode;
+  prefix?: string;
 
   /**
    * 后缀
@@ -55,7 +58,7 @@ export interface InputNumberProps extends BaseProps {
    * @priority 21
 
    */
-  suffix?: React.ReactNode;
+  suffix?: string;
 
   /**
    * 前置标签
@@ -63,7 +66,7 @@ export interface InputNumberProps extends BaseProps {
    * @priority 22
 
    */
-  addonBefore?: React.ReactNode;
+  addonBefore?: string;
 
   /**
    * 后置标签
@@ -71,7 +74,7 @@ export interface InputNumberProps extends BaseProps {
    * @priority 23
 
    */
-  addonAfter?: React.ReactNode;
+  addonAfter?: string;
 
   /**
    * 禁用

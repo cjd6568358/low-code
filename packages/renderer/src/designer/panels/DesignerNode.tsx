@@ -166,7 +166,7 @@ function Toolbar({ node, registry, siblings, onCopy, onMove, onDelete }: Toolbar
         backgroundColor: '#1890ff', color: '#fff', fontSize: 11,
         padding: '1px 6px', borderRadius: 3,
       }}>
-        {node.label || registration?.name || node.type}
+        {node.name || registration?.name || node.type}
       </span>
       <button onClick={onCopy} title="复制 (Ctrl+C)" style={btnStyle}>📋</button>
       <button onClick={() => onMove('left')} title="左移" disabled={isFirst}

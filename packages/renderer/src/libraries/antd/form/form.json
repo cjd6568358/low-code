@@ -1,17 +1,66 @@
 {
+  "description": "表单 组件属性",
   "type": "object",
   "properties": {
+    "layout": {
+      "type": "string",
+      "enum": [
+        "horizontal",
+        "inline",
+        "vertical"
+      ],
+      "title": "布局",
+      "x-group": "基础属性",
+      "x-priority": 10
+    },
+    "labelCol": {
+      "type": "object",
+      "title": "标签列宽",
+      "x-group": "基础属性",
+      "x-priority": 11,
+      "properties": {}
+    },
+    "wrapperCol": {
+      "type": "object",
+      "title": "内容列宽",
+      "x-group": "基础属性",
+      "x-priority": 12,
+      "properties": {}
+    },
+    "labelAlign": {
+      "type": "string",
+      "enum": [
+        "left",
+        "right"
+      ],
+      "title": "标签对齐",
+      "x-group": "基础属性",
+      "x-priority": 13
+    },
+    "colon": {
+      "type": "boolean",
+      "title": "冒号",
+      "x-group": "基础属性",
+      "x-priority": 14
+    },
+    "requiredMark": {
+      "type": "boolean",
+      "title": "必填标记",
+      "x-group": "基础属性",
+      "x-priority": 15
+    },
+    "disabled": {
+      "type": "boolean",
+      "title": "禁用",
+      "x-group": "基础属性",
+      "x-priority": 16
+    },
     "name": {
       "type": "string",
       "title": "字段名称",
       "x-group": "基础属性",
-      "x-priority": 0
-    },
-    "label": {
-      "type": "string",
-      "title": "字段标签",
-      "x-group": "基础属性",
-      "x-priority": 1
+      "x-priority": 0,
+      "x-no-binding": "不支持变量/表达式绑定"
     },
     "visible": {
       "type": "boolean",
@@ -24,55 +73,6 @@
       "title": "内联样式",
       "x-group": "样式",
       "x-priority": 50
-    },
-    "layout": {
-      "title": "布局",
-      "x-group": "基础属性",
-      "x-priority": 10,
-      "type": "string",
-      "enum": [
-        "horizontal",
-        "vertical",
-        "inline"
-      ]
-    },
-    "labelCol": {
-      "title": "标签列宽",
-      "x-group": "基础属性",
-      "x-priority": 11
-    },
-    "wrapperCol": {
-      "title": "内容列宽",
-      "x-group": "基础属性",
-      "x-priority": 12
-    },
-    "labelAlign": {
-      "title": "标签对齐",
-      "x-group": "基础属性",
-      "x-priority": 13,
-      "type": "string",
-      "enum": [
-        "left",
-        "right"
-      ]
-    },
-    "colon": {
-      "title": "冒号",
-      "x-group": "基础属性",
-      "x-priority": 14,
-      "type": "boolean"
-    },
-    "requiredMark": {
-      "title": "必填标记",
-      "x-group": "基础属性",
-      "x-priority": 15,
-      "type": "boolean"
-    },
-    "disabled": {
-      "title": "禁用",
-      "x-group": "基础属性",
-      "x-priority": 16,
-      "type": "boolean"
     }
   }
 }

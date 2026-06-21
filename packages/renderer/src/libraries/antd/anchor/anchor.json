@@ -1,17 +1,47 @@
 {
+  "description": "锚点 组件属性",
   "type": "object",
   "properties": {
+    "items": {
+      "type": "array",
+      "title": "锚点数据",
+      "x-group": "基础属性",
+      "x-priority": 10
+    },
+    "direction": {
+      "type": "string",
+      "enum": [
+        "horizontal",
+        "vertical"
+      ],
+      "title": "方向",
+      "x-group": "基础属性",
+      "x-priority": 11
+    },
+    "affix": {
+      "type": "boolean",
+      "title": "固定模式",
+      "x-group": "基础属性",
+      "x-priority": 12
+    },
+    "offsetTop": {
+      "type": "number",
+      "title": "偏移顶部",
+      "x-group": "基础属性",
+      "x-priority": 13
+    },
+    "targetOffset": {
+      "type": "number",
+      "title": "锚点偏移",
+      "x-group": "基础属性",
+      "x-priority": 14
+    },
     "name": {
       "type": "string",
       "title": "字段名称",
       "x-group": "基础属性",
-      "x-priority": 0
-    },
-    "label": {
-      "type": "string",
-      "title": "字段标签",
-      "x-group": "基础属性",
-      "x-priority": 1
+      "x-priority": 0,
+      "x-no-binding": "不支持变量/表达式绑定"
     },
     "visible": {
       "type": "boolean",
@@ -24,39 +54,6 @@
       "title": "内联样式",
       "x-group": "样式",
       "x-priority": 50
-    },
-    "items": {
-      "title": "锚点数据",
-      "x-group": "基础属性",
-      "x-priority": 10
-    },
-    "direction": {
-      "title": "方向",
-      "x-group": "基础属性",
-      "x-priority": 11,
-      "type": "string",
-      "enum": [
-        "vertical",
-        "horizontal"
-      ]
-    },
-    "affix": {
-      "title": "固定模式",
-      "x-group": "基础属性",
-      "x-priority": 12,
-      "type": "boolean"
-    },
-    "offsetTop": {
-      "title": "偏移顶部",
-      "x-group": "基础属性",
-      "x-priority": 13,
-      "type": "number"
-    },
-    "targetOffset": {
-      "title": "锚点偏移",
-      "x-group": "基础属性",
-      "x-priority": 14,
-      "type": "number"
     }
   }
 }

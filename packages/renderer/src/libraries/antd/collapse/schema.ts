@@ -45,7 +45,6 @@ export interface CollapseProps extends BaseProps {
    * 图标位置
    * @group 基础属性
    * @priority 14
-   * @enum ["left","right"]
    */
-  expandIconPosition?: string;
+  expandIconPosition?: 'left' | 'right';
 }

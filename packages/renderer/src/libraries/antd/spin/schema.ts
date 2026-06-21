@@ -7,6 +7,9 @@
  */
 import type { BaseProps } from '../base-props';
 
+// React 类型已替换：React.ReactNode → string, React.CSSProperties → Record<string, unknown>
+// 低代码平台不支持写 React 组件，属性面板统一用字符串配置
+
 /** 加载中 组件属性 */
 export interface SpinProps extends BaseProps {
   /**
@@ -21,9 +24,6 @@ export interface SpinProps extends BaseProps {
    * 尺寸
    * @group 基础属性
    * @priority 11
-   * @enum ["small","default","large"]
-   */
-  size?: string;
 
   /**
    * 提示
@@ -47,5 +47,5 @@ export interface SpinProps extends BaseProps {
    * @priority 21
 
    */
-  indicator?: React.ReactNode;
+  indicator?: string;
 }

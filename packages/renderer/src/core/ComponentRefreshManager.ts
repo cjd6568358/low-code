@@ -71,8 +71,8 @@ export class ComponentRefreshManager {
     }
 
     try {
-      // 1. 重新解析所有 props（变量绑定 + 表达式）
-      const resolvedProps = this.bindingResolver.resolveProps(component.props, context);
+      // 1. 重新解析所有 props（变量绑定 + 表达式，支持 async）
+      const resolvedProps = await this.bindingResolver.resolvePropsAsync(component.props, context);
 
       // 2. 如果有组件级数据源，重新加载
       if (component.dataSource) {
@@ -137,7 +137,7 @@ export class ComponentRefreshManager {
         }
       }
 
-      const resolvedProps = this.bindingResolver.resolveProps(partialProps, context);
+      const resolvedProps = await this.bindingResolver.resolvePropsAsync(partialProps, context);
 
       // 2. 如果目标属性在刷新列表中，且有数据源，重新加载
       if (

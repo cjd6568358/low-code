@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import type { JSONSchema7 } from '@low-code/shared';
-import { TsToSchemaCompiler } from './TsToSchemaCompiler';
+import { SchemaCompiler } from './SchemaCompiler';
 
 /** 扫描结果 */
 export interface ScanResult {
@@ -19,53 +19,62 @@ export interface ScanResult {
 
 /** 扫描器配置 */
 export interface ScannerConfig {
-  /** 组件源目录 */
+  /** 组件源目录（包含各组件子目录） */
   sourceDir: string;
-  /** 产物输出目录 */
-  outputDir: string;
+  /** 产物输出目录（默认与 sourceDir 相同，即各组件目录下直接输出 .json） */
+  outputDir?: string;
   /** Props 接口名称模式（默认匹配 *Props） */
   interfacePattern?: RegExp;
-  /** 是否包含子目录 */
-  recursive?: boolean;
   /** 排除的目录/文件 */
   exclude?: string[];
+  /** 进度回调 */
+  onProgress?: (info: ProgressInfo) => void;
+}
+
+/** 进度信息 */
+export interface ProgressInfo {
+  /** 当前阶段 */
+  phase: 'scanning' | 'compiling' | 'writing';
+  /** 当前索引（从 0 开始） */
+  current: number;
+  /** 总数 */
+  total: number;
+  /** 当前处理的文件/组件名 */
+  name: string;
 }
 
 /**
  * 组件 Schema 扫描器
  *
- * 文档定义的产物存储规范：
- * ```
- * Platform/                           # 平台内置资源（只读，随平台发布）
- * ├── components/                     # 内置组件
- * │   ├── input/
- * │   │   ├── component.js            # 组件实现
- * │   │   └── propsSchema.json        # 编译产物：属性 JSON Schema
- * │   ├── select/
- * │   │   ├── component.js
- * │   │   └── propsSchema.json
- * │   └── ...
+ * 扫描组件目录中的 schema.ts 文件，
+ * 使用 SchemaCompiler 将 *Props 接口编译为 JSON Schema。
  *
- * App/                                # 租户应用资源（可导出/导入）
- * ├── {appId}/
- * │   ├── components/                 # 自定义组件/卡片
- * │   │   ├── card_customer_summary/
- * │   │   │   ├── definition.json     # 卡片定义
- * │   │   │   └── propsSchema.json    # 编译产物：暴露属性 JSON Schema
+ * 目录结构约定：
+ * ```
+ * antd/
+ * ├── button/
+ * │   ├── component.tsx    # 组件实现
+ * │   ├── schema.ts        # Props 接口定义（JSDoc 含 x-group/x-priority）
+ * │   ├── button.json      # 编译产物：属性 JSON Schema
+ * │   └── index.ts         # 统一导出
+ * ├── text/
+ * │   ├── schema.ts
+ * │   ├── text.json
+ * │   └── ...
  * ```
  */
 export class ComponentSchemaScanner {
-  private compiler: TsToSchemaCompiler;
-  private config: ScannerConfig;
+  private compiler: SchemaCompiler;
+  private config: ScannerConfig & { outputDir: string; interfacePattern: RegExp; exclude: string[] };
 
   constructor(config: ScannerConfig) {
     this.config = {
+      outputDir: config.sourceDir,
       interfacePattern: /Props$/,
-      recursive: true,
-      exclude: ['node_modules', 'dist', '__tests__', '*.test.ts', '*.spec.ts'],
+      exclude: ['node_modules', 'dist', '__tests__', '*.test.ts', '*.spec.ts', 'base-props.ts'],
       ...config,
     };
-    this.compiler = new TsToSchemaCompiler();
+    this.compiler = new SchemaCompiler();
   }
 
   /**
@@ -73,9 +82,9 @@ export class ComponentSchemaScanner {
    */
   scan(): ScanResult[] {
     const results: ScanResult[] = [];
-    const files = this.findTypeScriptFiles(this.config.sourceDir);
+    const schemaFiles = this.findSchemaFiles(this.config.sourceDir);
 
-    for (const file of files) {
+    for (const file of schemaFiles) {
       try {
         const fileResults = this.processFile(file);
         results.push(...fileResults);
@@ -88,12 +97,34 @@ export class ComponentSchemaScanner {
   }
 
   /**
-   * 扫描并输出到文件
+   * 扫描并输出到文件（带进度回调）
    */
   scanAndWrite(): ScanResult[] {
-    const results = this.scan();
+    const onProgress = this.config.onProgress;
 
-    for (const result of results) {
+    // 阶段1：查找 schema 文件
+    const schemaFiles = this.findSchemaFiles(this.config.sourceDir);
+    onProgress?.({ phase: 'scanning', current: 0, total: schemaFiles.length, name: '' });
+
+    // 阶段2：逐个编译
+    const results: ScanResult[] = [];
+    for (let i = 0; i < schemaFiles.length; i++) {
+      const file = schemaFiles[i];
+      const dirName = path.basename(path.dirname(file));
+      onProgress?.({ phase: 'compiling', current: i, total: schemaFiles.length, name: dirName });
+
+      try {
+        const fileResults = this.processFile(file);
+        results.push(...fileResults);
+      } catch (e) {
+        console.warn(`Failed to process ${file}:`, e);
+      }
+    }
+
+    // 阶段3：逐个写入
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i];
+      onProgress?.({ phase: 'writing', current: i, total: results.length, name: result.type });
       this.writeSchema(result);
     }
 
@@ -101,17 +132,17 @@ export class ComponentSchemaScanner {
   }
 
   /**
-   * 处理单个文件
+   * 处理单个 schema.ts 文件
    */
   private processFile(filePath: string): ScanResult[] {
     const results: ScanResult[] = [];
 
-    // 编译文件中的所有导出接口
+    // 编译文件中的所有 *Props 接口
     const schemas = this.compiler.compileFile(filePath);
 
     for (const [interfaceName, schema] of schemas) {
-      // 只处理匹配模式的接口（如 *Props）
-      if (!this.config.interfacePattern!.test(interfaceName)) {
+      // 只处理匹配模式的接口
+      if (!this.config.interfacePattern.test(interfaceName)) {
         continue;
       }
 
@@ -135,24 +166,20 @@ export class ComponentSchemaScanner {
 
   /**
    * 推导组件类型标识
-   * 从文件路径和接口名推导：
-   * - packages/renderer/src/components/input/InputProps.ts → input
-   * - components/select/SelectProps.ts → select
+   * 从目录名推导：antd/button/schema.ts → button
    */
-  private deriveComponentType(filePath: string, interfaceName: string): string {
-    // 从接口名推导：InputProps → input, DatePickerProps → datepicker
-    const baseName = interfaceName.replace(/Props$/, '');
-    return this.camelToKebab(baseName);
+  private deriveComponentType(filePath: string, _interfaceName: string): string {
+    const dir = path.dirname(filePath);
+    return path.basename(dir);
   }
 
   /**
    * 计算输出路径
+   * button/schema.ts → button/button.json
    */
   private getOutputPath(sourceFile: string, type: string): string {
-    // 保持目录结构，替换 .ts 为 propsSchema.json
-    const relativePath = path.relative(this.config.sourceDir, sourceFile);
-    const dir = path.dirname(relativePath);
-    return path.join(this.config.outputDir, dir, type, 'propsSchema.json');
+    const dir = path.dirname(sourceFile);
+    return path.join(dir, `${type}.json`);
   }
 
   /**
@@ -170,13 +197,13 @@ export class ComponentSchemaScanner {
     const json = JSON.stringify(result.schema, null, 2);
     fs.writeFileSync(result.outputPath, json, 'utf-8');
 
-    console.log(`  ✓ ${result.type} → ${result.outputPath}`);
+    console.log(`  ✓ ${result.type} → ${path.relative(process.cwd(), result.outputPath)}`);
   }
 
   /**
-   * 递归查找 TypeScript 文件
+   * 查找所有 schema.ts 文件
    */
-  private findTypeScriptFiles(dir: string): string[] {
+  private findSchemaFiles(dir: string): string[] {
     const results: string[] = [];
 
     if (!fs.existsSync(dir)) {
@@ -186,17 +213,12 @@ export class ComponentSchemaScanner {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
 
     for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name);
+      if (!entry.isDirectory()) continue;
+      if (this.shouldExclude(entry.name)) continue;
 
-      // 排除
-      if (this.shouldExclude(entry.name)) {
-        continue;
-      }
-
-      if (entry.isDirectory() && this.config.recursive) {
-        results.push(...this.findTypeScriptFiles(fullPath));
-      } else if (entry.isFile() && /\.(ts|tsx)$/.test(entry.name)) {
-        results.push(fullPath);
+      const schemaPath = path.join(dir, entry.name, 'schema.ts');
+      if (fs.existsSync(schemaPath)) {
+        results.push(schemaPath);
       }
     }
 
@@ -207,22 +229,12 @@ export class ComponentSchemaScanner {
    * 检查是否应排除
    */
   private shouldExclude(name: string): boolean {
-    return this.config.exclude!.some((pattern) => {
+    return this.config.exclude.some((pattern) => {
       if (pattern.includes('*')) {
         const regex = new RegExp(pattern.replace(/\*/g, '.*'));
         return regex.test(name);
       }
       return name === pattern;
     });
-  }
-
-  /**
-   * camelCase 转 kebab-case
-   */
-  private camelToKebab(str: string): string {
-    return str
-      .replace(/([a-z])([A-Z])/g, '$1-$2')
-      .replace(/([A-Z])([A-Z][a-z])/g, '$1-$2')
-      .toLowerCase();
   }
 }

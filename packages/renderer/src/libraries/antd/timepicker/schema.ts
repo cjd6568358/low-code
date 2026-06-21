@@ -48,12 +48,4 @@ export interface TimePickerProps extends BaseProps {
 
    */
   disabled?: boolean;
-
-  /**
-   * 尺寸
-   * @group 基础属性
-   * @priority 14
-   * @enum ["large","middle","small"]
-   */
-  size?: string;
 }

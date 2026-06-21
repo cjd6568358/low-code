@@ -21,25 +21,22 @@ export interface FlexProps extends BaseProps {
    * 换行
    * @group 基础属性
    * @priority 11
-   * @enum ["nowrap","wrap","wrap-reverse"]
    */
-  wrap?: string;
+  wrap?: 'nowrap' | 'wrap' | 'wrap-reverse';
 
   /**
    * 主轴对齐
    * @group 基础属性
    * @priority 12
-   * @enum ["flex-start","center","flex-end","space-between","space-around","space-evenly"]
    */
-  justify?: string;
+  justify?: 'flex-start' | 'center' | 'flex-end' | 'space-between' | 'space-around' | 'space-evenly';
 
   /**
    * 交叉轴对齐
    * @group 基础属性
    * @priority 13
-   * @enum ["flex-start","center","flex-end","stretch","baseline"]
    */
-  align?: string;
+  align?: 'flex-start' | 'center' | 'flex-end' | 'stretch' | 'baseline';
 
   /**
    * 间距

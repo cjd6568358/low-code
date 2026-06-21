@@ -7,6 +7,9 @@
  */
 import type { BaseProps } from '../base-props';
 
+// React 类型已替换：React.ReactNode → string, React.CSSProperties → Record<string, unknown>
+// 低代码平台不支持写 React 组件，属性面板统一用字符串配置
+
 /** 气泡确认 组件属性 */
 export interface PopconfirmProps extends BaseProps {
   /**
@@ -15,7 +18,7 @@ export interface PopconfirmProps extends BaseProps {
    * @priority 10
 
    */
-  title?: React.ReactNode;
+  title?: string;
 
   /**
    * 描述
@@ -23,7 +26,7 @@ export interface PopconfirmProps extends BaseProps {
    * @priority 11
 
    */
-  description?: React.ReactNode;
+  description?: string;
 
   /**
    * 确认文案
@@ -45,15 +48,13 @@ export interface PopconfirmProps extends BaseProps {
    * 位置
    * @group 基础属性
    * @priority 14
-   * @enum ["top","left","right","bottom","topLeft","topRight","bottomLeft","bottomRight"]
    */
-  placement?: string;
+  placement?: 'top' | 'left' | 'right' | 'bottom' | 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight';
 
   /**
    * 确认类型
    * @group 高级属性
    * @priority 20
-   * @enum ["primary","default","dashed","text","link"]
    */
-  okType?: string;
+  okType?: 'primary' | 'default' | 'dashed' | 'text' | 'link';
 }

@@ -2,6 +2,34 @@ import type { ThemeConfig } from './theme';
 import type { ActionChain } from './actions';
 
 /**
+ * 属性值类型 — 支持字面量、变量引用、表达式
+ *
+ * 字面量：直接存储值（string/number/boolean/object）
+ * 变量引用：{ type: 'var', value: '$platform.web' }
+ * 表达式：{ type: 'express', value: 'async () => { return $user.name; }' }
+ */
+export type PropValue =
+  | any
+  | { type: 'variable'; value: string }
+  | { type: 'expression'; value: string };
+
+/**
+ * 变量引用对象
+ */
+export interface VariableBinding {
+  type: 'variable';
+  value: string;  // 如 "$platform.web"、"$user.name"
+}
+
+/**
+ * 表达式对象
+ */
+export interface ExpressionBinding {
+  type: 'expression';
+  value: string;  // 如 "async () => { return $user.name; }"
+}
+
+/**
  * 页面描述 JSON — 渲染器的消费契约
  */
 export interface PageSchema {
@@ -11,7 +39,8 @@ export interface PageSchema {
   layout: LayoutConfig;
   components: ComponentNode[];
   rules?: PageRule[];
-  dataSource?: DataSourceConfig[];
+  /** 页面数据源表达式（单个表达式，多个请求用 Promise.all，执行结果赋给 $data） */
+  dataSource?: string;
   theme?: ThemeConfig;
   meta?: Record<string, any>;
 }
@@ -20,8 +49,8 @@ export interface PageSchema {
 export interface ComponentNode {
   id: string;
   type: string;
-  /** 业务标签（可读名称，用于组件间引用和标识） */
-  label?: string;
+  /** 字段名（用于表单绑定和变量引用，如 input_01、select_02） */
+  name: string;
   parentId?: string;
   props: Record<string, any>;
   events?: Record<string, ActionChain[]>;
@@ -119,13 +148,11 @@ export interface ComponentLayout {
   alignSelf?: string;
 }
 
-/** 数据源配置 — 页面级 API 声明 */
+/** 数据源配置（已废弃，页面数据源改为单表达式，保留类型避免编译报错） */
 export interface DataSourceConfig {
   id: string;
   name: string;
-  type: 'api' | 'static' | 'computed';
-  config: ApiConfig | StaticConfig | ComputedConfig;
-  autoLoad?: boolean;
+  expression: string;
   dependencies?: string[];
 }
 

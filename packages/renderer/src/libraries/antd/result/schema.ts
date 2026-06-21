@@ -7,15 +7,17 @@
  */
 import type { BaseProps } from '../base-props';
 
+// React 类型已替换：React.ReactNode → string, React.CSSProperties → Record<string, unknown>
+// 低代码平台不支持写 React 组件，属性面板统一用字符串配置
+
 /** 结果 组件属性 */
 export interface ResultProps extends BaseProps {
   /**
    * 状态
    * @group 基础属性
    * @priority 10
-   * @enum ["success","error","info","warning","404","403","500"]
    */
-  status?: string;
+  status?: 'success' | 'error' | 'info' | 'warning' | '404' | '403' | '500';
 
   /**
    * 标题
@@ -23,7 +25,7 @@ export interface ResultProps extends BaseProps {
    * @priority 11
 
    */
-  title?: React.ReactNode;
+  title?: string;
 
   /**
    * 副标题
@@ -31,7 +33,7 @@ export interface ResultProps extends BaseProps {
    * @priority 12
 
    */
-  subTitle?: React.ReactNode;
+  subTitle?: string;
 
   /**
    * 额外内容
@@ -39,7 +41,7 @@ export interface ResultProps extends BaseProps {
    * @priority 20
 
    */
-  extra?: React.ReactNode;
+  extra?: string;
 
   /**
    * 图标
@@ -47,5 +49,5 @@ export interface ResultProps extends BaseProps {
    * @priority 21
 
    */
-  icon?: React.ReactNode;
+  icon?: string;
 }

@@ -1,9 +1,10 @@
 import React, { useCallback, useState, useRef, useEffect } from 'react';
-import { Switch, Tooltip } from 'antd';
+import { Switch, Tooltip, message } from 'antd';
 import { useDesigner } from '../core/DesignerContext';
 import type { ComponentNode } from '@low-code/shared';
 import type { ComponentRegistryImpl } from '@low-code/renderer';
 import { DesignOverlay } from '../../components/platform/DesignOverlay';
+import { generateComponentName } from '../utils';
 
 // ─── 常量 ─────────────────────────────────────────────────
 
@@ -40,26 +41,24 @@ function getSiblingIds(node: ComponentNode, components: ComponentNode[]): string
   return components.filter((c) => !c.parentId).map((c) => c.id);
 }
 
-/** 组件类型 → 中文名称映射（用于生成默认 label） */
-const TYPE_LABEL_MAP: Record<string, string> = {
-  input: '输入框', textarea: '文本域', number: '数字输入', select: '选择器',
-  radio: '单选', checkbox: '多选', switch: '开关', datepicker: '日期选择',
-  timepicker: '时间选择', upload: '上传', button: '按钮',
-  table: '表格', form: '表单', chart: '图表', calendar: '日历',
-  richtext: '富文本编辑', tree: '树形控件',
-  tabs: '标签页', card: '卡片', divider: '分割线', grid: '栅格', flex: '弹性布局',
-  slot: '插槽', text: '文本',
-};
-
-/** 为新组件生成默认 label（如 "输入框1"、"按钮2"） */
-function generateLabel(type: string, components: ComponentNode[]): string {
-  const baseName = TYPE_LABEL_MAP[type] || type;
-  const existing = components.filter((c) => c.type === type && c.label);
-  const maxNum = existing.reduce((max, c) => {
-    const match = c.label?.match(new RegExp(`${baseName}(\\d+)$`));
-    return match ? Math.max(max, parseInt(match[1], 10)) : max;
-  }, 0);
-  return `${baseName}${maxNum + 1}`;
+/** 设计模式下解析 props（将表达式/变量引用转换为可显示的值） */
+function resolvePropsForDesign(props: Record<string, any>): Record<string, any> {
+  const resolved: Record<string, any> = {};
+  for (const [key, value] of Object.entries(props)) {
+    if (value != null && typeof value === 'object' && 'type' in value && 'value' in value) {
+      // 变量引用或表达式，显示类型标签
+      if (value.type === 'variable') {
+        resolved[key] = `[变量] ${value.value}`;
+      } else if (value.type === 'expression') {
+        resolved[key] = '[表达式]';
+      } else {
+        resolved[key] = value;
+      }
+    } else {
+      resolved[key] = value;
+    }
+  }
+  return resolved;
 }
 
 // ─── 主组件 ───────────────────────────────────────────────
@@ -224,6 +223,7 @@ export function DesignCanvas({ registry }: DesignCanvasProps) {
       if (componentType) {
         const registration = registry.resolve(componentType);
         const defaultProps = registration?.defaultProps || {};
+        const fieldName = generateComponentName(componentType, schema.components);
 
         dispatch({
           type: 'ADD_COMPONENT',
@@ -231,7 +231,7 @@ export function DesignCanvas({ registry }: DesignCanvasProps) {
             node: {
               id: `${componentType}_${Date.now()}`,
               type: componentType,
-              label: generateLabel(componentType, schema.components),
+              name: fieldName,
               props: { ...defaultProps },
               parentId: pos.parentId,
               children: registration?.acceptsChildren ? [] : undefined,
@@ -272,12 +272,14 @@ export function DesignCanvas({ registry }: DesignCanvasProps) {
       if (componentType) {
         const registration = registry.resolve(componentType);
         const defaultProps = registration?.defaultProps || {};
+        const fieldName = generateComponentName(componentType, schema.components);
         dispatch({
           type: 'ADD_COMPONENT',
           payload: {
             node: {
               id: `${componentType}_${Date.now()}`,
               type: componentType,
+              name: fieldName,
               props: { ...defaultProps },
               parentId: undefined,
               children: registration?.acceptsChildren ? [] : undefined,
@@ -314,7 +316,12 @@ export function DesignCanvas({ registry }: DesignCanvasProps) {
     dispatch({
       type: 'ADD_COMPONENT',
       payload: {
-        node: { ...node, id: `${node.type}_${Date.now()}`, children: node.children ? [...node.children] : undefined },
+        node: {
+          ...node,
+          id: `${node.type}_${Date.now()}`,
+          name: generateComponentName(node.type, schema.components),
+          children: node.children ? [...node.children] : undefined,
+        },
         parentId: node.parentId,
       },
     });
@@ -446,13 +453,14 @@ export function DesignCanvas({ registry }: DesignCanvasProps) {
                   const componentType = e.dataTransfer.getData('component-type');
                   if (componentType) {
                     const reg = registry.resolve(componentType);
+                    const fieldName = generateComponentName(componentType, schema.components);
                     dispatch({
                       type: 'ADD_COMPONENT',
                       payload: {
                         node: {
                           id: `${componentType}_${Date.now()}`,
                           type: componentType,
-                          label: generateLabel(componentType, schema.components),
+                          name: fieldName,
                           props: { ...(reg?.defaultProps || {}) },
                           parentId: node.id,
                           children: reg?.acceptsChildren ? [] : undefined,
@@ -483,7 +491,7 @@ export function DesignCanvas({ registry }: DesignCanvasProps) {
       return (
         <React.Fragment key={node.id}>
           <ComponentImpl
-            {...node.props}
+            {...resolvePropsForDesign(node.props)}
             {...designProps}
           />
           {overlayProps && <DesignOverlay {...overlayProps} />}
@@ -508,16 +516,42 @@ export function DesignCanvas({ registry }: DesignCanvasProps) {
 
   // ─── Ctrl+S 快捷键 ──────────────────────────────────────
 
+  // 保存前校验
+  const validateBeforeSave = useCallback(() => {
+    // 检查字段名唯一性
+    const names = schema.components
+      .map((c) => c.name)
+      .filter((name): name is string => !!name);
+
+    const nameCount = new Map<string, number>();
+    for (const name of names) {
+      nameCount.set(name, (nameCount.get(name) || 0) + 1);
+    }
+
+    const duplicates = Array.from(nameCount.entries())
+      .filter(([, count]) => count > 1)
+      .map(([name]) => name);
+
+    if (duplicates.length > 0) {
+      message.error(`存在重复的字段名: ${duplicates.join(', ')}`);
+      return false;
+    }
+
+    return true;
+  }, [schema.components]);
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
-        onSave?.();
+        if (validateBeforeSave()) {
+          onSave?.();
+        }
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [onSave]);
+  }, [onSave, validateBeforeSave]);
 
   // ─── 渲染 ──────────────────────────────────────────────
 
@@ -629,13 +663,14 @@ export function DesignCanvas({ registry }: DesignCanvasProps) {
                   const componentType = e.dataTransfer.getData('component-type');
                   if (componentType) {
                     const reg = registry.resolve(componentType);
+                    const fieldName = generateComponentName(componentType, schema.components);
                     dispatch({
                       type: 'ADD_COMPONENT',
                       payload: {
                         node: {
                           id: `${componentType}_${Date.now()}`,
                           type: componentType,
-                          label: generateLabel(componentType, schema.components),
+                          name: fieldName,
                           props: { ...(reg?.defaultProps || {}) },
                           children: reg?.acceptsChildren ? [] : undefined,
                         },

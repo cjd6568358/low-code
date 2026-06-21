@@ -21,9 +21,8 @@ export interface AnchorProps extends BaseProps {
    * 方向
    * @group 基础属性
    * @priority 11
-   * @enum ["vertical","horizontal"]
    */
-  direction?: string;
+  direction?: 'vertical' | 'horizontal';
 
   /**
    * 固定模式

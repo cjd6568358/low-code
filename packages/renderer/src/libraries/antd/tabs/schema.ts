@@ -29,25 +29,20 @@ export interface TabsProps extends BaseProps {
    * 位置
    * @group 基础属性
    * @priority 12
-   * @enum ["top","right","bottom","left"]
    */
-  tabPosition?: string;
+  tabPosition?: 'top' | 'right' | 'bottom' | 'left';
 
   /**
    * 类型
    * @group 基础属性
    * @priority 13
-   * @enum ["line","card","editable-card"]
    */
-  type?: string;
+  type?: 'line' | 'card' | 'editable-card';
 
   /**
    * 尺寸
    * @group 基础属性
    * @priority 14
-   * @enum ["large","middle","small"]
-   */
-  size?: string;
 
   /**
    * 居中

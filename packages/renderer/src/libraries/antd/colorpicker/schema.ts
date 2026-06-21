@@ -37,9 +37,6 @@ export interface ColorPickerProps extends BaseProps {
    * 尺寸
    * @group 基础属性
    * @priority 13
-   * @enum ["large","middle","small"]
-   */
-  size?: string;
 
   /**
    * 禁用

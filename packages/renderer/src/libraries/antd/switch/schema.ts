@@ -7,6 +7,9 @@
  */
 import type { BaseProps } from '../base-props';
 
+// React 类型已替换：React.ReactNode → string, React.CSSProperties → Record<string, unknown>
+// 低代码平台不支持写 React 组件，属性面板统一用字符串配置
+
 /** 开关 组件属性 */
 export interface SwitchProps extends BaseProps {
   /**
@@ -23,7 +26,7 @@ export interface SwitchProps extends BaseProps {
    * @priority 11
 
    */
-  checkedChildren?: React.ReactNode;
+  checkedChildren?: string;
 
   /**
    * 非选中文案
@@ -31,7 +34,7 @@ export interface SwitchProps extends BaseProps {
    * @priority 12
 
    */
-  unCheckedChildren?: React.ReactNode;
+  unCheckedChildren?: string;
 
   /**
    * 禁用
@@ -42,18 +45,9 @@ export interface SwitchProps extends BaseProps {
   disabled?: boolean;
 
   /**
-   * 尺寸
+   * 加载中
    * @group 基础属性
    * @priority 14
-   * @enum ["default","small"]
-   */
-  size?: string;
-
-  /**
-   * 加载中
-   * @group 高级属性
-   * @priority 20
-
    */
   loading?: boolean;
 }

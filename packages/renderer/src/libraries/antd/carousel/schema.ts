@@ -29,17 +29,15 @@ export interface CarouselProps extends BaseProps {
    * 指示点位置
    * @group 基础属性
    * @priority 12
-   * @enum ["top","bottom","left","right"]
    */
-  dotPosition?: string;
+  dotPosition?: 'top' | 'bottom' | 'left' | 'right';
 
   /**
    * 动效
    * @group 基础属性
    * @priority 13
-   * @enum ["scrollx","fade"]
    */
-  effect?: string;
+  effect?: 'scrollx' | 'fade';
 
   /**
    * 速度

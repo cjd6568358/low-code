@@ -1,4 +1,5 @@
 import React from 'react';
+import { generateComponentName } from '../utils';
 import type {
   PageSchema,
   ComponentNode,
@@ -49,7 +50,9 @@ export function designerReducer(state: DesignerState, action: DesignerAction): D
 
     case 'ADD_COMPONENT': {
       const { node, parentId, index } = action.payload;
-      const newNode = { ...node, parentId };
+      // 兜底：确保组件有 name
+      const ensuredName = node.name || generateComponentName(node.type, state.schema.components);
+      const newNode = { ...node, name: ensuredName, parentId };
       const components = [...state.schema.components];
 
       if (parentId) {
@@ -232,6 +235,25 @@ export function designerReducer(state: DesignerState, action: DesignerAction): D
   }
 }
 
+/** 补全组件缺失的 name 字段 */
+function backfillComponentNames(components: ComponentNode[]): ComponentNode[] {
+  let hasChange = false;
+  // 逐个处理，已处理的加入列表供后续生成参考
+  const processed: ComponentNode[] = [];
+
+  for (const c of components) {
+    if (c.name) {
+      processed.push(c);
+    } else {
+      hasChange = true;
+      const name = generateComponentName(c.type, processed);
+      processed.push({ ...c, name });
+    }
+  }
+
+  return hasChange ? processed : components;
+}
+
 /** 创建初始状态 */
 export function createInitialDesignerState(schema?: PageSchema): DesignerState {
   const defaultSchema: PageSchema = {
@@ -241,8 +263,12 @@ export function createInitialDesignerState(schema?: PageSchema): DesignerState {
     components: [],
   };
 
+  const finalSchema = schema
+    ? { ...schema, components: backfillComponentNames(schema.components) }
+    : defaultSchema;
+
   return {
-    schema: schema || defaultSchema,
+    schema: finalSchema,
     selectedComponentId: null,
     draggingType: null,
     previewMode: 'design',

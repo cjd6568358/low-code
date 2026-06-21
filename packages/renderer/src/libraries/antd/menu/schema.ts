@@ -21,17 +21,15 @@ export interface MenuProps extends BaseProps {
    * 模式
    * @group 基础属性
    * @priority 11
-   * @enum ["vertical","horizontal","inline"]
    */
-  mode?: string;
+  mode?: 'vertical' | 'horizontal' | 'inline';
 
   /**
    * 主题
    * @group 基础属性
    * @priority 12
-   * @enum ["light","dark"]
    */
-  theme?: string;
+  theme?: 'light' | 'dark';
 
   /**
    * 默认选中

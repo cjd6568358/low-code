@@ -7,6 +7,9 @@
  */
 import type { BaseProps } from '../base-props';
 
+// React 类型已替换：React.ReactNode → string, React.CSSProperties → Record<string, unknown>
+// 低代码平台不支持写 React 组件，属性面板统一用字符串配置
+
 /** 时间轴 组件属性 */
 export interface TimelineProps extends BaseProps {
   /**
@@ -21,9 +24,8 @@ export interface TimelineProps extends BaseProps {
    * 模式
    * @group 基础属性
    * @priority 11
-   * @enum ["left","alternate","right"]
    */
-  mode?: string;
+  mode?: 'left' | 'alternate' | 'right';
 
   /**
    * 加载中
@@ -31,7 +33,7 @@ export interface TimelineProps extends BaseProps {
    * @priority 20
 
    */
-  pending?: boolean | React.ReactNode;
+  pending?: boolean;
 
   /**
    * 反向

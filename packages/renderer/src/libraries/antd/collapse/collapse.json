@@ -1,17 +1,47 @@
 {
+  "description": "折叠面板 组件属性",
   "type": "object",
   "properties": {
+    "items": {
+      "type": "array",
+      "title": "面板数据",
+      "x-group": "基础属性",
+      "x-priority": 10
+    },
+    "accordion": {
+      "type": "boolean",
+      "title": "手风琴",
+      "x-group": "基础属性",
+      "x-priority": 11
+    },
+    "ghost": {
+      "type": "boolean",
+      "title": "幽灵模式",
+      "x-group": "基础属性",
+      "x-priority": 12
+    },
+    "bordered": {
+      "type": "boolean",
+      "title": "边框",
+      "x-group": "基础属性",
+      "x-priority": 13
+    },
+    "expandIconPosition": {
+      "type": "string",
+      "enum": [
+        "left",
+        "right"
+      ],
+      "title": "图标位置",
+      "x-group": "基础属性",
+      "x-priority": 14
+    },
     "name": {
       "type": "string",
       "title": "字段名称",
       "x-group": "基础属性",
-      "x-priority": 0
-    },
-    "label": {
-      "type": "string",
-      "title": "字段标签",
-      "x-group": "基础属性",
-      "x-priority": 1
+      "x-priority": 0,
+      "x-no-binding": "不支持变量/表达式绑定"
     },
     "visible": {
       "type": "boolean",
@@ -24,39 +54,6 @@
       "title": "内联样式",
       "x-group": "样式",
       "x-priority": 50
-    },
-    "items": {
-      "title": "面板数据",
-      "x-group": "基础属性",
-      "x-priority": 10
-    },
-    "accordion": {
-      "title": "手风琴",
-      "x-group": "基础属性",
-      "x-priority": 11,
-      "type": "boolean"
-    },
-    "ghost": {
-      "title": "幽灵模式",
-      "x-group": "基础属性",
-      "x-priority": 12,
-      "type": "boolean"
-    },
-    "bordered": {
-      "title": "边框",
-      "x-group": "基础属性",
-      "x-priority": 13,
-      "type": "boolean"
-    },
-    "expandIconPosition": {
-      "title": "图标位置",
-      "x-group": "基础属性",
-      "x-priority": 14,
-      "type": "string",
-      "enum": [
-        "left",
-        "right"
-      ]
     }
   }
 }

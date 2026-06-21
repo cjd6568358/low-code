@@ -7,6 +7,9 @@
  */
 import type { BaseProps } from '../base-props';
 
+// React 类型已替换：React.ReactNode → string, React.CSSProperties → Record<string, unknown>
+// 低代码平台不支持写 React 组件，属性面板统一用字符串配置
+
 /** 标签 组件属性 */
 export interface TagProps extends BaseProps {
   /**
@@ -31,7 +34,7 @@ export interface TagProps extends BaseProps {
    * @priority 12
 
    */
-  icon?: React.ReactNode;
+  icon?: string;
 
   /**
    * 边框

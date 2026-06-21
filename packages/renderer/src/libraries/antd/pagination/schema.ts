@@ -64,12 +64,4 @@ export interface PaginationProps extends BaseProps {
 
    */
   simple?: boolean;
-
-  /**
-   * 尺寸
-   * @group 高级属性
-   * @priority 21
-   * @enum ["default","small"]
-   */
-  size?: string;
 }

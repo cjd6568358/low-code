@@ -11,15 +11,9 @@ export interface BaseProps {
    * 字段名称
    * @group 基础属性
    * @priority 0
+   * @no-binding 不支持变量/表达式绑定
    */
   name?: string;
-
-  /**
-   * 字段标签
-   * @group 基础属性
-   * @priority 1
-   */
-  label?: string;
 
   /**
    * 是否可见

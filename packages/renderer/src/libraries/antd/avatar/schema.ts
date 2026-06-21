@@ -7,6 +7,9 @@
  */
 import type { BaseProps } from '../base-props';
 
+// React 类型已替换：React.ReactNode → string, React.CSSProperties → Record<string, unknown>
+// 低代码平台不支持写 React 组件，属性面板统一用字符串配置
+
 /** 头像 组件属性 */
 export interface AvatarProps extends BaseProps {
   /**
@@ -29,9 +32,8 @@ export interface AvatarProps extends BaseProps {
    * 形状
    * @group 基础属性
    * @priority 12
-   * @enum ["circle","square"]
    */
-  shape?: string;
+  shape?: 'circle' | 'square';
 
   /**
    * 图标
@@ -39,5 +41,5 @@ export interface AvatarProps extends BaseProps {
    * @priority 13
 
    */
-  icon?: React.ReactNode;
+  icon?: string;
 }

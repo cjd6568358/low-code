@@ -29,9 +29,8 @@ export interface SelectProps extends BaseProps {
    * 模式
    * @group 基础属性
    * @priority 12
-   * @enum ["multiple","tags"]
    */
-  mode?: string;
+  mode?: 'multiple' | 'tags';
 
   /**
    * 允许清除
@@ -56,12 +55,4 @@ export interface SelectProps extends BaseProps {
 
    */
   disabled?: boolean;
-
-  /**
-   * 尺寸
-   * @group 基础属性
-   * @priority 16
-   * @enum ["large","middle","small"]
-   */
-  size?: string;
 }

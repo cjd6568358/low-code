@@ -1,17 +1,56 @@
 {
+  "description": "间距 组件属性",
   "type": "object",
   "properties": {
+    "direction": {
+      "type": "string",
+      "enum": [
+        "horizontal",
+        "vertical"
+      ],
+      "title": "方向",
+      "x-group": "基础属性",
+      "x-priority": 10
+    },
+    "size": {
+      "type": [
+        "string",
+        "number"
+      ],
+      "title": "间距大小",
+      "x-group": "基础属性",
+      "x-priority": 11
+    },
+    "wrap": {
+      "type": "boolean",
+      "title": "自动换行",
+      "x-group": "基础属性",
+      "x-priority": 12
+    },
+    "align": {
+      "type": "string",
+      "enum": [
+        "baseline",
+        "center",
+        "end",
+        "start"
+      ],
+      "title": "对齐",
+      "x-group": "基础属性",
+      "x-priority": 13
+    },
+    "split": {
+      "type": "string",
+      "title": "分隔符",
+      "x-group": "高级属性",
+      "x-priority": 20
+    },
     "name": {
       "type": "string",
       "title": "字段名称",
       "x-group": "基础属性",
-      "x-priority": 0
-    },
-    "label": {
-      "type": "string",
-      "title": "字段标签",
-      "x-group": "基础属性",
-      "x-priority": 1
+      "x-priority": 0,
+      "x-no-binding": "不支持变量/表达式绑定"
     },
     "visible": {
       "type": "boolean",
@@ -24,44 +63,6 @@
       "title": "内联样式",
       "x-group": "样式",
       "x-priority": 50
-    },
-    "direction": {
-      "title": "方向",
-      "x-group": "基础属性",
-      "x-priority": 10,
-      "type": "string",
-      "enum": [
-        "vertical",
-        "horizontal"
-      ]
-    },
-    "size": {
-      "title": "间距大小",
-      "x-group": "基础属性",
-      "x-priority": 11
-    },
-    "wrap": {
-      "title": "自动换行",
-      "x-group": "基础属性",
-      "x-priority": 12,
-      "type": "boolean"
-    },
-    "align": {
-      "title": "对齐",
-      "x-group": "基础属性",
-      "x-priority": 13,
-      "type": "string",
-      "enum": [
-        "start",
-        "end",
-        "center",
-        "baseline"
-      ]
-    },
-    "split": {
-      "title": "分隔符",
-      "x-group": "高级属性",
-      "x-priority": 20
     }
   }
 }

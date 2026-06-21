@@ -8,12 +8,13 @@
   },
   "scripts": {
     "build": "tsc",
+    "scan": "tsx src/cli.ts scan",
     "test": "vitest run"
   },
   "dependencies": {
     "@low-code/shared": "*",
     "typescript": "^5.4.0",
-    "glob": "^10.3.0"
+    "typescript-json-schema": "^0.67.4"
   },
   "devDependencies": {
     "@types/node": "^20.0.0"

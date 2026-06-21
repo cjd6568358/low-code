@@ -19,6 +19,7 @@ import { ModalStack } from './ModalStack';
 import { ComponentRefreshManager } from './ComponentRefreshManager';
 import { UnifiedDependencyGraph } from './UnifiedDependencyGraph';
 import { ServerVariableResolver } from './ServerVariableResolver';
+import { ResolvedComponent } from './ResolvedComponent';
 import type { PlatformAdapter } from '@low-code/shared';
 
 /** 渲染器配置 */
@@ -52,7 +53,7 @@ export function PageRenderer(config: RendererConfig) {
 
   // 引擎实例（稳定引用）
   const bindingResolver = useMemo(
-    () => new DataBindingResolver(expressionEngine),
+    () => new DataBindingResolver(),
     [],
   );
   const conditionEngine = useMemo(
@@ -98,6 +99,73 @@ export function PageRenderer(config: RendererConfig) {
   // 新增：统一依赖图
   const dependencyGraph = useMemo(() => new UnifiedDependencyGraph(), []);
 
+  // 构建环境变量（独立于数据源状态）
+  const envContext = useMemo(() => {
+    const $fetch = {
+      get: (url: string, config?: any) =>
+        adapter.api.request({ url, method: 'GET', ...config }),
+      post: (url: string, data?: any, config?: any) =>
+        adapter.api.request({ url, method: 'POST', data, ...config }),
+      put: (url: string, data?: any, config?: any) =>
+        adapter.api.request({ url, method: 'PUT', data, ...config }),
+      delete: (url: string, config?: any) =>
+        adapter.api.request({ url, method: 'DELETE', ...config }),
+    };
+
+    const $table = new Proxy({} as Record<string, any>, {
+      get(_target, prop: string) {
+        return createTableQueryProxy(prop, adapter);
+      },
+    });
+
+    return {
+      $user: (context.$context as any)?.currentUser,
+      $platform: { web: true, mobile: false, miniApp: false },
+      $route: (context.$context as any)?.route,
+      $component: context.$components,
+      $table,
+      $computation: {},
+      $fetch,
+      $workflow: context.$workflow,
+    };
+  }, [context, adapter]);
+
+  // 页面数据源：单表达式求值，结果赋给 $data
+  const [dataReady, setDataReady] = useState(false);
+  const [dataResult, setDataResult] = useState<any>(undefined);
+
+  useEffect(() => {
+    if (!schema.dataSource) {
+      setDataReady(true);
+      setDataResult(undefined);
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      setDataReady(false);
+
+      // 使用环境变量上下文执行数据源表达式
+      try {
+        const result = await expressionEngine.evaluateAsync(schema.dataSource!, envContext);
+        if (!cancelled) {
+          setDataResult(result);
+          setDataReady(true);
+        }
+      } catch (e) {
+        console.warn('[PageRenderer] 数据源表达式执行失败:', e);
+        if (!cancelled) {
+          setDataResult(undefined);
+          setDataReady(true);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [schema.dataSource, envContext, expressionEngine]);
+
   // 初始化条件规则
   useEffect(() => {
     if (schema.rules) {
@@ -129,12 +197,10 @@ export function PageRenderer(config: RendererConfig) {
       dependencyGraph.registerComponent(component.id, dependencies);
     }
 
-    // 注册数据源依赖
+    // 注册数据源依赖（从表达式中提取变量依赖）
     if (schema.dataSource) {
-      for (const ds of schema.dataSource) {
-        const dependencies = ds.dependencies || [];
-        dependencyGraph.registerDataSource(ds.id, dependencies);
-      }
+      const dependencies = expressionEngine.analyzeDependencies(schema.dataSource);
+      dependencyGraph.registerDataSource('$data', dependencies);
     }
   }, [schema.components, schema.dataSource, componentRefreshManager, dependencyGraph]);
 
@@ -171,17 +237,35 @@ export function PageRenderer(config: RendererConfig) {
     return map;
   }, [schema.components]);
 
+  // 合并数据源结果和环境变量到上下文
+  const runtimeContext = useMemo(() => {
+    const baseContext = { ...context, ...envContext };
+
+    if (!dataReady || schema.dataSource === undefined) {
+      return baseContext;
+    }
+
+    // $data 直接就是表达式执行结果
+    return {
+      ...baseContext,
+      $data: dataResult,
+      $api: { ...context.$api, $data: { data: dataResult, loading: false, error: null } },
+    };
+  }, [dataReady, context, dataResult, schema.dataSource, envContext]);
+
   // 组件级数据源缓存
   const [componentDataSourceCache, setComponentDataSourceCache] = useState<Map<string, any>>(new Map());
 
   // 加载组件级数据源
   useEffect(() => {
+    if (!dataReady) return;
+
     const loadAllComponentDataSources = async () => {
       const newCache = new Map<string, any>();
 
       for (const component of schema.components) {
         if (component.dataSource) {
-          const result = await loadComponentDataSource(component.dataSource, context);
+          const result = await loadComponentDataSource(component.dataSource, runtimeContext);
           if (result.success) {
             newCache.set(component.id, result.data);
           }
@@ -192,32 +276,32 @@ export function PageRenderer(config: RendererConfig) {
     };
 
     loadAllComponentDataSources();
-  }, [schema.components, context]);
+  }, [schema.components, runtimeContext, dataReady]);
 
   // 渲染动作上下文
   const actionContext = useMemo<ActionContext>(
     () => ({
-      renderContext: context,
+      renderContext: runtimeContext,
       setFormValue: onFormValueChange,
-      getFormValue: (field: string) => context.$form?.[field],
+      getFormValue: (field: string) => runtimeContext.$form?.[field],
       navigate: (url, params) => adapter.navigate(url, params),
       apiRequest: (config) => adapter.api.request(config),
       showModal: (modalId: string, data?: any) => modalStack.open(modalId, data),
       closeModal: (modalId: string, result?: any) => modalStack.close(modalId, result),
       refreshComponent: async (componentId: string, propNames?: string[]) => {
         if (propNames) {
-          return componentRefreshManager.refreshProps(componentId, propNames, context);
+          return componentRefreshManager.refreshProps(componentId, propNames, runtimeContext);
         }
-        return componentRefreshManager.refreshAll(componentId, context);
+        return componentRefreshManager.refreshAll(componentId, runtimeContext);
       },
       refreshWithDependencyOrder: async (componentIds: string[]) => {
-        return componentRefreshManager.refreshWithDependencyOrder(componentIds, context);
+        return componentRefreshManager.refreshWithDependencyOrder(componentIds, runtimeContext);
       },
       analyzeChangeImpact: (changedPaths: Set<string>) => {
         return dependencyGraph.analyzeChangeImpact(changedPaths);
       },
     }),
-    [context, adapter, onFormValueChange, modalStack, componentRefreshManager, dependencyGraph],
+    [runtimeContext, adapter, onFormValueChange, modalStack, componentRefreshManager, dependencyGraph],
   );
 
   // 渲染单个组件节点
@@ -227,39 +311,12 @@ export function PageRenderer(config: RendererConfig) {
       const ruleResult = conditionEngine.evaluateComponent(
         node.id,
         node.visible,
-        context,
+        runtimeContext,
         node.permission,
       );
       if (!ruleResult.visible) return null;
 
-      // 2. 解析 props（数据绑定）
-      let resolvedProps = bindingResolver.resolveProps(node.props, context);
-
-      // 2.1 处理组件级数据源（从缓存中获取）
-      const cachedDataSource = componentDataSourceCache.get(node.id);
-      if (cachedDataSource && node.dataSource) {
-        resolvedProps[node.dataSource.targetProp] = cachedDataSource;
-      }
-
-      // 3. 合并规则设置的属性
-      if (ruleResult.setProps[node.id]) {
-        resolvedProps = { ...resolvedProps, ...ruleResult.setProps[node.id] };
-      }
-
-      // 4. 合并规则设置的值
-      if (ruleResult.setValues[node.id] !== undefined) {
-        resolvedProps.value = ruleResult.setValues[node.id];
-      }
-
-      // 5. 事件编译
-      const eventHandlers = node.events
-        ? eventCompiler.compileEvents(node.events, actionContext)
-        : {};
-
-      // 6. 布局样式
-      const layoutStyle = resolveLayoutStyle(node.layout, schema.layout);
-
-      // 7. 组件解析
+      // 2. 组件解析
       let componentType = node.type;
       let isCard = false;
 
@@ -273,13 +330,13 @@ export function PageRenderer(config: RendererConfig) {
       if (!registration && !isCard) {
         console.warn(`Component type "${node.type}" not found in registry`);
         return (
-          <div key={node.id} data-component-id={node.id} style={layoutStyle}>
+          <div key={node.id} data-component-id={node.id}>
             <span style={{ color: '#999' }}>未找到组件: {node.type}</span>
           </div>
         );
       }
 
-      // 8. 获取实现组件
+      // 3. 获取实现组件
       let ComponentImpl: React.ComponentType<any> | null = null;
       if (!isCard) {
         ComponentImpl = adapter.resolveComponent(
@@ -289,71 +346,102 @@ export function PageRenderer(config: RendererConfig) {
       }
 
       if (!ComponentImpl) {
-        // 使用默认的 div 容器
         ComponentImpl = 'div' as any;
       }
 
-      // 9. 渲染子组件
+      // 4. 渲染子组件
       const children = node.children || [];
       const childElements = children
         .map((childId) => componentMap.get(childId))
         .filter(Boolean)
         .map((child) => renderNode(child!));
 
-      // 10. 构建平台能力 props
-      // 提取绑定字段（从 node.props.value 的绑定表达式中解析）
-      const rawValue = node.props.value;
-      let bindField: string | undefined;
-      if (typeof rawValue === 'string' && rawValue.startsWith('$form.')) {
-        bindField = rawValue.slice(6); // 去掉 "$form." 前缀
-      } else if (rawValue && typeof rawValue === 'object' && rawValue.__binding === 'variable') {
-        const path = rawValue.value;
-        if (typeof path === 'string' && path.startsWith('$form.')) {
-          bindField = path.slice(6);
-        }
-      }
+      // 5. 事件编译
+      const eventHandlers = node.events
+        ? eventCompiler.compileEvents(node.events, actionContext)
+        : {};
 
-      const platformProps: Record<string, any> = {
-        node,
-        field: {
-          getValue: () => resolvedProps.value,
-          setValue: (value: any) => {
-            if (bindField) {
-              onFormValueChange?.(bindField, value);
+      // 6. 布局样式
+      const layoutStyle = resolveLayoutStyle(node.layout, schema.layout);
+
+      // 7. 使用 ResolvedComponent 处理表达式
+      return (
+        <ResolvedComponent
+          key={node.id}
+          componentId={node.id}
+          rawProps={node.props}
+          context={runtimeContext}
+          expressionEngine={expressionEngine}
+        >
+          {(resolvedProps) => {
+            // 8. 处理组件级数据源（从缓存中获取）
+            if (componentDataSourceCache.has(node.id) && node.dataSource) {
+              resolvedProps[node.dataSource.targetProp] = componentDataSourceCache.get(node.id);
             }
-          },
-          bindField,
-        },
-        events: mapEventHandlersToProps(eventHandlers),
-        linkage: {
-          evaluate: (eventName: string, eventData?: any) => {
-            if (eventName === 'onChange' && bindField) {
-              linkageEngine.onFieldChange(bindField, eventData, context);
+
+            // 9. 合并规则设置的属性
+            if (ruleResult.setProps[node.id]) {
+              resolvedProps = { ...resolvedProps, ...ruleResult.setProps[node.id] };
             }
-          },
-        },
-      };
 
-      // 11. 合并所有 props
-      const finalProps: Record<string, any> = {
-        ...resolvedProps,
-        ...platformProps.events,
-        ...platformProps,
-        'data-component-id': node.id,
-        style: { ...resolvedProps.style, ...layoutStyle },
-        disabled: ruleResult.disabled || resolvedProps.disabled,
-        key: node.id,
-      };
+            // 10. 合并规则设置的值
+            if (ruleResult.setValues[node.id] !== undefined) {
+              resolvedProps.value = ruleResult.setValues[node.id];
+            }
 
-      return React.createElement(
-        ComponentImpl!,
-        finalProps,
-        childElements.length > 0 ? childElements : resolvedProps.children,
+            // 11. 构建平台能力 props
+            const rawValue = node.props.value;
+            let bindField: string | undefined;
+            if (rawValue && typeof rawValue === 'object' && rawValue.type === 'variable') {
+              const path = rawValue.value;
+              if (typeof path === 'string' && path.startsWith('$form.')) {
+                bindField = path.slice(6);
+              }
+            }
+
+            const platformProps: Record<string, any> = {
+              node,
+              field: {
+                getValue: () => resolvedProps.value,
+                setValue: (value: any) => {
+                  if (bindField) {
+                    onFormValueChange?.(bindField, value);
+                  }
+                },
+                bindField,
+              },
+              events: mapEventHandlersToProps(eventHandlers),
+              linkage: {
+                evaluate: (eventName: string, eventData?: any) => {
+                  if (eventName === 'onChange' && bindField) {
+                    linkageEngine.onFieldChange(bindField, eventData, runtimeContext);
+                  }
+                },
+              },
+            };
+
+            // 12. 合并所有 props
+            const finalProps: Record<string, any> = {
+              ...resolvedProps,
+              ...platformProps.events,
+              ...platformProps,
+              'data-component-id': node.id,
+              style: { ...resolvedProps.style, ...layoutStyle },
+              disabled: ruleResult.disabled || resolvedProps.disabled,
+            };
+
+            return React.createElement(
+              ComponentImpl!,
+              finalProps,
+              childElements.length > 0 ? childElements : resolvedProps.children,
+            );
+          }}
+        </ResolvedComponent>
       );
     },
     [
       componentMap,
-      context,
+      runtimeContext,
       schema.layout,
       conditionEngine,
       bindingResolver,
@@ -375,6 +463,27 @@ export function PageRenderer(config: RendererConfig) {
       return orderA - orderB;
     })
     .map((node) => renderNode(node));
+
+  // 数据源未加载完毕时显示 loading
+  if (!dataReady && schema.dataSource) {
+    return (
+      <div
+        className="lc-page lc-page--loading"
+        data-page-id={schema.pageId}
+        style={{
+          ...layoutStyle,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: 200,
+          color: '#999',
+          fontSize: 14,
+        }}
+      >
+        加载数据中...
+      </div>
+    );
+  }
 
   return (
     <div
@@ -578,4 +687,76 @@ function extractDependenciesFromProps(props: Record<string, any>): string[] {
   }
 
   return [...new Set(dependencies)];
+}
+
+/** 创建 $table.xxx 链式查询代理 */
+function createTableQueryProxy(tableName: string, adapter: PlatformAdapter): any {
+  const queryChain = {
+    table: tableName,
+    filters: [] as any[],
+    selects: [] as string[],
+    sorts: [] as { field: string; order: 'asc' | 'desc' }[],
+    limitCount: null as number | null,
+    isfirst: false,
+    iscount: false,
+    sumField: null as string | null,
+    avgField: null as string | null,
+  };
+
+  const execute = () =>
+    adapter.api.request({
+      url: '/api/query',
+      method: 'POST',
+      data: {
+        table: queryChain.table,
+        filters: queryChain.filters.length > 0 ? queryChain.filters : undefined,
+        select: queryChain.selects.length > 0 ? queryChain.selects : undefined,
+        sort: queryChain.sorts.length > 0 ? queryChain.sorts : undefined,
+        limit: queryChain.limitCount,
+        first: queryChain.isfirst,
+        count: queryChain.iscount,
+        sum: queryChain.sumField,
+        avg: queryChain.avgField,
+      },
+    }).then((res: any) => res?.data ?? res);
+
+  const proxy: any = {
+    filter(predicate: (record: any) => boolean) {
+      queryChain.filters.push(predicate);
+      return proxy;
+    },
+    select(...fields: string[]) {
+      queryChain.selects.push(...fields);
+      return proxy;
+    },
+    sort(field: string, order: 'asc' | 'desc' = 'asc') {
+      queryChain.sorts.push({ field, order });
+      return proxy;
+    },
+    limit(count: number) {
+      queryChain.limitCount = count;
+      return proxy;
+    },
+    first() {
+      queryChain.isfirst = true;
+      return execute();
+    },
+    count() {
+      queryChain.iscount = true;
+      return execute();
+    },
+    sum(field: string) {
+      queryChain.sumField = field;
+      return execute();
+    },
+    avg(field: string) {
+      queryChain.avgField = field;
+      return execute();
+    },
+    execute() {
+      return execute();
+    },
+  };
+
+  return proxy;
 }

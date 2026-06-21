@@ -1,17 +1,58 @@
 {
+  "description": "统计数值 组件属性",
   "type": "object",
   "properties": {
+    "title": {
+      "type": "string",
+      "title": "标题",
+      "x-group": "基础属性",
+      "x-priority": 10
+    },
+    "value": {
+      "type": [
+        "string",
+        "number"
+      ],
+      "title": "数值",
+      "x-group": "基础属性",
+      "x-priority": 11
+    },
+    "prefix": {
+      "type": "string",
+      "title": "前缀",
+      "x-group": "基础属性",
+      "x-priority": 12
+    },
+    "suffix": {
+      "type": "string",
+      "title": "后缀",
+      "x-group": "基础属性",
+      "x-priority": 13
+    },
+    "precision": {
+      "type": "number",
+      "title": "精度",
+      "x-group": "基础属性",
+      "x-priority": 14
+    },
+    "valueStyle": {
+      "type": "object",
+      "title": "数值样式",
+      "x-group": "高级属性",
+      "x-priority": 20
+    },
+    "groupSeparator": {
+      "type": "string",
+      "title": "千分符",
+      "x-group": "高级属性",
+      "x-priority": 21
+    },
     "name": {
       "type": "string",
       "title": "字段名称",
       "x-group": "基础属性",
-      "x-priority": 0
-    },
-    "label": {
-      "type": "string",
-      "title": "字段标签",
-      "x-group": "基础属性",
-      "x-priority": 1
+      "x-priority": 0,
+      "x-no-binding": "不支持变量/表达式绑定"
     },
     "visible": {
       "type": "boolean",
@@ -24,43 +65,6 @@
       "title": "内联样式",
       "x-group": "样式",
       "x-priority": 50
-    },
-    "title": {
-      "title": "标题",
-      "x-group": "基础属性",
-      "x-priority": 10
-    },
-    "value": {
-      "title": "数值",
-      "x-group": "基础属性",
-      "x-priority": 11
-    },
-    "prefix": {
-      "title": "前缀",
-      "x-group": "基础属性",
-      "x-priority": 12
-    },
-    "suffix": {
-      "title": "后缀",
-      "x-group": "基础属性",
-      "x-priority": 13
-    },
-    "precision": {
-      "title": "精度",
-      "x-group": "基础属性",
-      "x-priority": 14,
-      "type": "number"
-    },
-    "valueStyle": {
-      "title": "数值样式",
-      "x-group": "高级属性",
-      "x-priority": 20
-    },
-    "groupSeparator": {
-      "title": "千分符",
-      "x-group": "高级属性",
-      "x-priority": 21,
-      "type": "string"
     }
   }
 }

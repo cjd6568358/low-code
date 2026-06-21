@@ -7,6 +7,9 @@
  */
 import type { BaseProps } from '../base-props';
 
+// React 类型已替换：React.ReactNode → string, React.CSSProperties → Record<string, unknown>
+// 低代码平台不支持写 React 组件，属性面板统一用字符串配置
+
 /** 空状态 组件属性 */
 export interface EmptyProps extends BaseProps {
   /**
@@ -15,7 +18,7 @@ export interface EmptyProps extends BaseProps {
    * @priority 10
 
    */
-  description?: React.ReactNode;
+  description?: string;
 
   /**
    * 图片
@@ -23,7 +26,7 @@ export interface EmptyProps extends BaseProps {
    * @priority 11
 
    */
-  image?: React.ReactNode;
+  image?: string;
 
   /**
    * 图片样式
@@ -31,5 +34,5 @@ export interface EmptyProps extends BaseProps {
    * @priority 20
 
    */
-  imageStyle?: React.CSSProperties;
+  imageStyle?: Record<string, unknown>;
 }

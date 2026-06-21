@@ -1,17 +1,44 @@
 {
+  "description": "头像 组件属性",
   "type": "object",
   "properties": {
+    "src": {
+      "type": "string",
+      "title": "图片地址",
+      "x-group": "基础属性",
+      "x-priority": 10
+    },
+    "size": {
+      "type": [
+        "string",
+        "number"
+      ],
+      "title": "尺寸",
+      "x-group": "基础属性",
+      "x-priority": 11
+    },
+    "shape": {
+      "type": "string",
+      "enum": [
+        "circle",
+        "square"
+      ],
+      "title": "形状",
+      "x-group": "基础属性",
+      "x-priority": 12
+    },
+    "icon": {
+      "type": "string",
+      "title": "图标",
+      "x-group": "基础属性",
+      "x-priority": 13
+    },
     "name": {
       "type": "string",
       "title": "字段名称",
       "x-group": "基础属性",
-      "x-priority": 0
-    },
-    "label": {
-      "type": "string",
-      "title": "字段标签",
-      "x-group": "基础属性",
-      "x-priority": 1
+      "x-priority": 0,
+      "x-no-binding": "不支持变量/表达式绑定"
     },
     "visible": {
       "type": "boolean",
@@ -24,32 +51,6 @@
       "title": "内联样式",
       "x-group": "样式",
       "x-priority": 50
-    },
-    "src": {
-      "title": "图片地址",
-      "x-group": "基础属性",
-      "x-priority": 10,
-      "type": "string"
-    },
-    "size": {
-      "title": "尺寸",
-      "x-group": "基础属性",
-      "x-priority": 11
-    },
-    "shape": {
-      "title": "形状",
-      "x-group": "基础属性",
-      "x-priority": 12,
-      "type": "string",
-      "enum": [
-        "circle",
-        "square"
-      ]
-    },
-    "icon": {
-      "title": "图标",
-      "x-group": "基础属性",
-      "x-priority": 13
     }
   }
 }

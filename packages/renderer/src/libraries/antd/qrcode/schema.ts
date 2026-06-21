@@ -53,7 +53,6 @@ export interface QRCodeProps extends BaseProps {
    * 状态
    * @group 基础属性
    * @priority 12
-   * @enum ["active","expired","loading","scanned"]
    */
-  status?: string;
+  status?: 'active' | 'expired' | 'loading' | 'scanned';
 }

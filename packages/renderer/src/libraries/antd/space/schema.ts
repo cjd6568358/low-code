@@ -7,15 +7,17 @@
  */
 import type { BaseProps } from '../base-props';
 
+// React 类型已替换：React.ReactNode → string, React.CSSProperties → Record<string, unknown>
+// 低代码平台不支持写 React 组件，属性面板统一用字符串配置
+
 /** 间距 组件属性 */
 export interface SpaceProps extends BaseProps {
   /**
    * 方向
    * @group 基础属性
    * @priority 10
-   * @enum ["vertical","horizontal"]
    */
-  direction?: string;
+  direction?: 'vertical' | 'horizontal';
 
   /**
    * 间距大小
@@ -37,9 +39,8 @@ export interface SpaceProps extends BaseProps {
    * 对齐
    * @group 基础属性
    * @priority 13
-   * @enum ["start","end","center","baseline"]
    */
-  align?: string;
+  align?: 'start' | 'end' | 'center' | 'baseline';
 
   /**
    * 分隔符
@@ -47,5 +48,5 @@ export interface SpaceProps extends BaseProps {
    * @priority 20
 
    */
-  split?: React.ReactNode;
+  split?: string;
 }

@@ -21,17 +21,15 @@ export interface RowProps extends BaseProps {
    * 水平排列
    * @group 基础属性
    * @priority 11
-   * @enum ["start","end","center","space-around","space-between","space-evenly"]
    */
-  justify?: string;
+  justify?: 'start' | 'end' | 'center' | 'space-around' | 'space-between' | 'space-evenly';
 
   /**
    * 垂直对齐
    * @group 基础属性
    * @priority 12
-   * @enum ["top","middle","bottom"]
    */
-  align?: string;
+  align?: 'top' | 'middle' | 'bottom';
 
   /**
    * 自动换行

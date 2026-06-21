@@ -21,9 +21,8 @@ export interface DropdownProps extends BaseProps {
    * 弹出位置
    * @group 基础属性
    * @priority 11
-   * @enum ["bottomLeft","bottomCenter","bottomRight","topLeft","topCenter","topRight"]
    */
-  placement?: string;
+  placement?: 'bottomLeft' | 'bottomCenter' | 'bottomRight' | 'topLeft' | 'topCenter' | 'topRight';
 
   /**
    * 触发方式

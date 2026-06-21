@@ -1,17 +1,45 @@
 {
+  "description": "下拉菜单 组件属性",
   "type": "object",
   "properties": {
+    "menu": {
+      "type": "object",
+      "title": "菜单配置",
+      "x-group": "基础属性",
+      "x-priority": 10
+    },
+    "placement": {
+      "type": "string",
+      "enum": [
+        "bottomCenter",
+        "bottomLeft",
+        "bottomRight",
+        "topCenter",
+        "topLeft",
+        "topRight"
+      ],
+      "title": "弹出位置",
+      "x-group": "基础属性",
+      "x-priority": 11
+    },
+    "trigger": {
+      "type": "array",
+      "title": "触发方式",
+      "x-group": "基础属性",
+      "x-priority": 12
+    },
+    "arrow": {
+      "type": "boolean",
+      "title": "箭头",
+      "x-group": "基础属性",
+      "x-priority": 13
+    },
     "name": {
       "type": "string",
       "title": "字段名称",
       "x-group": "基础属性",
-      "x-priority": 0
-    },
-    "label": {
-      "type": "string",
-      "title": "字段标签",
-      "x-group": "基础属性",
-      "x-priority": 1
+      "x-priority": 0,
+      "x-no-binding": "不支持变量/表达式绑定"
     },
     "visible": {
       "type": "boolean",
@@ -24,36 +52,6 @@
       "title": "内联样式",
       "x-group": "样式",
       "x-priority": 50
-    },
-    "menu": {
-      "title": "菜单配置",
-      "x-group": "基础属性",
-      "x-priority": 10
-    },
-    "placement": {
-      "title": "弹出位置",
-      "x-group": "基础属性",
-      "x-priority": 11,
-      "type": "string",
-      "enum": [
-        "bottomLeft",
-        "bottomCenter",
-        "bottomRight",
-        "topLeft",
-        "topCenter",
-        "topRight"
-      ]
-    },
-    "trigger": {
-      "title": "触发方式",
-      "x-group": "基础属性",
-      "x-priority": 12
-    },
-    "arrow": {
-      "title": "箭头",
-      "x-group": "基础属性",
-      "x-priority": 13,
-      "type": "boolean"
     }
   }
 }

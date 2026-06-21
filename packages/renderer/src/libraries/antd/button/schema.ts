@@ -7,6 +7,9 @@
  */
 import type { BaseProps } from '../base-props';
 
+// React 类型已替换：React.ReactNode → string, React.CSSProperties → Record<string, unknown>
+// 低代码平台不支持写 React 组件，属性面板统一用字符串配置
+
 /** Button 组件属性 */
 export interface ButtonProps extends BaseProps {
   /**
@@ -14,7 +17,7 @@ export interface ButtonProps extends BaseProps {
    * @group 基础属性
    * @priority 1
    */
-  children?: React.ReactNode;
+  children?: string;
 
   /**
    * 按钮类型
@@ -49,7 +52,7 @@ export interface ButtonProps extends BaseProps {
    * @group 高级属性
    * @priority 10
    */
-  icon?: React.ReactNode;
+  icon?: string;
 
   /**
    * 图标位置
@@ -81,7 +84,7 @@ export interface ButtonProps extends BaseProps {
 
   /**
    * @deprecated 使用 iconPlacement 代替
-   * @hidden
+   * @ignore
    */
   iconPosition?: 'start' | 'end';
 }

@@ -1,17 +1,47 @@
 {
+  "description": "漫游引导 组件属性",
   "type": "object",
   "properties": {
+    "steps": {
+      "type": "array",
+      "title": "步骤",
+      "x-group": "基础属性",
+      "x-priority": 10
+    },
+    "current": {
+      "type": "number",
+      "title": "当前步骤",
+      "x-group": "基础属性",
+      "x-priority": 11
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "default",
+        "primary"
+      ],
+      "title": "类型",
+      "x-group": "基础属性",
+      "x-priority": 12
+    },
+    "mask": {
+      "type": "boolean",
+      "title": "遮罩",
+      "x-group": "基础属性",
+      "x-priority": 13
+    },
+    "arrow": {
+      "type": "boolean",
+      "title": "箭头",
+      "x-group": "基础属性",
+      "x-priority": 14
+    },
     "name": {
       "type": "string",
       "title": "字段名称",
       "x-group": "基础属性",
-      "x-priority": 0
-    },
-    "label": {
-      "type": "string",
-      "title": "字段标签",
-      "x-group": "基础属性",
-      "x-priority": 1
+      "x-priority": 0,
+      "x-no-binding": "不支持变量/表达式绑定"
     },
     "visible": {
       "type": "boolean",
@@ -24,39 +54,6 @@
       "title": "内联样式",
       "x-group": "样式",
       "x-priority": 50
-    },
-    "steps": {
-      "title": "步骤",
-      "x-group": "基础属性",
-      "x-priority": 10
-    },
-    "current": {
-      "title": "当前步骤",
-      "x-group": "基础属性",
-      "x-priority": 11,
-      "type": "number"
-    },
-    "type": {
-      "title": "类型",
-      "x-group": "基础属性",
-      "x-priority": 12,
-      "type": "string",
-      "enum": [
-        "default",
-        "primary"
-      ]
-    },
-    "mask": {
-      "title": "遮罩",
-      "x-group": "基础属性",
-      "x-priority": 13,
-      "type": "boolean"
-    },
-    "arrow": {
-      "title": "箭头",
-      "x-group": "基础属性",
-      "x-priority": 14,
-      "type": "boolean"
     }
   }
 }

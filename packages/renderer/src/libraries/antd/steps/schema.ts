@@ -29,33 +29,27 @@ export interface StepsProps extends BaseProps {
    * 方向
    * @group 基础属性
    * @priority 12
-   * @enum ["horizontal","vertical"]
    */
-  direction?: string;
+  direction?: 'horizontal' | 'vertical';
 
   /**
    * 尺寸
    * @group 基础属性
    * @priority 13
-   * @enum ["default","small"]
-   */
-  size?: string;
 
   /**
    * 类型
    * @group 基础属性
    * @priority 14
-   * @enum ["default","navigation","inline"]
    */
-  type?: string;
+  type?: 'default' | 'navigation' | 'inline';
 
   /**
    * 状态
    * @group 基础属性
    * @priority 15
-   * @enum ["wait","process","finish","error"]
    */
-  status?: string;
+  status?: 'wait' | 'process' | 'finish' | 'error';
 
   /**
    * 点状步骤

@@ -1,4 +1,4 @@
-import type { DataSourceConfig, ApiConfig, StaticConfig, ComputedConfig } from '@low-code/shared';
+import type { DataSourceConfig } from '@low-code/shared';
 import type { DefaultExpressionEngine } from '@low-code/computation';
 
 /** 数据源状态 */
@@ -11,18 +11,17 @@ export interface DataSourceState {
 
 /** 数据源管理器回调 */
 export interface DataSourceManagerCallbacks {
-  apiRequest: (config: any) => Promise<any>;
   onUpdate: (id: string, state: DataSourceState) => void;
 }
 
 /**
  * 数据源管理器
- * 管理页面级 API 数据源的声明、加载、缓存
+ * 管理页面级数据源的声明、加载、缓存
  *
- * 文档定义 DataSourceConfig：
- * - type: 'api' | 'static' | 'computed'
- * - autoLoad: 页面加载时自动请求
- * - dependencies: 依赖的其他数据源 ID
+ * 所有数据源统一为表达式模式：
+ * - expression: JavaScript 表达式，支持 $fetch/$table/$data 等环境变量
+ * - 配置了即自动加载（页面加载时执行）
+ * - 按依赖拓扑排序执行
  */
 export class DataSourceManager {
   private sources = new Map<string, DataSourceConfig>();
@@ -57,15 +56,14 @@ export class DataSourceManager {
   }
 
   /**
-   * 自动加载所有 autoLoad=true 的数据源
-   * 按依赖顺序加载
+   * 自动加载所有数据源（配置了就一定加载）
+   * 按依赖拓扑排序执行
    */
   async autoLoad(context: Record<string, any>): Promise<void> {
-    const autoLoadSources = Array.from(this.sources.values())
-      .filter((s) => s.autoLoad);
+    const allSources = Array.from(this.sources.values());
 
     // 按依赖拓扑排序
-    const ordered = this.topologicalSort(autoLoadSources);
+    const ordered = this.topologicalSort(allSources);
 
     for (const source of ordered) {
       await this.load(source.id, context);
@@ -73,7 +71,7 @@ export class DataSourceManager {
   }
 
   /**
-   * 加载单个数据源
+   * 加载单个数据源（执行表达式）
    */
   async load(id: string, context: Record<string, any>): Promise<any> {
     const config = this.sources.get(id);
@@ -97,19 +95,8 @@ export class DataSourceManager {
     this.updateState(id, { loading: true, error: null });
 
     try {
-      let data: any;
-
-      switch (config.type) {
-        case 'api':
-          data = await this.loadApi(config.config as ApiConfig, context);
-          break;
-        case 'static':
-          data = this.loadStatic(config.config as StaticConfig);
-          break;
-        case 'computed':
-          data = this.loadComputed(config.config as ComputedConfig, context);
-          break;
-      }
+      // 统一使用表达式引擎执行
+      const data = await this.expressionEngine.evaluateAsync(config.expression, context);
 
       this.updateState(id, {
         data,
@@ -145,7 +132,7 @@ export class DataSourceManager {
   }
 
   /**
-   * 获取所有数据源状态（用于 RenderContext.$api）
+   * 获取所有数据源状态（用于 RenderContext.$data）
    */
   getAllStates(): Record<string, DataSourceState> {
     const result: Record<string, DataSourceState> = {};
@@ -160,60 +147,6 @@ export class DataSourceManager {
    */
   getData(id: string): any {
     return this.states.get(id)?.data ?? null;
-  }
-
-  /**
-   * 加载 API 数据源
-   */
-  private async loadApi(config: ApiConfig, context: Record<string, any>): Promise<any> {
-    // 解析参数中的变量引用
-    const resolvedParams = this.resolveVariables(config.params, context);
-    const resolvedData = this.resolveVariables(config.data, context);
-    const resolvedHeaders = this.resolveVariables(config.headers, context);
-
-    const response = await this.callbacks.apiRequest({
-      url: config.url,
-      method: config.method || 'GET',
-      headers: resolvedHeaders,
-      params: resolvedParams,
-      data: resolvedData,
-    });
-
-    return response?.data ?? response;
-  }
-
-  /**
-   * 加载静态数据源
-   */
-  private loadStatic(config: StaticConfig): any {
-    return config.data;
-  }
-
-  /**
-   * 加载计算数据源
-   */
-  private loadComputed(config: ComputedConfig, context: Record<string, any>): any {
-    return this.expressionEngine.safeEvaluate(config.expression, context);
-  }
-
-  /**
-   * 解析参数中的变量引用
-   */
-  private resolveVariables(
-    params: Record<string, any> | undefined,
-    context: Record<string, any>,
-  ): Record<string, any> | undefined {
-    if (!params) return undefined;
-
-    const resolved: Record<string, any> = {};
-    for (const [key, value] of Object.entries(params)) {
-      if (typeof value === 'string' && value.startsWith('$')) {
-        resolved[key] = this.expressionEngine.safeEvaluate(value, context);
-      } else {
-        resolved[key] = value;
-      }
-    }
-    return resolved;
   }
 
   /**

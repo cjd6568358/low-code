@@ -71,6 +71,38 @@
 | `x-disabled` | `string` | 条件禁用表达式 |
 | `x-hidden` | `boolean` | 强制隐藏（不占位） |
 
+### 绑定控制
+
+| 扩展字段 | 类型 | 说明 |
+|---------|------|------|
+| `x-no-binding` | `any` | 禁止变量/表达式绑定。存在此注解时，属性面板隐藏常量/变量/表达式切换按钮，仅显示常量输入框 |
+
+**使用场景**：字段名（`name`）、ID 等不允许动态绑定的属性。
+
+**TS Schema 注解**：
+```typescript
+/**
+ * 字段名称
+ * @group 基础属性
+ * @priority 0
+ * @no-binding 不支持变量/表达式绑定
+ */
+name?: string;
+```
+
+**生成的 JSON Schema**：
+```json
+{
+  "name": {
+    "type": "string",
+    "title": "字段名称",
+    "x-group": "基础属性",
+    "x-priority": 0,
+    "x-no-binding": "不支持变量/表达式绑定"
+  }
+}
+```
+
 ### 数据与校验
 
 | 扩展字段 | 类型 | 说明 |
@@ -80,6 +112,40 @@
 | `x-dataSource` | `string` | 变量绑定数据源标识，标记后该字段旁注入变量绑定按钮 |
 | `x-validator` | `string \| object` | 自定义校验规则名或内联校验配置 |
 | `x-validator-message` | `string` | 校验失败提示文本 |
+| `x-value-type` | `string` | 组件值的 TypeScript 类型（从 antd 类型定义自动提取），用于变量选择器类型提示 |
+
+**@value-type 注解**：
+
+从 antd 类型定义中自动提取组件的 `value`/`children` 属性类型，写入 schema.ts 的 JSDoc 注解。
+
+```bash
+# 从 antd 类型定义同步类型到 schema.ts
+lc-schema sync-types
+```
+
+**TS Schema 注解**：
+```typescript
+/**
+ * 值
+ * @group 基础属性
+ * @priority 10
+ * @value-type number
+ */
+value?: number;
+```
+
+**生成的 JSON Schema**：
+```json
+{
+  "value": {
+    "type": "number",
+    "title": "值",
+    "x-group": "基础属性",
+    "x-priority": 10,
+    "x-value-type": "number"
+  }
+}
+```
 
 ### 联动与反应
 
@@ -184,7 +250,6 @@ interface ControlProps {
   placeholder?: string;                    // 占位提示
   errors?: string[];                       // 校验错误
   // 平台扩展
-  onOpenVariablePicker?: () => void;       // 打开变量选择器
   dictionaryService?: DictionaryService;   // 字典服务
   expressionEngine?: ExpressionEngine;     // 表达式引擎
 }
@@ -362,12 +427,15 @@ Schema 级 `x-layout-mode` 控制整个表单的分组展示方式：
 
 ## 变量绑定集成
 
-### 触发条件
+### 值模式切换
 
-当 Schema 字段满足以下任一条件时，自动渲染引擎在控件旁注入变量绑定按钮（🔗）：
+每个字段 label 右侧提供 **Button Group（常量/变量/表达式）**，默认选中"常量"：
 
-- 字段标记了 `x-dataSource` 扩展字段
-- 字段的 `x-component` 为 `VariablePicker` 或 `ExpressionEditor`
+- **常量**（默认）：直接输入静态值
+- **变量**：点击后弹出变量选择器，选择变量引用
+- **表达式**：点击后弹出变量选择器，切换到表达式 tab
+
+切换模式时会清除已有值。选中变量/表达式后，输入区域显示 Tag 样式的绑定标识（蓝色=变量，橙色=表达式），点击可重新打开变量选择器修改。
 
 ### 数据源配置
 
@@ -393,38 +461,191 @@ Schema 级 `x-layout-mode` 控制整个表单的分组展示方式：
 
 ### 绑定模式
 
-变量选择器支持三种绑定模式：
+通过 Button Group 切换三种值模式：
 
-1. **静态值**：直接输入固定值（默认模式）
-2. **变量引用**：从变量树中选择一个变量，生成 `$context.xxx` 格式引用
-3. **表达式**：打开表达式编辑器，支持函数调用、条件判断、字符串模板
+1. **常量**（默认）：直接输入静态值，input 正常可编辑
+2. **变量**：弹出变量选择器，从变量树中选择变量引用
+3. **表达式**：弹出变量选择器，支持所有环境变量、函数调用、条件判断
 
-绑定后的值存储格式（标准化格式，完全可序列化）：
+> **变量引用 vs 表达式**：变量引用为点路径取值（如 `$user.name`），不支持 `$table/$computation/$fetch`；表达式为 JS 语法（如 `async () => { return $user.name; }`），支持所有环境变量，实质为异步函数。
+
+#### PropValue 数据格式
 
 ```typescript
-// 静态值
-{ "value": "张三" }
-// 或裸值（简写）
-"张三"
-
-// 变量引用
-{ "value": "$context.currentRecord.name", "__binding": "variable" }
-// 或裸字符串以 $ 开头（简写，自动识别为变量引用）
-"$context.currentRecord.name"
-
-// 表达式
-{ "value": "${firstName} ${lastName}", "__binding": "expression" }
-// 或裸字符串含 ${}（简写，自动识别为表达式）
-"${firstName} ${lastName}"
+type PropValue =
+  | any                                    // 字面量
+  | { type: 'variable', value: string }    // 变量引用
+  | { type: 'expression', value: string }; // 表达式
 ```
 
-运行时解析规则：
-1. 值为对象且有 `__binding` 字段 → 按 `__binding` 类型处理
-2. 值为字符串且以 `$` 开头（非 `${}`）→ 当作变量引用
-3. 值为字符串且包含 `${}` → 当作表达式
-4. 其他 → 当作静态值
+**JSON 示例**：
+```json
+{
+  "props": {
+    "placeholder": "啊啊啊",
+    "a": { "type": "variable", "value": "$platform.web" },
+    "b": { "type": "expression", "value": "async () => { return $user.name; }" }
+  }
+}
+```
 
-简写格式方便手写和 UI 生成，标准格式便于程序化处理。两者完全等价。
+**运行时解析**：
+- 字面量：直接使用
+- 变量引用（同步）：从运行时上下文按路径取值
+- 表达式（异步）：执行 async 函数，支持依赖收集和变更传播
+
+**设计器侧显示规则**：
+
+| 模式 | 属性面板显示 | 设计画布显示 |
+|------|------------|------------|
+| 常量 | 原值 | 原值 |
+| 变量 | `变量` 标签 + 变量路径 | `[变量] $platform.web` |
+| 表达式 | `表达式` 标签（不显示具体值） | `[表达式]` |
+
+### 组件 ID 与字段名
+
+**生成规则**：
+
+| 字段 | 格式 | 示例 | 说明 |
+|------|------|------|------|
+| `id` | `{type}_{timestamp}` | `textarea_1781765600372` | 组件实例唯一标识，不可变 |
+| `name` | `{中文名}_{序号}` | `文本域_01` | 字段名，用于表单绑定和变量引用 |
+
+**字段名生成**：使用 `antdCategoryMap` 中的组件中文名作为前缀，自动递增序号避免冲突。
+
+**唯一性校验**：
+- `id`：系统自动生成，保证唯一
+- `name`：修改时实时校验，保存时批量校验，重复时提示错误
+
+#### 环境变量体系
+
+| 变量 | 说明 | 可用模式 | 动态属性 |
+|------|------|---------|---------|
+| `$user` | 当前登录用户信息，包含用户 ID、姓名、角色、部门、岗位等 | 变量 + 表达式 | 否（固定字段） |
+| `$platform` | 当前运行平台标识，用于判断用户访问的终端类型 | 变量 + 表达式 | 否（固定字段） |
+| `$route` | 当前路由信息，包含路径参数和查询参数 | 变量 + 表达式 | 否（固定字段） |
+| `$component` | 页面组件实例状态，通过组件 ID 引用 | 变量 + 表达式 | **是（页面组件列表）** |
+| `$data` | 页面级数据源聚合，包含页面配置的所有数据源返回值 | 变量 + 表达式 | **是（页面数据源列表）** |
+| `$table` | 服务端表查询，支持链式调用构建查询条件 | 仅表达式 | **是（可用数据表列表）** |
+| `$computation` | 运算引擎，执行服务端预定义的运算逻辑 | 仅表达式 | 否 |
+| `$fetch` | 第三方 HTTP 请求，用于调用外部 API 接口 | 仅表达式 | 否 |
+| `$workflow` | 流程上下文，仅在流程审批页面内有效 | 仅表达式 | 否 |
+
+#### 环境变量动态注册
+
+部分环境变量（`$component`、`$data`、`$table`）的属性是动态生成的，需要在运行时注册：
+
+```typescript
+// 注册页面组件到 $component
+environmentRegistry.registerPageComponents({
+  'input_01': { type: 'input', label: '客户名称' },
+  'select_02': { type: 'select', label: '客户等级' },
+  'btn_submit': { type: 'button', label: '提交按钮' },
+});
+
+// 注册页面数据源到 $data
+environmentRegistry.registerPageDataSources({
+  'orderList': { type: 'api', description: '订单列表数据' },
+  'customerInfo': { type: 'api', description: '客户信息' },
+});
+
+// 注册可用数据表到 $table
+environmentRegistry.registerAvailableTables({
+  'user': { description: '用户表' },
+  'order': { description: '订单表' },
+});
+```
+
+**VariablePicker 组件自动处理动态注册**：
+
+```typescript
+<VariablePicker
+  visible={true}
+  mode="variable"
+  value="$component.input_01.value"
+  onChange={handleChange}
+  onClear={handleClear}
+  onClose={handleClose}
+  // 传入页面组件列表，VariablePicker 打开时自动注册
+  pageComponents={{
+    'input_01': { type: 'input', label: '客户名称' },
+    'select_02': { type: 'select', label: '客户等级' },
+  }}
+/>
+```
+
+**代码提示效果**：
+
+输入 `$component.` 时显示页面组件列表：
+```
+$component.input_01    — 客户名称 (input_01)
+$component.select_02   — 客户等级 (select_02)
+$component.btn_submit  — 提交按钮 (btn_submit)
+```
+
+输入 `$component.input_01.` 时显示组件属性：
+```
+$component.input_01.value     — 组件当前值
+$component.input_01.visible   — 是否可见
+$component.input_01.disabled  — 是否禁用
+$component.input_01.loading   — 是否加载中
+```
+
+跨应用引用（`$table/$computation/$workflow`）需在 `page.references` 中注册，代码提示展示所在应用名称。
+
+#### 表达式编辑器
+
+表达式模式下，VariablePicker 使用 Monaco Editor 提供代码编辑能力。
+
+**编辑器结构**：
+- 环境变量说明和示例作为 JSDoc 注释显示在编辑器顶部
+- 用户在 `async () => {}` 函数体内编写代码
+- 保存时自动过滤 JSDoc 注释，只保存函数本身
+
+**自动补全行为**：
+- 输入 `$`：显示所有一级环境变量
+- 输入 `$platform.`：显示 `$platform` 的子属性
+- 输入 `$component.`：显示页面组件列表（动态注册）
+- 提示格式：`[类型] 中文说明`
+
+**已知问题**：
+- Monaco Editor 的 JavaScript 语言服务会提供内置补全（小扳手图标），可能与自定义补全同时出现
+- `$component` 动态注册依赖 `pageComponents` prop 的传入时机
+
+**跨应用资源校验规则**：
+
+| 类型 | 语法 | 校验 |
+|------|------|------|
+| 当前应用 | `$table.user` | 直接访问，无需校验 |
+| 跨应用 | `$table.80e88653.user` | 需校验目标应用 `expose` 配置 |
+
+校验流程：
+1. 解析变量路径，区分当前应用/跨应用
+2. 跨应用时，查询目标应用的 `app.expose[resourceType]`
+3. 若目标资源未在 `expose` 中声明，报错拒绝
+4. 校验通过后，在 `page.references` 中注册依赖
+
+**依赖优先级与循环检测**：
+
+依赖图（DependencyGraph）负责管理变量依赖关系，支持：
+
+1. **拓扑排序**：确定求值顺序，避免依赖未就绪的变量
+2. **循环检测**：在注册依赖时检测循环依赖，避免死循环
+3. **变更传播**：变量变更时，按拓扑排序通知所有依赖组件
+
+```
+依赖图示例：
+  $user.name → component_a.props.label
+  $user.name → component_b.props.value
+  $data.order.amount → component_b.props.value
+
+拓扑排序结果：
+  1. component_a.props.label（依赖 $user.name）
+  2. component_b.props.value（依赖 $user.name + $data.order.amount）
+
+循环检测：
+  若 A → B → C → A，检测到循环，报错拒绝注册
+```
 
 ---
 

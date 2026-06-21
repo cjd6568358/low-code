@@ -1,17 +1,52 @@
 {
+  "description": "结果 组件属性",
   "type": "object",
   "properties": {
+    "status": {
+      "type": "string",
+      "enum": [
+        "403",
+        "404",
+        "500",
+        "error",
+        "info",
+        "success",
+        "warning"
+      ],
+      "title": "状态",
+      "x-group": "基础属性",
+      "x-priority": 10
+    },
+    "title": {
+      "type": "string",
+      "title": "标题",
+      "x-group": "基础属性",
+      "x-priority": 11
+    },
+    "subTitle": {
+      "type": "string",
+      "title": "副标题",
+      "x-group": "基础属性",
+      "x-priority": 12
+    },
+    "extra": {
+      "type": "string",
+      "title": "额外内容",
+      "x-group": "高级属性",
+      "x-priority": 20
+    },
+    "icon": {
+      "type": "string",
+      "title": "图标",
+      "x-group": "高级属性",
+      "x-priority": 21
+    },
     "name": {
       "type": "string",
       "title": "字段名称",
       "x-group": "基础属性",
-      "x-priority": 0
-    },
-    "label": {
-      "type": "string",
-      "title": "字段标签",
-      "x-group": "基础属性",
-      "x-priority": 1
+      "x-priority": 0,
+      "x-no-binding": "不支持变量/表达式绑定"
     },
     "visible": {
       "type": "boolean",
@@ -24,41 +59,6 @@
       "title": "内联样式",
       "x-group": "样式",
       "x-priority": 50
-    },
-    "status": {
-      "title": "状态",
-      "x-group": "基础属性",
-      "x-priority": 10,
-      "type": "string",
-      "enum": [
-        "success",
-        "error",
-        "info",
-        "warning",
-        "404",
-        "403",
-        "500"
-      ]
-    },
-    "title": {
-      "title": "标题",
-      "x-group": "基础属性",
-      "x-priority": 11
-    },
-    "subTitle": {
-      "title": "副标题",
-      "x-group": "基础属性",
-      "x-priority": 12
-    },
-    "extra": {
-      "title": "额外内容",
-      "x-group": "高级属性",
-      "x-priority": 20
-    },
-    "icon": {
-      "title": "图标",
-      "x-group": "高级属性",
-      "x-priority": 21
     }
   }
 }

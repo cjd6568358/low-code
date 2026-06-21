@@ -19,7 +19,7 @@ import AppDetailPage from './pages/AppDetailPage';
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <AuthProvider>
         <Routes>
           {/* Platform admin login */}
