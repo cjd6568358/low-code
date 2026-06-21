@@ -40,7 +40,7 @@ metadata:
 ### 关键设计决策
 
 - **上下文引用稳定**：`reactiveCtx.getContext()` 返回同一个对象，不会因内部值变化而改变引用
-- **前缀匹配**：注册 `$component.xxx`，变更 `$component.xxx.value` 能正确通知
+- **双向路径匹配**：N 层路径变更通知 N-1 层和 N+1 层依赖（`$component.xxx` 变更 → 通知 `$component.xxx.value`，反之亦然）
 - **表达式自动调用**：`async () => { ... }` 形式的表达式会被自动调用，而不是返回函数引用
 - **evaluateAsync**：支持 await 的异步求值方法，用于数据源和异步表达式
 

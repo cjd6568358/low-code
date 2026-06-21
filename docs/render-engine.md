@@ -1902,18 +1902,22 @@ const { resolvedProps, loading, errors } = useBindings(
 //    - 无依赖的绑定不受影响
 ```
 
-**依赖图前缀匹配**：
+**依赖图双向匹配**：
 
-`DependencyGraph.notifyVariableChange` 支持前缀匹配，确保父子路径关系正确通知：
+`DependencyGraph.notifyVariableChange` 支持双向路径匹配，N 层路径变更通知 N-1 层和 N+1 层依赖：
 
 ```
-注册依赖：$component.number_xxx
-变更路径：$component.number_xxx.value
-匹配结果：✓ 前缀匹配（$component.number_xxx 是 $component.number_xxx.value 的前缀）
+变更路径：$component.xxx.value（3 层）
+  ✓ 精确匹配：依赖 $component.xxx.value
+  ✓ 子路径匹配：依赖 $component.xxx（N 层通知 N-1 层）
 
-注册依赖：$component.number_xxx
-变更路径：$component.number_xxx_extra.value
-匹配结果：✗ 不匹配（number_xxx 不是 number_xxx_extra 的前缀，有 . 分隔）
+变更路径：$component.xxx（2 层）
+  ✓ 精确匹配：依赖 $component.xxx
+  ✓ 父路径匹配：依赖 $component.xxx.value（父通知子）
+
+不匹配示例：
+  变更 $component.xxx.value → 不匹配 $component.yyy.value（不同组件）
+  变更 $component.xxx → 不匹配 $component.xxx_extra（. 分隔，不是前缀）
 ```
 
 **回显机制**：

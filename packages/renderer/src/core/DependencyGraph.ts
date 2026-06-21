@@ -103,7 +103,10 @@ export class DependencyGraphImpl {
   /**
    * 触发变量变更
    * 通知所有依赖该变量的表达式重新执行
-   * 支持前缀匹配：$component.xxx.value 变更会通知依赖 $component.xxx 的表达式
+   * 匹配规则（双向）：
+   * - 精确匹配：$component.xxx.value 变更 → 通知依赖 $component.xxx.value
+   * - 子路径匹配：$component.xxx.value 变更 → 通知依赖 $component.xxx（N 层通知 N-1 层）
+   * - 父路径匹配：$component.xxx 变更 → 通知依赖 $component.xxx.value（父通知子）
    *
    * @param variablePath 变更的变量路径
    */
@@ -111,12 +114,12 @@ export class DependencyGraphImpl {
     const notified = new Set<ExpressionKey>();
 
     for (const [trackedPath, dependents] of this.reverseDeps) {
-      // 精确匹配 或 前缀匹配（父子路径关系）
-      if (
-        trackedPath === variablePath ||
-        variablePath.startsWith(trackedPath + '.') ||
-        trackedPath.startsWith(variablePath + '.')
-      ) {
+      // 精确匹配 / 子路径匹配 / 父路径匹配
+      const matches = trackedPath === variablePath
+        || variablePath.startsWith(trackedPath + '.')
+        || trackedPath.startsWith(variablePath + '.');
+
+      if (matches) {
         for (const exprKey of dependents) {
           if (!notified.has(exprKey)) {
             notified.add(exprKey);

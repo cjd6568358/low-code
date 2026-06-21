@@ -128,9 +128,7 @@ export default function PageRuntime({ appId, pageId }: PageRuntimeProps) {
   const handleComponentValueChange = useCallback((componentId: string, value: any) => {
     const path = `$component.${componentId}`;
     const current = reactiveCtx.get(path) ?? {};
-    console.log(`[PageRuntime] 组件值变更: ${path} =`, value);
     reactiveCtx.set(path, { ...current, value });
-    console.log(`[PageRuntime] reactiveCtx.set 完成, version =`, reactiveCtx.getVersion());
   }, [reactiveCtx]);
 
   // 递归渲染组件树
