@@ -64,4 +64,6 @@ export interface PlatformComponentProps extends DesignInjectedProps {
   linkage?: LinkageEngine;
   /** 是否为设计态 */
   designMode?: boolean;
+  /** 平台级显隐控制（false 时不渲染，避免透传给原生 DOM） */
+  visible?: boolean;
 }

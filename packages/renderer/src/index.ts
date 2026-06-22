@@ -116,6 +116,7 @@ export type {
   LinkageRule,
   FieldValidator,
   DictItem,
+  WatermarkConfig,
 } from '@low-code/shared';
 
 // Export new module types

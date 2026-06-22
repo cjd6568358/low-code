@@ -30,6 +30,7 @@ const DESIGN_KEYS = new Set([
 /** 平台能力 props 的 key 列表，用于从 rest 中剔除 */
 const PLATFORM_KEYS = new Set([
   'node', 'field', 'events', 'linkage', 'designMode',
+  'visible',  // 平台级控制，不透传给底层组件（避免原生 DOM 警告）
 ]);
 
 /**
@@ -99,9 +100,12 @@ export function withPlatform<P extends Record<string, any>>(
   const PlatformComponent: React.FC<P & PlatformComponentProps> = (props) => {
     // 提取平台能力 props
     const {
-      node, field, events, linkage, designMode,
+      node, field, events, linkage, designMode, visible,
       ...restWithDesign
     } = props as P & PlatformComponentProps;
+
+    // 平台级显隐控制（设计态跳过，确保设计器中所有组件可见；运行时 visible=false 不渲染）
+    if (visible === false && !designMode) return null;
 
     // 设计态：通过 className 唯一标记定位 DOM 元素
     const designId = designMode ? (restWithDesign as any)._designId as string : undefined;

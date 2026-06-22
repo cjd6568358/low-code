@@ -92,7 +92,7 @@ export const antdCategoryMap: Record<string, { category: 'general' | 'layout' | 
   result: { category: 'feedback', name: '结果' },
   skeleton: { category: 'feedback', name: '骨架屏' },
   spin: { category: 'feedback', name: '加载中' },
-  watermark: { category: 'feedback', name: '水印' },
+  // watermark 已集成到页面设置，不在设计器面板展示
   // ── 通用（补充） ──
   floatbutton: { category: 'general', name: '悬浮按钮' },
   affix: { category: 'general', name: '固钉' },

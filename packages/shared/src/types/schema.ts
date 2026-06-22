@@ -30,6 +30,27 @@ export interface ExpressionBinding {
 }
 
 /**
+ * 页面水印配置
+ *
+ * 每个属性支持 PropValue（字面量/变量引用/表达式），
+ * 运行时通过表达式引擎解析后传给 antd Watermark 组件。
+ */
+export interface WatermarkConfig {
+  /** 是否启用（禁用时保留配置，仅停止渲染） */
+  enabled?: boolean;
+  /** 水印文字（支持字符串或多行数组） */
+  content?: PropValue;
+  /** 水印图片（与 content 二选一） */
+  image?: PropValue;
+  /** 旋转角度 */
+  rotate?: PropValue;
+  /** 层级 */
+  zIndex?: PropValue;
+  /** 字体样式 */
+  font?: PropValue;
+}
+
+/**
  * 页面描述 JSON — 渲染器的消费契约
  */
 export interface PageSchema {
@@ -41,6 +62,8 @@ export interface PageSchema {
   rules?: PageRule[];
   /** 页面数据源表达式（单个表达式，多个请求用 Promise.all，执行结果赋给 $data） */
   dataSource?: string;
+  /** 页面水印配置 */
+  watermark?: WatermarkConfig;
   theme?: ThemeConfig;
   meta?: Record<string, any>;
 }

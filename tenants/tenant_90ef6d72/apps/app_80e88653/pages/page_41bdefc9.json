@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "version": 23,
+  "version": 32,
   "name": "9890009",
   "createdAt": 1781608598544,
-  "updatedAt": 1782044612899,
+  "updatedAt": 1782099718820,
   "references": {},
   "pageId": "41bdefc9",
   "layout": {
@@ -25,12 +25,6 @@
       "props": {}
     },
     {
-      "id": "switch_1781791660364",
-      "type": "switch",
-      "name": "开关1",
-      "props": {}
-    },
-    {
       "id": "number_1781765580372",
       "type": "number",
       "name": "数字输入_01",
@@ -47,9 +41,23 @@
         "rows": {
           "type": "variable",
           "value": "$component.number_1781765580372.value"
-        }
+        },
+        "maxLength": 999,
+        "showCount": false,
+        "allowClear": false
       },
-      "name": "文本域_01"
+      "name": "文本域_01",
+      "events": {
+        "onEvent1": [
+          []
+        ]
+      }
+    },
+    {
+      "id": "switch_1781791660364",
+      "type": "switch",
+      "name": "开关1",
+      "props": {}
     },
     {
       "id": "slider_1781861407003",
@@ -62,10 +70,29 @@
       "type": "button",
       "props": {
         "children": "提交",
-        "type": "primary"
+        "type": "primary",
+        "htmlType": "submit",
+        "visible": false
       },
       "name": "按钮_01"
+    },
+    {
+      "id": "datepicker_1782092286108",
+      "type": "datepicker",
+      "name": "日期选择_01",
+      "props": {
+        "placeholder": {
+          "type": "variable",
+          "value": "$component.textarea_1781765600372.value"
+        }
+      }
     }
   ],
-  "dataSource": "async () => {\n  console.log(1);\n  const result = await $fetch.get(\"/api/apps/80e88653/pages/41bdefc9\")\n  return result.resource\n}"
+  "dataSource": "async () => {\n  console.log(1);\n  const result = await $fetch.get(\"/api/apps/80e88653/pages/41bdefc9\")\n  return result.resource\n}",
+  "watermark": {
+    "content": "低代码666",
+    "enabled": false,
+    "rotate": -20,
+    "zIndex": 9
+  }
 }

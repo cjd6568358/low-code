@@ -7,9 +7,9 @@
  * - 响应式组件状态追踪（$component 绑定 + 精准更新）
  */
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Spin, App } from 'antd';
-import type { PageSchema, ComponentNode } from '@low-code/shared';
-import { antdComponents, ResolvedComponent } from '@low-code/renderer';
+import { Spin, App, Watermark } from 'antd';
+import type { PageSchema, ComponentNode, WatermarkConfig } from '@low-code/shared';
+import { antdComponents, ResolvedComponent, isVariableBinding, isExpressionBinding } from '@low-code/renderer';
 import { ReactiveEnvContext } from '@low-code/renderer';
 import { expressionEngine } from '@low-code/computation';
 
@@ -59,6 +59,52 @@ function initComponentValues(components: ComponentNode[]): Record<string, any> {
   return values;
 }
 
+/** 从上下文中按路径取值（如 "$user.name" → context.$user.name） */
+function resolveVariablePath(path: string, context: Record<string, any>): any {
+  const segments = path.split('.');
+  let current: any = context;
+  for (const seg of segments) {
+    if (current == null) break;
+    current = current[seg];
+  }
+  return current;
+}
+
+/** 解析水印配置中的变量引用和表达式 */
+function resolveWatermarkProps(
+  config: WatermarkConfig | undefined,
+  context: Record<string, any>,
+): Record<string, any> | null {
+  if (!config) return null;
+  const resolved: Record<string, any> = {};
+  const ctxKeys = Object.keys(context);
+  const ctxValues = Object.values(context);
+
+  for (const [key, rawValue] of Object.entries(config)) {
+    if (key === 'enabled') continue;  // 跳过平台控制字段
+    if (rawValue === undefined || rawValue === null) continue;
+
+    if (isVariableBinding(rawValue)) {
+      // 变量引用：从上下文中按路径取值
+      resolved[key] = resolveVariablePath(rawValue.value, context);
+    } else if (isExpressionBinding(rawValue)) {
+      // 表达式：通过 Function 构造器执行，上下文变量通过参数注入
+      try {
+        const body = rawValue.value.trim();
+        const fn = new Function(...ctxKeys, `return (${body})()`);
+        resolved[key] = fn(...ctxValues);
+      } catch {
+        // 表达式执行失败时跳过
+      }
+    } else {
+      // 字面量
+      resolved[key] = rawValue;
+    }
+  }
+
+  return Object.keys(resolved).length > 0 ? resolved : null;
+}
+
 export default function PageRuntime({ appId, pageId }: PageRuntimeProps) {
   const { message } = App.useApp();
   const [loading, setLoading] = useState(true);
@@ -77,6 +123,9 @@ export default function PageRuntime({ appId, pageId }: PageRuntimeProps) {
     $fetch: createFetchProxy(),
     $workflow: undefined,
   }), []);
+
+  // 解析后的水印配置
+  const [resolvedWatermark, setResolvedWatermark] = useState<Record<string, any> | null>(null);
 
   // 加载页面 schema + 执行数据源
   useEffect(() => {
@@ -107,6 +156,12 @@ export default function PageRuntime({ appId, pageId }: PageRuntimeProps) {
             } catch (e) {
               console.warn('[PageRuntime] 数据源表达式执行失败:', e);
             }
+          }
+
+          // 解析水印配置（数据源执行后，上下文已就绪）
+          if (pageSchema.watermark?.enabled) {
+            const wm = resolveWatermarkProps(pageSchema.watermark, reactiveCtx.getContext());
+            setResolvedWatermark(wm);
           }
 
           if (!cancelled) {
@@ -210,9 +265,16 @@ export default function PageRuntime({ appId, pageId }: PageRuntimeProps) {
 
   const rootComponents = schema.components.filter((c) => !c.parentId);
 
-  return (
+  const layoutContent = (
     <div style={layoutStyle}>
       {rootComponents.map((node) => renderNode(node))}
     </div>
   );
+
+  // 有水印配置时包裹 Watermark 组件
+  if (resolvedWatermark) {
+    return <Watermark {...resolvedWatermark}>{layoutContent}</Watermark>;
+  }
+
+  return layoutContent;
 }

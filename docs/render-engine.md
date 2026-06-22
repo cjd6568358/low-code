@@ -62,7 +62,10 @@
 
 ### 右侧 — 属性配置面板
 
-- **未选中组件时**：显示**页面设置面板**，可编辑页面 `name` 和布局配置（gap、方向、列数）
+- **未选中组件时**：显示**页面设置面板**（三个 Tab）
+  - **基础**：页面名称 + 布局配置（类型/间距/方向/对齐等），纯字面量配置
+  - **水印**：页面级水印配置（启用/文字/图片/旋转/层级），支持变量引用和表达式绑定
+  - **数据源**：页面数据源表达式配置
 - **选中组件时**：显示组件属性面板（属性/高级/事件/样式/规则五个 Tab）
   - **属性**：`x-group === '基础属性'` 的字段（白名单过滤）
   - **高级**：`x-group === '高级属性'` 的字段
@@ -70,6 +73,25 @@
   - **样式**：`className` + `StyleEditor`（内联样式）
   - **规则**：联动规则配置（ConditionBuilder）
 - **布局类型约束**：布局类型（flex/grid）在页面创建后**不可修改**，防止组件定位错乱
+
+### 页面水印
+
+页面水印是页面级配置（非组件），存储在 `PageSchema.watermark` 中：
+
+```typescript
+interface WatermarkConfig {
+  enabled?: boolean;    // 是否启用（禁用时保留配置）
+  content?: PropValue;  // 水印文字（支持常量/变量/表达式）
+  image?: PropValue;    // 水印图片
+  rotate?: PropValue;   // 旋转角度
+  zIndex?: PropValue;   // 层级
+}
+```
+
+- 设计态：画布中实时预览字面量值（变量/表达式仅运行时解析）
+- 运行时：`resolveWatermarkProps` 解析变量引用和表达式后传给 antd Watermark 组件
+- 禁用时设置 `enabled: false`，配置保留不丢失，重新启用后恢复
+- 水印组件已从设计器组件面板移除，统一在页面设置中配置
 
 ### 组件库架构
 
@@ -119,7 +141,7 @@ packages/renderer/src/libraries/antd/*/*.json（最终 JSON Schema，含 x-group
 
 | 库名 | BaseProps | 组件数 | 说明 |
 |------|-----------|--------|------|
-| `antd` | name, visible, style | 66 | antd 6.x 全量组件（通用 2 + 布局 6 + 导航 7 + 数据录入 19 + 数据展示 20 + 反馈 9 + 补充 3） |
+| `antd` | name, visible, style | 65 | antd 6.x 全量组件（通用 2 + 布局 6 + 导航 7 + 数据录入 19 + 数据展示 20 + 反馈 8 + 补充 3），水印已移至页面设置 |
 
 组件面板按 antd 官方分类组织：通用 / 布局 / 导航 / 数据录入 / 数据展示 / 反馈。
 
@@ -302,7 +324,8 @@ DesignOverlay（Portal，position: fixed）
 - 注册时执行一次（`withPlatform(AntdInput)`），结果是稳定引用
 - 设计态注入 `lc-did-{id}` className 标记（antd 组件通过 `...rest` 传播到 DOM）
 - 通过 `DESIGN_KEYS` 过滤 `_` 前缀设计态 props，不泄露到 DOM
-- 通过 `PLATFORM_KEYS` 过滤平台能力 props（`node`/`field`/`events`/`linkage`/`designMode`）
+- 通过 `PLATFORM_KEYS` 过滤平台能力 props（`node`/`field`/`events`/`linkage`/`designMode`/`visible`）
+- `visible` 为 `false` 时运行时不渲染组件；设计态跳过此检查，确保所有组件在设计器中可见
 - `enhanceValueOnChange()` 自动关联 `value` ↔ `onChange` ↔ 联动规则
 - 运行时注入平台能力（`field`/`events`/`linkage`）
 

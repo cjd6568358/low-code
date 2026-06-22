@@ -5,6 +5,7 @@ import type {
   ComponentNode,
   ThemeConfig,
   ComponentRegistration,
+  WatermarkConfig,
 } from '@low-code/shared';
 
 /** 设计器状态 */
@@ -40,7 +41,8 @@ export type DesignerAction =
   | { type: 'SET_SEARCH'; payload: string }
   | { type: 'UPDATE_THEME'; payload: Partial<ThemeConfig> }
   | { type: 'UPDATE_LAYOUT'; payload: PageSchema['layout'] }
-  | { type: 'UPDATE_PAGE_META'; payload: { name?: string } };
+  | { type: 'UPDATE_PAGE_META'; payload: { name?: string } }
+  | { type: 'UPDATE_PAGE_WATERMARK'; payload: WatermarkConfig | undefined };
 
 /** 设计器 Reducer */
 export function designerReducer(state: DesignerState, action: DesignerAction): DesignerState {
@@ -228,6 +230,10 @@ export function designerReducer(state: DesignerState, action: DesignerAction): D
 
     case 'UPDATE_PAGE_META': {
       return { ...state, schema: { ...state.schema, ...action.payload } };
+    }
+
+    case 'UPDATE_PAGE_WATERMARK': {
+      return { ...state, schema: { ...state.schema, watermark: action.payload } };
     }
 
     default:

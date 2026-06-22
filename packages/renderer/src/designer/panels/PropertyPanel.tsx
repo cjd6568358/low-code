@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import { useDesigner } from '../core/DesignerContext';
+import type { WatermarkConfig } from '@low-code/shared';
 
 import { AutoFormRenderer, controlRegistry, registerAntdControls } from '@low-code/auto-rendering';
 import { mockDictionaryService } from '@low-code/auto-rendering';
@@ -8,6 +9,7 @@ import { ConditionBuilder } from './ConditionBuilder';
 import { VariablePicker } from './VariablePicker';
 import { StyleEditor } from './StyleEditor';
 import { DataSourcePanel } from './DataSourcePanel';
+import type { JSONSchema7 } from '@low-code/shared';
 
 // 注册 antd 控件到自动渲染引擎
 registerAntdControls(controlRegistry);
@@ -361,16 +363,6 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-/** 字段 */
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div style={{ marginBottom: '8px' }}>
-      <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px', color: '#666' }}>{label}</label>
-      {children}
-    </div>
-  );
-}
-
 const inputStyle: React.CSSProperties = {
   width: '100%',
   padding: '4px 8px',
@@ -380,7 +372,53 @@ const inputStyle: React.CSSProperties = {
   boxSizing: 'border-box',
 };
 
+// ─── 页面设置统一 Schema ─────────────────────────────────
+
+/** 页面设置 Schema — 基础/水印/数据源统一定义，x-group 分组 */
+const PAGE_SETTINGS_SCHEMA: JSONSchema7 = {
+  type: 'object',
+  properties: {
+    // ── 基础 ──
+    name:                { type: 'string',  title: '页面名称',    'x-group': '基础', 'x-priority': 0,  'x-no-binding': '' },
+    'layout.type':       { type: 'string',  title: '布局类型',    'x-group': '基础', 'x-priority': 1,  'x-no-binding': '', enum: ['flex', 'grid'], 'x-component': 'select' },
+    'layout.gap':        { type: 'number',  title: '间距',        'x-group': '基础', 'x-priority': 2,  'x-no-binding': '', default: 16 },
+    'layout.vertical':   { type: 'boolean', title: '垂直排列',    'x-group': '基础', 'x-priority': 3,  'x-no-binding': '' },
+    'layout.wrap':       { type: 'boolean', title: '自动换行',    'x-group': '基础', 'x-priority': 4,  'x-no-binding': '' },
+    'layout.justify':    { type: 'string',  title: '主轴对齐',    'x-group': '基础', 'x-priority': 5,  'x-no-binding': '', enum: ['flex-start', 'center', 'flex-end', 'space-between', 'space-around', 'space-evenly'], 'x-component': 'select' },
+    'layout.align':      { type: 'string',  title: '交叉轴对齐',  'x-group': '基础', 'x-priority': 6,  'x-no-binding': '', enum: ['flex-start', 'center', 'flex-end', 'stretch', 'baseline'], 'x-component': 'select' },
+    'layout.columns':    { type: 'number',  title: '栅格列数',    'x-group': '基础', 'x-priority': 7,  'x-no-binding': '', default: 24 },
+    // ── 水印 ──
+    'watermark.enabled': { type: 'boolean', title: '启用水印',    'x-group': '水印', 'x-priority': 0 },
+    'watermark.content': { type: 'string',  title: '水印文字',    'x-group': '水印', 'x-priority': 1 },
+    'watermark.image':   { type: 'string',  title: '水印图片',    'x-group': '水印', 'x-priority': 2 },
+    'watermark.rotate':  { type: 'number',  title: '旋转角度',    'x-group': '水印', 'x-priority': 3,  default: -20 },
+    'watermark.zIndex':  { type: 'number',  title: '层级',        'x-group': '水印', 'x-priority': 4,  default: 9 },
+  },
+};
+
+/** flex 布局独有字段 */
+const FLEX_ONLY_KEYS = new Set(['layout.vertical', 'layout.wrap', 'layout.justify', 'layout.align']);
+/** grid 布局独有字段 */
+const GRID_ONLY_KEYS = new Set(['layout.columns']);
+
+/** 按 x-group 过滤 Schema，同时按布局类型裁剪基础字段 */
+function filterPageSchema(group: string, layoutType?: string): JSONSchema7 {
+  const allProps = PAGE_SETTINGS_SCHEMA.properties!;
+  const filtered: Record<string, JSONSchema7> = {};
+  for (const [key, s] of Object.entries(allProps)) {
+    if ((s as any)['x-group'] !== group) continue;
+    if (group === '基础' && layoutType) {
+      if (FLEX_ONLY_KEYS.has(key) && layoutType !== 'flex') continue;
+      if (GRID_ONLY_KEYS.has(key) && layoutType !== 'grid') continue;
+    }
+    filtered[key] = s;
+  }
+  return { type: 'object', properties: filtered };
+}
+
 // ─── 页面设置面板 ───────────────────────────────────────
+
+type PageSettingsTab = 'basic' | 'watermark' | 'dataSource';
 
 /** 页面设置面板 — 未选中组件时显示，编辑页面级属性 */
 function PageSettingsPanel({
@@ -392,41 +430,79 @@ function PageSettingsPanel({
 }) {
   const { state, dispatch } = useDesigner();
   const { schema } = state;
+  const [activeTab, setActiveTab] = useState<PageSettingsTab>('basic');
 
-  const handleNameChange = (name: string) => {
-    dispatch({ type: 'UPDATE_PAGE_META', payload: { name } });
-  };
+  // 绑定状态（VariablePicker）
+  const [bindingTarget, setBindingTarget] = useState<string | null>(null);
+  const [bindingMode, setBindingMode] = useState<'variable' | 'expression'>('variable');
 
-  const handleGapChange = (gap: string | number) => {
-    dispatch({ type: 'UPDATE_LAYOUT', payload: { ...schema.layout, gap } });
-  };
+  // ── 基础 tab 扁平值 ──
 
-  const handleVerticalChange = (vertical: boolean) => {
-    dispatch({ type: 'UPDATE_LAYOUT', payload: { ...schema.layout, vertical } });
-  };
+  const basicValue = useMemo(() => ({
+    name: schema.name,
+    'layout.type': schema.layout.type,
+    'layout.gap': schema.layout.gap ?? 16,
+    'layout.vertical': schema.layout.vertical ?? true,
+    'layout.wrap': schema.layout.wrap ?? false,
+    'layout.justify': schema.layout.justify || 'flex-start',
+    'layout.align': schema.layout.align || 'stretch',
+    'layout.columns': schema.layout.columns ?? 24,
+  }), [schema]);
 
-  const handleWrapChange = (wrap: boolean) => {
-    dispatch({ type: 'UPDATE_LAYOUT', payload: { ...schema.layout, wrap } });
-  };
+  const handleBasicChange = useCallback((newVals: Record<string, any>) => {
+    const layoutChanges: Record<string, any> = {};
+    for (const [k, v] of Object.entries(newVals)) {
+      if (k === 'name') {
+        dispatch({ type: 'UPDATE_PAGE_META', payload: { name: v as string } });
+      } else if (k.startsWith('layout.')) {
+        layoutChanges[k.replace('layout.', '')] = v;
+      }
+    }
+    if (Object.keys(layoutChanges).length > 0) {
+      dispatch({ type: 'UPDATE_LAYOUT', payload: { ...schema.layout, ...layoutChanges } });
+    }
+  }, [schema.layout, dispatch]);
 
-  const handleJustifyChange = (justify: string) => {
-    dispatch({ type: 'UPDATE_LAYOUT', payload: { ...schema.layout, justify } });
-  };
+  // ── 水印 tab 扁平值 ──
 
-  const handleAlignChange = (align: string) => {
-    dispatch({ type: 'UPDATE_LAYOUT', payload: { ...schema.layout, align } });
-  };
+  const watermarkValue = useMemo(() => ({
+    'watermark.enabled': schema.watermark?.enabled ?? false,
+    'watermark.content': schema.watermark?.content ?? '',
+    'watermark.image':   schema.watermark?.image ?? '',
+    'watermark.rotate':  schema.watermark?.rotate ?? -20,
+    'watermark.zIndex':  schema.watermark?.zIndex ?? 9,
+  }), [schema.watermark]);
 
-  const handleColumnsChange = (columns: number) => {
-    dispatch({ type: 'UPDATE_LAYOUT', payload: { ...schema.layout, columns } });
-  };
+  const handleWatermarkChange = useCallback((newVals: Record<string, any>) => {
+    const prev = schema.watermark ?? {};
+    // 将 dot-path 键值对转为 watermark 对象
+    const wm: Record<string, any> = { ...prev };
+    for (const [k, v] of Object.entries(newVals)) {
+      const field = k.replace('watermark.', '');
+      if (field === 'enabled') {
+        wm.enabled = v;
+      } else if (v === '' || v === undefined) {
+        delete wm[field];
+      } else {
+        wm[field] = v;
+      }
+    }
+    dispatch({ type: 'UPDATE_PAGE_WATERMARK', payload: wm as WatermarkConfig });
+  }, [schema.watermark, dispatch]);
+
+  // Tab 定义
+  const tabs: { key: PageSettingsTab; label: string }[] = [
+    { key: 'basic', label: '基础' },
+    { key: 'watermark', label: '水印' },
+    { key: 'dataSource', label: '数据源' },
+  ];
 
   return (
     <div style={{
       width: '320px', height: '100%', minHeight: 0, borderLeft: '1px solid #e8e8e8',
       backgroundColor: '#fafafa', display: 'flex', flexDirection: 'column', overflow: 'hidden',
     }}>
-      {/* 头部 — 固定高度，与中间/左侧顶部对齐 */}
+      {/* 头部 */}
       <div style={{
         height: 40, padding: '0 16px', borderBottom: '1px solid #e8e8e8',
         display: 'flex', alignItems: 'center', backgroundColor: '#fff', flexShrink: 0,
@@ -435,115 +511,83 @@ function PageSettingsPanel({
         <span style={{ fontSize: '12px', color: '#999', marginLeft: 8 }}>ID: {schema.pageId}</span>
       </div>
 
+      {/* Tab 切换 */}
+      <div style={{ display: 'flex', borderBottom: '1px solid #e8e8e8', backgroundColor: '#fff' }}>
+        {tabs.map((tab) => (
+          <div
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            style={{
+              flex: 1, textAlign: 'center', padding: '8px 0', cursor: 'pointer', fontSize: '12px',
+              borderBottom: activeTab === tab.key ? '2px solid #1890ff' : '2px solid transparent',
+              color: activeTab === tab.key ? '#1890ff' : '#666',
+              fontWeight: activeTab === tab.key ? 600 : 400,
+            }}
+          >
+            {tab.label}
+          </div>
+        ))}
+      </div>
+
       {/* 内容区 */}
       <div style={{ flex: 1, overflow: 'auto', padding: '16px' }}>
-        {/* 基本信息 */}
-        <Section title="基本信息">
-          <Field label="名称">
-            <input
-              type="text"
-              value={schema.name}
-              onChange={(e) => handleNameChange(e.target.value)}
-              placeholder="页面名称"
-              style={inputStyle}
-            />
-          </Field>
-        </Section>
 
-        {/* 布局配置 */}
-        <Section title="布局配置">
-          <Field label="布局类型">
-            <input
-              type="text"
-              value={schema.layout.type === 'flex' ? '弹性布局 (Flex)' : '栅格布局 (Grid)'}
-              readOnly
-              style={{ ...inputStyle, backgroundColor: '#f5f5f5', color: '#999' }}
-            />
-          </Field>
-          <Field label="间距 (gap)">
-            <input
-              type="number"
-              value={schema.layout.gap ?? 16}
-              onChange={(e) => handleGapChange(Number(e.target.value))}
-              min={0}
-              max={64}
-              style={inputStyle}
-            />
-          </Field>
-          {schema.layout.type === 'flex' && (
-            <>
-              <Field label="垂直排列">
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
-                  <input
-                    type="checkbox"
-                    checked={schema.layout.vertical ?? true}
-                    onChange={(e) => handleVerticalChange(e.target.checked)}
-                  />
-                  垂直排列子元素
-                </label>
-              </Field>
-              <Field label="自动换行">
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
-                  <input
-                    type="checkbox"
-                    checked={schema.layout.wrap ?? false}
-                    onChange={(e) => handleWrapChange(e.target.checked)}
-                  />
-                  允许子元素换行
-                </label>
-              </Field>
-              <Field label="主轴对齐 (justify)">
-                <select
-                  value={schema.layout.justify || 'flex-start'}
-                  onChange={(e) => handleJustifyChange(e.target.value)}
-                  style={inputStyle}
-                >
-                  <option value="flex-start">起始 (flex-start)</option>
-                  <option value="center">居中 (center)</option>
-                  <option value="flex-end">末尾 (flex-end)</option>
-                  <option value="space-between">两端对齐 (space-between)</option>
-                  <option value="space-around">环绕 (space-around)</option>
-                  <option value="space-evenly">均分 (space-evenly)</option>
-                </select>
-              </Field>
-              <Field label="交叉轴对齐 (align)">
-                <select
-                  value={schema.layout.align || 'stretch'}
-                  onChange={(e) => handleAlignChange(e.target.value)}
-                  style={inputStyle}
-                >
-                  <option value="flex-start">起始 (flex-start)</option>
-                  <option value="center">居中 (center)</option>
-                  <option value="flex-end">末尾 (flex-end)</option>
-                  <option value="stretch">拉伸 (stretch)</option>
-                  <option value="baseline">基线 (baseline)</option>
-                </select>
-              </Field>
-            </>
-          )}
-          {schema.layout.type === 'grid' && (
-            <Field label="列数">
-              <input
-                type="number"
-                value={schema.layout.columns ?? 24}
-                onChange={(e) => handleColumnsChange(Number(e.target.value))}
-                min={1}
-                max={48}
-                style={inputStyle}
-              />
-            </Field>
-          )}
-        </Section>
+        {/* ── 基础 Tab ── */}
+        {activeTab === 'basic' && (
+          <AutoFormRenderer
+            schema={filterPageSchema('基础', schema.layout.type)}
+            value={basicValue}
+            onChange={handleBasicChange}
+            layoutMode="sections"
+          />
+        )}
 
-        {/* 数据源配置 */}
-        <Section title="数据源">
+        {/* ── 水印 Tab ── */}
+        {activeTab === 'watermark' && (
+          <AutoFormRenderer
+            schema={filterPageSchema('水印')}
+            value={watermarkValue}
+            onChange={handleWatermarkChange}
+            layoutMode="sections"
+            onVariablePickerOpen={(fieldName: string, initialTab: 'variable' | 'expression') => {
+              // 转换 dot-path 为 watermark 内部字段名
+              setBindingTarget(fieldName.replace('watermark.', ''));
+              setBindingMode(initialTab);
+            }}
+          />
+        )}
+
+        {/* ── 数据源 Tab ── */}
+        {activeTab === 'dataSource' && (
           <DataSourcePanel
             expression={schema.dataSource}
             onChange={(dataSource) => dispatch({ type: 'SET_SCHEMA', payload: { ...schema, dataSource } })}
             pageComponents={pageComponents}
             pageDataSources={pageDataSources}
           />
-        </Section>
+        )}
+
+        {/* VariablePicker 弹窗（仅水印使用） */}
+        {bindingTarget && (
+          <VariablePicker
+            visible={!!bindingTarget}
+            value={(schema.watermark as any)?.[bindingTarget] || ''}
+            mode={bindingMode}
+            onChange={(val) => {
+              handleWatermarkChange({ [`watermark.${bindingTarget}`]: val });
+              setBindingTarget(null);
+            }}
+            onClear={() => {
+              const next: Record<string, any> = { ...schema.watermark };
+              delete next[bindingTarget];
+              dispatch({ type: 'UPDATE_PAGE_WATERMARK', payload: next as WatermarkConfig });
+              setBindingTarget(null);
+            }}
+            onClose={() => setBindingTarget(null)}
+            pageComponents={pageComponents}
+            pageDataSources={pageDataSources}
+          />
+        )}
       </div>
     </div>
   );

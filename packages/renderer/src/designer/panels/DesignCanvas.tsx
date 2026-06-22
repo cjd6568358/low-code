@@ -1,5 +1,5 @@
-import React, { useCallback, useState, useRef, useEffect } from 'react';
-import { Switch, Tooltip, message } from 'antd';
+import React, { useCallback, useState, useRef, useEffect, useMemo } from 'react';
+import { Switch, Tooltip, message, Watermark } from 'antd';
 import { useDesigner } from '../core/DesignerContext';
 import type { ComponentNode } from '@low-code/shared';
 import type { ComponentRegistryImpl } from '@low-code/renderer';
@@ -63,6 +63,12 @@ function resolvePropsForDesign(props: Record<string, any>): Record<string, any> 
 
 // ─── 主组件 ───────────────────────────────────────────────
 
+/** 水印包装器 — 仅在 watermarkProps 非空时渲染 antd Watermark */
+function WatermarkWrapper({ watermarkProps, children }: { watermarkProps: Record<string, any> | null; children: React.ReactNode }) {
+  if (!watermarkProps) return <>{children}</>;
+  return <Watermark {...watermarkProps}>{children}</Watermark>;
+}
+
 export interface DesignCanvasProps {
   registry: ComponentRegistryImpl;
 }
@@ -81,6 +87,8 @@ export function DesignCanvas({ registry }: DesignCanvasProps) {
   // 滚动计数器 — 触发 overlay 位置重新计算
   const [scrollTick, setScrollTick] = useState(0);
   const canvasScrollRef = useRef<HTMLDivElement>(null);
+  // 尺寸变化计数器 — 侧边栏展开/收起等布局变化触发 overlay 重新计算
+  const [resizeTick, setResizeTick] = useState(0);
 
   // 画布滚动时更新 overlay 位置
   useEffect(() => {
@@ -89,6 +97,15 @@ export function DesignCanvas({ registry }: DesignCanvasProps) {
     const onScroll = () => setScrollTick((t) => t + 1);
     el.addEventListener('scroll', onScroll, { passive: true });
     return () => el.removeEventListener('scroll', onScroll);
+  }, []);
+
+  // 画布容器尺寸变化时更新 overlay 位置（侧边栏展开/收起触发）
+  useEffect(() => {
+    const el = canvasScrollRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(() => setResizeTick((t) => t + 1));
+    observer.observe(el);
+    return () => observer.disconnect();
   }, []);
 
   // ─── 选中 ──────────────────────────────────────────────
@@ -398,7 +415,7 @@ export function DesignCanvas({ registry }: DesignCanvasProps) {
         dropPosition: dragState.dropPosition?.position ?? null,
         dragSourceId: dragState.sourceId,
         siblings: getSiblingIds(node, schema.components),
-        scrollTick,
+        scrollTick: scrollTick + resizeTick,
       } : null;
 
       // 设计态标识
@@ -500,7 +517,7 @@ export function DesignCanvas({ registry }: DesignCanvasProps) {
     },
     [schema.components, selectedComponentId, previewMode, dragState, registry,
      handleSelect, handleDragStart, handleDragEnd, handleDragOver, handleDragLeave,
-     handleDrop, handleCopy, handleMove, handleDelete, dispatch, scrollTick],
+     handleDrop, handleCopy, handleMove, handleDelete, dispatch, scrollTick, resizeTick],
   );
 
   // ─── 根级组件 ──────────────────────────────────────────
@@ -511,6 +528,19 @@ export function DesignCanvas({ registry }: DesignCanvasProps) {
     web: { width: '100%', maxWidth: '100%', height: '100%' },
     mobile: { width: 375, height: 667, maxWidth: 375, margin: '0 auto', border: '1px solid #e8e8e8', borderRadius: 20 },
   };
+
+  // 提取水印字面量 props（设计态不解析变量/表达式，仅展示常量值）
+  const watermarkProps = useMemo(() => {
+    const wm = schema.watermark;
+    if (!wm?.enabled) return null;
+    const props: Record<string, any> = {};
+    for (const [key, val] of Object.entries(wm)) {
+      if (key === 'enabled') continue; // 跳过 enabled 字段
+      if (val != null && typeof val === 'object' && 'type' in val) continue; // 跳过绑定
+      if (val !== undefined && val !== '') props[key] = val;
+    }
+    return Object.keys(props).length > 0 ? props : null;
+  }, [schema.watermark]);
 
   // ─── 渲染 ──────────────────────────────────────────────
 
@@ -618,6 +648,7 @@ export function DesignCanvas({ registry }: DesignCanvasProps) {
       <div ref={portalRef} />
       {/* 画布 */}
       <div ref={canvasScrollRef} style={{ flex: 1, overflow: 'auto', backgroundColor: '#f0f2f5', padding: 24 }}>
+        <WatermarkWrapper watermarkProps={watermarkProps}>
         <div
           onClick={() => handleSelect(null)}
           onDragOver={handleCanvasDragOver}
@@ -689,6 +720,7 @@ export function DesignCanvas({ registry }: DesignCanvasProps) {
             </>
           )}
         </div>
+        </WatermarkWrapper>
       </div>
     </div>
   );
