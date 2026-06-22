@@ -62,16 +62,18 @@
 
 ### 右侧 — 属性配置面板
 
-- **未选中组件时**：显示**页面设置面板**（三个 Tab）
+- **未选中组件时**：显示**页面设置面板**（四个 Tab）
   - **基础**：页面名称 + 布局配置（类型/间距/方向/对齐等），纯字面量配置
   - **水印**：页面级水印配置（启用/文字/图片/旋转/层级），支持变量引用和表达式绑定
   - **数据源**：页面数据源表达式配置
-- **选中组件时**：显示组件属性面板（属性/高级/事件/样式/规则五个 Tab）
+  - **绑定概览**：展示页面中使用变量/表达式的组件属性，按组件分组显示
+- **选中组件时**：显示组件属性面板（属性/高级/事件/样式四个 Tab）
   - **属性**：`x-group === '基础属性'` 的字段（白名单过滤）
   - **高级**：`x-group === '高级属性'` 的字段
   - **事件**：事件动作链编排
   - **样式**：`className` + `StyleEditor`（内联样式）
-  - **规则**：联动规则配置（ConditionBuilder）
+
+> **重要**：绑定概览仅展示页面组件中使用变量/表达式的属性，不涉及规则配置。
 - **布局类型约束**：布局类型（flex/grid）在页面创建后**不可修改**，防止组件定位错乱
 
 ### 页面水印
@@ -1458,7 +1460,6 @@ interface PageSchema {
   name: string;                          // 资源名称（业务标识，唯一可读字段）
   layout: LayoutConfig;                  // 全局布局配置
   components: ComponentNode[];           // 组件树
-  rules?: PageRule[];                    // 页面级条件规则
   dataSource?: string;                   // 页面数据源表达式（结果赋给 $data）
   theme?: ThemeConfig;                   // 页面级主题覆盖
   meta?: Record<string, any>;           // 扩展元数据
@@ -2052,19 +2053,7 @@ async () => {
 
 页面级 `rules` 和组件级 `visible` 共享同一套条件规则引擎，所有规则完全可序列化为 JSON。
 
-```typescript
-/** 页面条件规则 */
-interface PageRule {
-  id: string;                            // 规则 ID
-  targetId: string;                      // 目标组件 ID
-  condition: string;                     // 条件表达式，如 "user.role === 'admin'"
-  action: 'visible' | 'hidden' | 'disabled' | 'enabled' | 'setValue' | 'setProp';
-  value?: any;                           // 动作值（setValue/setProp 时使用）
-  priority?: number;                     // 多规则冲突时的优先级
-}
-```
-
-条件表达式引用 `RenderContext` 中的变量，由运算引擎沙箱求值。规则变更时触发目标组件重渲染。
+> **重要**：绑定概览仅展示页面组件中使用变量/表达式的属性，不涉及规则配置。
 
 ### 事件与动作系统
 

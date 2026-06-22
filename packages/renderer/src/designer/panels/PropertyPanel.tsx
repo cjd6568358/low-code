@@ -1,11 +1,10 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import { useDesigner } from '../core/DesignerContext';
-import type { WatermarkConfig } from '@low-code/shared';
+import type { WatermarkConfig, ComponentNode } from '@low-code/shared';
 
 import { AutoFormRenderer, controlRegistry, registerAntdControls } from '@low-code/auto-rendering';
 import { mockDictionaryService } from '@low-code/auto-rendering';
 import { EventActionChainEditor } from './EventActionChainEditor';
-import { ConditionBuilder } from './ConditionBuilder';
 import { VariablePicker } from './VariablePicker';
 import { StyleEditor } from './StyleEditor';
 import { DataSourcePanel } from './DataSourcePanel';
@@ -18,7 +17,7 @@ registerAntdControls(controlRegistry);
 export function PropertyPanel({ registry }: { registry: any }) {
   const { state, dispatch } = useDesigner();
   const { selectedComponentId, schema } = state;
-  const [activeTab, setActiveTab] = useState<'props' | 'advanced' | 'events' | 'style' | 'rules'>('props');
+  const [activeTab, setActiveTab] = useState<ComponentSettingsTab>('props');
   const [bindingTarget, setBindingTarget] = useState<string | null>(null);
   const [bindingMode, setBindingMode] = useState<'variable' | 'expression'>('variable');
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
@@ -131,7 +130,6 @@ export function PropertyPanel({ registry }: { registry: any }) {
 
   const hasEvents = true; // 事件编辑器始终可配置
   const hasStyle = true;  // 样式编辑器始终可配置
-  const hasRules = true;  // 规则编辑器始终可配置
 
   // 过滤出有内容的 tab
   const allTabs = [
@@ -139,7 +137,6 @@ export function PropertyPanel({ registry }: { registry: any }) {
     { key: 'advanced', label: '高级', visible: hasAdvancedProps },
     { key: 'events', label: '事件', visible: hasEvents },
     { key: 'style', label: '样式', visible: hasStyle },
-    { key: 'rules', label: '规则', visible: hasRules },
   ] as const;
   const visibleTabs = allTabs.filter((t) => t.visible);
 
@@ -334,20 +331,6 @@ export function PropertyPanel({ registry }: { registry: any }) {
             </Section>
           </>
         )}
-
-        {/* 规则 Tab — 仅联动规则 */}
-        {activeTab === 'rules' && (
-          <Section title="联动规则">
-            <div style={{ fontSize: '12px', color: '#999', marginBottom: '8px' }}>
-              配置条件规则，支持显隐、禁用、设置值等动作
-            </div>
-            <ConditionBuilder
-              rules={schema.rules || []}
-              onChange={(rules) => dispatch({ type: 'SET_SCHEMA', payload: { ...schema, rules } })}
-              componentIds={schema.components.map((c) => c.id)}
-            />
-          </Section>
-        )}
       </div>
     </div>
   );
@@ -418,7 +401,11 @@ function filterPageSchema(group: string, layoutType?: string): JSONSchema7 {
 
 // ─── 页面设置面板 ───────────────────────────────────────
 
-type PageSettingsTab = 'basic' | 'watermark' | 'dataSource';
+/** 组件属性面板 tab 类型 */
+type ComponentSettingsTab = 'props' | 'advanced' | 'events' | 'style';
+
+/** 页面设置面板 tab 类型 */
+type PageSettingsTab = 'basic' | 'watermark' | 'dataSource' | 'bindings';
 
 /** 页面设置面板 — 未选中组件时显示，编辑页面级属性 */
 function PageSettingsPanel({
@@ -495,6 +482,7 @@ function PageSettingsPanel({
     { key: 'basic', label: '基础' },
     { key: 'watermark', label: '水印' },
     { key: 'dataSource', label: '数据源' },
+    { key: 'bindings', label: '绑定概览' },
   ];
 
   return (
@@ -567,6 +555,11 @@ function PageSettingsPanel({
           />
         )}
 
+        {/* ── 绑定概览 Tab ── */}
+        {activeTab === 'bindings' && (
+          <BindingsOverview components={schema.components} />
+        )}
+
         {/* VariablePicker 弹窗（仅水印使用） */}
         {bindingTarget && (
           <VariablePicker
@@ -589,6 +582,97 @@ function PageSettingsPanel({
           />
         )}
       </div>
+    </div>
+  );
+}
+
+// ─── 绑定概览组件 ───────────────────────────────────────
+
+/** 绑定项 */
+interface BindingItem {
+  componentId: string;
+  componentName: string;
+  componentType: string;
+  propName: string;
+  bindingType: 'variable' | 'expression';
+  value: string;
+}
+
+/** 提取组件中的绑定属性 */
+function extractBindings(components: ComponentNode[]): BindingItem[] {
+  const bindings: BindingItem[] = [];
+
+  for (const comp of components) {
+    const props = comp.props || {};
+    for (const [key, value] of Object.entries(props)) {
+      if (value && typeof value === 'object' && 'type' in value) {
+        const binding = value as { type: string; value: string };
+        if (binding.type === 'variable' || binding.type === 'expression') {
+          bindings.push({
+            componentId: comp.id,
+            componentName: comp.name || comp.id,
+            componentType: comp.type,
+            propName: key,
+            bindingType: binding.type,
+            value: binding.value,
+          });
+        }
+      }
+    }
+  }
+
+  return bindings;
+}
+
+/** 绑定概览组件 — 展示页面中使用变量/表达式的组件属性 */
+function BindingsOverview({ components }: { components: ComponentNode[] }) {
+  const bindings = useMemo(() => extractBindings(components), [components]);
+
+  if (bindings.length === 0) {
+    return (
+      <div style={{ textAlign: 'center', color: '#999', padding: '24px', fontSize: '12px' }}>
+        暂无绑定
+      </div>
+    );
+  }
+
+  // 按组件分组
+  const grouped = bindings.reduce<Record<string, BindingItem[]>>((acc, item) => {
+    const key = item.componentId;
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(item);
+    return acc;
+  }, {});
+
+  return (
+    <div style={{ fontSize: '12px' }}>
+      {Object.entries(grouped).map(([componentId, items]) => {
+        const first = items[0];
+        return (
+          <div key={componentId} style={{ marginBottom: '12px', border: '1px solid #e8e8e8', borderRadius: '4px', padding: '8px' }}>
+            <div style={{ fontWeight: 600, marginBottom: '4px', color: '#333' }}>
+              {first.componentName}
+              <span style={{ color: '#999', marginLeft: '4px', fontWeight: 400 }}>({first.componentType})</span>
+            </div>
+            {items.map((item) => (
+              <div key={item.propName} style={{ display: 'flex', alignItems: 'center', padding: '4px 0', borderTop: '1px solid #f0f0f0' }}>
+                <span style={{ color: '#666', minWidth: '80px' }}>{item.propName}</span>
+                <span style={{
+                  display: 'inline-block', padding: '0 4px', borderRadius: '2px', fontSize: '11px',
+                  backgroundColor: item.bindingType === 'variable' ? '#e6f7ff' : '#fff7e6',
+                  color: item.bindingType === 'variable' ? '#1890ff' : '#fa8c16',
+                  marginRight: '4px',
+                }}>
+                  {item.bindingType === 'variable' ? '变量' : '表达式'}
+                </span>
+                <span style={{ color: '#999', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {item.value}
+                </span>
+              </div>
+            ))}
+          </div>
+        );
+      })}
     </div>
   );
 }

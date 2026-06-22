@@ -17,4 +17,3 @@ export { PropertyPanel } from './panels/PropertyPanel';
 export { SaveCardDialog } from './panels/SaveCardDialog';
 export { EventActionChainEditor } from './panels/EventActionChainEditor';
 export { VariablePicker } from './panels/VariablePicker';
-export { ConditionBuilder } from './panels/ConditionBuilder';

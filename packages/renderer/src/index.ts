@@ -81,7 +81,7 @@ export type { DesignerState, DesignerAction } from './designer/core/DesignerStat
 export { ComponentPanel } from './designer/panels/ComponentPanel';
 export { DesignCanvas } from './designer/panels/DesignCanvas';
 export { PropertyPanel } from './designer/panels/PropertyPanel';
-export { ConditionBuilder } from './designer/panels/ConditionBuilder';
+export { ConditionBuilder } from './designer/panels/ConditionBuilder'; // 保留导出，供未来使用
 export { EventActionChainEditor } from './designer/panels/EventActionChainEditor';
 export { SaveCardDialog } from './designer/panels/SaveCardDialog';
 export { VariablePicker } from './designer/panels/VariablePicker';
@@ -98,7 +98,7 @@ export type {
   LayoutConfig,
   ComponentLayout,
   DataSourceConfig,
-  PageRule,
+  PageRule, // 保留导出，供未来使用
   RenderContext,
   ActionChain,
   ActionStep,
