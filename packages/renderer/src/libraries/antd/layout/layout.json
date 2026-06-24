@@ -6,7 +6,29 @@
       "type": "boolean",
       "title": "包含侧边栏",
       "x-group": "基础属性",
-      "x-priority": 10
+      "x-priority": 10,
+      "x-no-binding": "不支持变量/表达式绑定"
+    },
+    "className": {
+      "type": "string",
+      "title": "自定义 CSS 类名",
+      "x-group": "样式",
+      "x-priority": 51,
+      "x-no-binding": "不支持变量/表达式绑定"
+    },
+    "rootClassName": {
+      "type": "string",
+      "title": "根元素 CSS 类名",
+      "x-group": "样式",
+      "x-priority": 52,
+      "x-no-binding": "不支持变量/表达式绑定"
+    },
+    "id": {
+      "type": "string",
+      "title": "HTML 元素 id",
+      "x-group": "基础属性",
+      "x-priority": 3,
+      "x-no-binding": "不支持变量/表达式绑定"
     },
     "name": {
       "type": "string",

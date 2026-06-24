@@ -16,15 +16,55 @@ export interface BreadcrumbProps extends BaseProps {
    * 面包屑数据
    * @group 基础属性
    * @priority 10
-
    */
-  items?: any[];
+  items?: object[];
 
   /**
    * 分隔符
    * @group 基础属性
    * @priority 11
-
    */
   separator?: string;
+
+  /**
+   * 下拉菜单图标
+   * @group 基础属性
+   * @priority 12
+   */
+  dropdownIcon?: string;
+
+  /**
+   * 自定义 CSS 类名
+   * @group 样式
+   * @priority 51
+   */
+  className?: string;
+
+  /**
+   * 根节点 CSS 类名
+   * @group 样式
+   * @priority 52
+   */
+  rootClassName?: string;
+
+  /**
+   * 语义化类名配置
+   * @group 样式
+   * @priority 53
+   */
+  classNames?: Record<string, unknown>;
+
+  /**
+   * 语义化样式配置
+   * @group 样式
+   * @priority 54
+   */
+  styles?: Record<string, unknown>;
+
+  /**
+   * 自定义渲染函数（表达式字符串）
+   * @group 高级属性
+   * @priority 80
+   */
+  itemRender?: string;
 }

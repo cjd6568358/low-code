@@ -8,11 +8,17 @@
       "x-group": "基础属性",
       "x-priority": 10
     },
+    "title": {
+      "type": "string",
+      "title": "标题",
+      "x-group": "基础属性",
+      "x-priority": 11
+    },
     "description": {
       "type": "string",
       "title": "描述",
       "x-group": "基础属性",
-      "x-priority": 11
+      "x-priority": 12
     },
     "type": {
       "type": "string",
@@ -24,25 +30,67 @@
       ],
       "title": "类型",
       "x-group": "基础属性",
-      "x-priority": 12
+      "x-priority": 13,
+      "default": "info"
+    },
+    "variant": {
+      "type": "string",
+      "enum": [
+        "filled",
+        "outlined"
+      ],
+      "title": "变体风格",
+      "x-group": "基础属性",
+      "x-priority": 14,
+      "default": "outlined"
     },
     "showIcon": {
       "type": "boolean",
       "title": "显示图标",
       "x-group": "基础属性",
-      "x-priority": 13
+      "x-priority": 15
+    },
+    "icon": {
+      "type": "string",
+      "title": "自定义图标",
+      "x-group": "基础属性",
+      "x-priority": 16
     },
     "closable": {
       "type": "boolean",
       "title": "可关闭",
       "x-group": "基础属性",
-      "x-priority": 14
+      "x-priority": 17
+    },
+    "action": {
+      "type": "string",
+      "title": "操作区",
+      "x-group": "高级属性",
+      "x-priority": 20
     },
     "banner": {
       "type": "boolean",
       "title": "横幅",
       "x-group": "高级属性",
-      "x-priority": 20
+      "x-priority": 21
+    },
+    "id": {
+      "type": "string",
+      "title": "元素ID",
+      "x-group": "高级属性",
+      "x-priority": 22
+    },
+    "onClose": {
+      "type": "string",
+      "title": "关闭回调",
+      "x-group": "事件",
+      "x-priority": 80
+    },
+    "onClick": {
+      "type": "string",
+      "title": "点击回调",
+      "x-group": "事件",
+      "x-priority": 81
     },
     "name": {
       "type": "string",

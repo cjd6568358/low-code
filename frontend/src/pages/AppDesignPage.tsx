@@ -20,7 +20,6 @@ import {
   ArrowLeftOutlined,
   DeleteOutlined,
   FileOutlined,
-  FormOutlined,
   TableOutlined,
   NodeIndexOutlined,
   ThunderboltOutlined,
@@ -29,7 +28,8 @@ import {
   PlusOutlined,
   SettingOutlined,
 } from '@ant-design/icons';
-import { PageDesign } from '../designers';
+import { PageDesign, TableDesign } from '../designers';
+import { PageComponentPicker, type PageComponentPickResult } from '../designers/PageComponentPicker';
 import { ThemeConfigPanel, type ThemeConfig } from '../components/ThemeConfigPanel';
 
 const { Sider, Content } = Layout;
@@ -57,7 +57,6 @@ interface OpenTab {
 const RESOURCE_TYPES = [
   { key: 'pages', label: '页面', singular: 'page', icon: <FileOutlined /> },
   { key: 'cards', label: '卡片', singular: 'card', icon: <AppstoreOutlined /> },
-  { key: 'forms', label: '表单', singular: 'form', icon: <FormOutlined /> },
   { key: 'tables', label: '数据表', singular: 'table', icon: <TableOutlined /> },
   { key: 'workflows', label: '流程', singular: 'workflow', icon: <NodeIndexOutlined /> },
   { key: 'automations', label: '自动化', singular: 'automation', icon: <ThunderboltOutlined /> },
@@ -79,6 +78,11 @@ function ResourceDesigner({ appId, resourceType, resourceId, onSaved }: {
   // 页面类型：使用 PageDesign 组件
   if (resourceType === 'pages') {
     return <PageDesign appId={appId} pageId={resourceId} onSaved={onSaved} />;
+  }
+
+  // 数据表类型：使用 TableDesign 组件
+  if (resourceType === 'tables') {
+    return <TableDesign appId={appId} tableId={resourceId} onSaved={onSaved} />;
   }
 
   // 其他类型：占位
@@ -126,6 +130,8 @@ export default function AppDesignPage() {
   const [gridColumns, setGridColumns] = useState(24);
   const [appConfigOpen, setAppConfigOpen] = useState(false);
   const [appTheme, setAppTheme] = useState<Partial<ThemeConfig>>({});
+  const [tableCreateMode, setTableCreateMode] = useState<'blank' | 'fromPage'>('blank');
+  const [pagePickerVisible, setPagePickerVisible] = useState(false);
 
   // 加载应用资源
   const loadApp = useCallback(async () => {
@@ -188,12 +194,20 @@ export default function AppDesignPage() {
     setNewResourceName('');
     setPageLayout('grid');
     setGridColumns(24);
+    setTableCreateMode('blank');
   };
 
   // 确认新建资源
   const handleCreateResource = async () => {
     if (!newResourceName.trim()) {
       message.warning('请输入资源名称');
+      return;
+    }
+
+    // 数据表 + 从页面创建：打开页面选择器
+    if (newResourceModal.type === 'tables' && tableCreateMode === 'fromPage') {
+      setNewResourceModal({ open: false, type: '' });
+      setPagePickerVisible(true);
       return;
     }
 
@@ -229,6 +243,69 @@ export default function AppDesignPage() {
       } else {
         message.error(data.error || '创建失败');
       }
+    } catch {
+      message.error('创建失败');
+    }
+  };
+
+  // 从页面创建数据表
+  const handleCreateTableFromPage = async (result: PageComponentPickResult) => {
+    try {
+      // 先创建空白数据表
+      const resp = await fetch(`/api/apps/${appId}/tables`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newResourceName }),
+      });
+      const data = await resp.json();
+      if (!data.success) {
+        message.error(data.error || '创建失败');
+        return;
+      }
+
+      // 加载完整 schema 并注入字段
+      const tableId = data.resource.id;
+      const loadResp = await fetch(`/api/apps/${appId}/tables/${tableId}`);
+      const loadData = await loadResp.json();
+
+      if (loadData.success && loadData.resource) {
+        const tableSchema = loadData.resource;
+        tableSchema.sourcePageId = result.pageId;
+        tableSchema.columns = result.fields.map((field) => ({
+          id: crypto.randomUUID().slice(0, 8),
+          fieldName: field.fieldName,
+          fieldType: field.fieldType,
+          required: field.required,
+          sourceMapping: {
+            componentId: field.componentId,
+            componentProp: field.propName,
+          },
+        }));
+
+        const saveResp = await fetch(`/api/apps/${appId}/tables/${tableId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(tableSchema),
+        });
+        const saveData = await saveResp.json();
+        if (!saveResp.ok || !saveData.success) {
+          throw new Error(saveData.error || '保存字段失败');
+        }
+      }
+
+      message.success(`创建成功: ${newResourceName}（${result.fields.length} 个字段）`);
+      setPagePickerVisible(false);
+      loadApp();
+
+      // 自动打开新创建的资源
+      const tabKey = `tables:${tableId}`;
+      setOpenTabs((prev) => [...prev, {
+        key: tabKey,
+        resourceType: 'tables',
+        resourceId: tableId,
+        name: newResourceName,
+      }]);
+      setActiveTabKey(tabKey);
     } catch {
       message.error('创建失败');
     }
@@ -620,6 +697,47 @@ export default function AppDesignPage() {
               )}
             </div>
           )}
+
+          {/* 数据表类型：创建方式选择 */}
+          {newResourceModal.type === 'tables' && (
+            <div>
+              <div style={{ marginBottom: 8, fontWeight: 500 }}>创建方式</div>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <div
+                  onClick={() => setTableCreateMode('blank')}
+                  style={{
+                    flex: 1,
+                    padding: 16,
+                    border: `2px solid ${tableCreateMode === 'blank' ? '#4f46e5' : '#f0f0f0'}`,
+                    borderRadius: 8,
+                    cursor: 'pointer',
+                    textAlign: 'center',
+                    background: tableCreateMode === 'blank' ? '#f5f3ff' : '#fff',
+                  }}
+                >
+                  <div style={{ fontSize: 24, marginBottom: 4 }}>📋</div>
+                  <div style={{ fontSize: 13, fontWeight: 500 }}>空白创建</div>
+                  <div style={{ fontSize: 12, color: '#8c8c8c' }}>从零开始定义字段</div>
+                </div>
+                <div
+                  onClick={() => setTableCreateMode('fromPage')}
+                  style={{
+                    flex: 1,
+                    padding: 16,
+                    border: `2px solid ${tableCreateMode === 'fromPage' ? '#4f46e5' : '#f0f0f0'}`,
+                    borderRadius: 8,
+                    cursor: 'pointer',
+                    textAlign: 'center',
+                    background: tableCreateMode === 'fromPage' ? '#f5f3ff' : '#fff',
+                  }}
+                >
+                  <div style={{ fontSize: 24, marginBottom: 4 }}>🔗</div>
+                  <div style={{ fontSize: 13, fontWeight: 500 }}>从页面创建</div>
+                  <div style={{ fontSize: 12, color: '#8c8c8c' }}>自动提取页面组件</div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </Modal>
 
@@ -652,6 +770,14 @@ export default function AppDesignPage() {
           ]}
         />
       </Modal>
+
+      {/* 从页面创建数据表 — 页面组件选择器 */}
+      <PageComponentPicker
+        appId={appId}
+        visible={pagePickerVisible}
+        onConfirm={handleCreateTableFromPage}
+        onCancel={() => setPagePickerVisible(false)}
+      />
     </Layout>
   );
 }

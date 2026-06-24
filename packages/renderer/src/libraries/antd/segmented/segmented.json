@@ -17,17 +17,69 @@
       "x-group": "基础属性",
       "x-priority": 11
     },
+    "defaultValue": {
+      "type": [
+        "string",
+        "number"
+      ],
+      "title": "默认值",
+      "x-group": "基础属性",
+      "x-priority": 12
+    },
     "block": {
       "type": "boolean",
       "title": "撑满",
       "x-group": "基础属性",
-      "x-priority": 12
+      "x-priority": 13
     },
-    "disabled": {
-      "type": "boolean",
+    "size": {
+      "type": "string",
+      "enum": [
+        "large",
+        "middle",
+        "small"
+      ],
       "title": "尺寸",
       "x-group": "基础属性",
       "x-priority": 14
+    },
+    "disabled": {
+      "type": "boolean",
+      "title": "禁用",
+      "x-group": "基础属性",
+      "x-priority": 15
+    },
+    "vertical": {
+      "type": "boolean",
+      "title": "竖直排列",
+      "x-group": "基础属性",
+      "x-priority": 16
+    },
+    "shape": {
+      "type": "string",
+      "enum": [
+        "default",
+        "round"
+      ],
+      "title": "形状",
+      "x-group": "基础属性",
+      "x-priority": 17
+    },
+    "direction": {
+      "type": "string",
+      "enum": [
+        "ltr",
+        "rtl"
+      ],
+      "title": "排列方向",
+      "x-group": "基础属性",
+      "x-priority": 18
+    },
+    "rootClassName": {
+      "type": "string",
+      "title": "根节点样式类名",
+      "x-group": "样式",
+      "x-priority": 51
     },
     "name": {
       "type": "string",

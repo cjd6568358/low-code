@@ -80,8 +80,6 @@ export interface ComponentNode {
   layout?: ComponentLayout;
   visible?: boolean | string;
   children?: string[];
-  /** 权限配置（声明式，与 visible 表达式互补，AND 关系） */
-  permission?: ComponentPermissionConfig;
   /** 组件级数据源配置（可选） */
   dataSource?: ComponentDataSource;
 }
@@ -204,14 +202,4 @@ export interface PageRule {
   action: 'visible' | 'hidden' | 'disabled' | 'enabled' | 'setValue' | 'setProp';
   value?: any;
   priority?: number;
-}
-
-/** 组件级权限配置（声明式） */
-export interface ComponentPermissionConfig {
-  /** 允许访问的角色 ID 列表（空 = 不限制） */
-  allowedRoles?: string[];
-  /** 允许访问的部门 ID 列表 */
-  allowedDepartments?: string[];
-  /** 允许访问的人员 ID 列表 */
-  allowedUsers?: string[];
 }

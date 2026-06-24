@@ -10,9 +10,15 @@
     },
     "description": {
       "type": "string",
-      "title": "描述",
+      "title": "描述（已废弃，请使用 content）",
       "x-group": "基础属性",
       "x-priority": 11
+    },
+    "content": {
+      "type": "string",
+      "title": "内容",
+      "x-group": "基础属性",
+      "x-priority": 12
     },
     "type": {
       "type": "string",
@@ -22,7 +28,8 @@
       ],
       "title": "类型",
       "x-group": "基础属性",
-      "x-priority": 12
+      "x-priority": 13,
+      "default": "default"
     },
     "shape": {
       "type": "string",
@@ -32,19 +39,55 @@
       ],
       "title": "形状",
       "x-group": "基础属性",
-      "x-priority": 13
+      "x-priority": 14,
+      "default": "circle"
+    },
+    "disabled": {
+      "type": "boolean",
+      "title": "禁用状态",
+      "x-group": "基础属性",
+      "x-priority": 15
+    },
+    "htmlType": {
+      "type": "string",
+      "enum": [
+        "button",
+        "reset",
+        "submit"
+      ],
+      "title": "HTML 按钮类型",
+      "x-group": "基础属性",
+      "x-priority": 16
+    },
+    "href": {
+      "type": "string",
+      "title": "链接地址",
+      "x-group": "高级属性",
+      "x-priority": 20
+    },
+    "target": {
+      "type": "string",
+      "enum": [
+        "_blank",
+        "_parent",
+        "_self",
+        "_top"
+      ],
+      "title": "链接打开方式",
+      "x-group": "高级属性",
+      "x-priority": 21
     },
     "tooltip": {
       "type": "string",
       "title": "提示",
       "x-group": "高级属性",
-      "x-priority": 20
+      "x-priority": 22
     },
     "badge": {
       "type": "object",
       "title": "徽标",
       "x-group": "高级属性",
-      "x-priority": 21,
+      "x-priority": 23,
       "properties": {}
     },
     "name": {

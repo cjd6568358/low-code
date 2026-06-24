@@ -6,19 +6,22 @@
       "type": "number",
       "title": "最小值",
       "x-group": "基础属性",
-      "x-priority": 10
+      "x-priority": 10,
+      "default": 0
     },
     "max": {
       "type": "number",
       "title": "最大值",
       "x-group": "基础属性",
-      "x-priority": 11
+      "x-priority": 11,
+      "default": 100
     },
     "step": {
       "type": "number",
       "title": "步长",
       "x-group": "基础属性",
-      "x-priority": 12
+      "x-priority": 12,
+      "default": 1
     },
     "value": {
       "anyOf": [

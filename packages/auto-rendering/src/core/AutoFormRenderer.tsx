@@ -157,8 +157,11 @@ export function AutoFormRenderer(props: AutoFormRendererProps) {
       // 解析控件
       const xComponent = (fieldSchema as any)['x-component'];
       const componentProps = (fieldSchema as any)['x-component-props'] || {};
-      // enum 字段优先用 Select 控件
-      const resolvedType = fieldSchema.enum ? 'enum' : (fieldSchema.type as string || 'string');
+      // enum 字段优先用 Select 控件；type 可能是数组（如 ["string","number"]），取第一个非 integer 类型
+      const rawType = fieldSchema.enum ? 'enum' : Array.isArray(fieldSchema.type)
+        ? (fieldSchema.type.find((t: string) => t !== 'integer') || fieldSchema.type[0] || 'string')
+        : (fieldSchema.type as string || 'string');
+      const resolvedType = rawType;
       const ControlComponent = controlRegistry.resolve(
         resolvedType,
         fieldSchema.format,
@@ -287,9 +290,11 @@ export function AutoFormRenderer(props: AutoFormRendererProps) {
         <div key={key} style={{ marginBottom: '16px' }}>
           <div style={{ display: 'flex', gap: '5px', alignItems: 'center', marginBottom: '4px' }}>
             <label
+              title={key}
               style={{
                 fontWeight: 500,
                 fontSize: '14px',
+                cursor: 'default',
               }}
             >
               {fieldSchema.title || key}

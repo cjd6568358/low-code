@@ -18,7 +18,8 @@
       "type": "number",
       "title": "步长",
       "x-group": "基础属性",
-      "x-priority": 12
+      "x-priority": 12,
+      "default": 1
     },
     "precision": {
       "type": "number",
@@ -60,7 +61,8 @@
       "type": "boolean",
       "title": "显示按钮",
       "x-group": "基础属性",
-      "x-priority": 15
+      "x-priority": 15,
+      "default": true
     },
     "name": {
       "type": "string",

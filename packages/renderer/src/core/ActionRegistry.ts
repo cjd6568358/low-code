@@ -79,9 +79,11 @@ const setValuesExecutor: ActionExecutor = {
 /** 重置值 */
 const resetValueExecutor: ActionExecutor = {
   async execute(params, context) {
-    const { target } = params;
+    const { target, formId } = params;
     if (context.setFormValue && target) {
-      const initial = context.renderContext?.$form?.[`__initial_${target}`];
+      const activeId = formId ?? context.formRegistry?.getActiveFormId();
+      const manager = activeId ? context.formRegistry?.get(activeId) : undefined;
+      const initial = manager?.getInitialValues()?.[target];
       context.setFormValue(target, initial ?? undefined);
     }
   },
@@ -202,9 +204,9 @@ const copyToClipboardExecutor: ActionExecutor = {
 /** 提交表单 */
 const submitExecutor: ActionExecutor = {
   async execute(params, context) {
-    const { api, redirectUrl } = params;
+    const { api, redirectUrl, formId } = params;
     if (api && context.apiRequest) {
-      const formData = context.renderContext?.$form || {};
+      const formData = context.formRegistry?.getFormData(formId) ?? {};
       await context.apiRequest({
         url: api,
         method: 'POST',
@@ -238,14 +240,15 @@ const triggerWorkflowExecutor: ActionExecutor = {
 /** 执行脚本 */
 const executeScriptExecutor: ActionExecutor = {
   async execute(params, context) {
-    const { script } = params;
+    const { script, formId } = params;
     if (!script) return;
     try {
+      const formData = context.formRegistry?.getFormData(formId) ?? {};
       // 在沙箱中执行脚本
       const fn = new Function('$context', '$form', '$result', script);
       return fn(
         context.renderContext?.$context,
-        context.renderContext?.$form,
+        formData,
         context.$result,
       );
     } catch (e) {

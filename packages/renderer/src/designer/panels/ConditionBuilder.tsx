@@ -130,7 +130,7 @@ export function ConditionBuilder(props: ConditionBuilderProps) {
             <input
               value={rule.condition}
               onChange={(e) => handleUpdateRule(index, { condition: e.target.value })}
-              placeholder="如: $context.currentUser.role === 'admin'"
+              placeholder="如: $user.roles.includes('admin')"
               style={{ width: '100%', padding: '4px 8px', border: '1px solid #d9d9d9', borderRadius: '4px', boxSizing: 'border-box' }}
             />
           </div>

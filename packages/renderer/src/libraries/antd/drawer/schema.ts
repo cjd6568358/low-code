@@ -32,6 +32,7 @@ export interface DrawerProps extends BaseProps {
    * 位置
    * @group 基础属性
    * @priority 12
+   * @default "right"
    */
   placement?: 'top' | 'right' | 'bottom' | 'left';
 
@@ -39,7 +40,7 @@ export interface DrawerProps extends BaseProps {
    * 宽度
    * @group 基础属性
    * @priority 13
-
+   * @default 256
    */
   width?: number | string;
 
@@ -55,7 +56,7 @@ export interface DrawerProps extends BaseProps {
    * 可关闭
    * @group 基础属性
    * @priority 15
-
+   * @default true
    */
   closable?: boolean;
 
@@ -63,7 +64,7 @@ export interface DrawerProps extends BaseProps {
    * 遮罩
    * @group 基础属性
    * @priority 16
-
+   * @default true
    */
   mask?: boolean;
 

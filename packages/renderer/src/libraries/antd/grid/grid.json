@@ -1,60 +1,131 @@
 {
-  "description": "栅格 组件属性",
+  "description": "栅格 Col 组件属性",
   "type": "object",
   "properties": {
-    "gutter": {
+    "span": {
+      "type": [
+        "string",
+        "number"
+      ],
+      "title": "栅格占位格数",
+      "x-group": "基础属性",
+      "x-priority": 10
+    },
+    "offset": {
+      "type": [
+        "string",
+        "number"
+      ],
+      "title": "栅格左侧偏移格数",
+      "x-group": "基础属性",
+      "x-priority": 11
+    },
+    "order": {
+      "type": [
+        "string",
+        "number"
+      ],
+      "title": "栅格顺序",
+      "x-group": "基础属性",
+      "x-priority": 12
+    },
+    "push": {
+      "type": [
+        "string",
+        "number"
+      ],
+      "title": "栅格向右移动格数",
+      "x-group": "基础属性",
+      "x-priority": 13
+    },
+    "pull": {
+      "type": [
+        "string",
+        "number"
+      ],
+      "title": "栅格向左移动格数",
+      "x-group": "基础属性",
+      "x-priority": 14
+    },
+    "flex": {
       "anyOf": [
         {
-          "type": "array",
-          "items": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "number"
-            }
+          "enum": [
+            "auto",
+            "none"
           ],
-          "minItems": 2,
-          "maxItems": 2
+          "type": "string"
         },
         {
           "type": "number"
         }
       ],
-      "title": "栅格间距",
+      "title": "flex 布局填充",
       "x-group": "基础属性",
-      "x-priority": 10
+      "x-priority": 15
     },
-    "justify": {
-      "type": "string",
-      "enum": [
-        "center",
-        "end",
-        "space-around",
-        "space-between",
-        "space-evenly",
-        "start"
+    "xs": {
+      "type": [
+        "string",
+        "number"
       ],
-      "title": "水平排列",
-      "x-group": "基础属性",
-      "x-priority": 11
+      "title": "响应式 xs 断点（<576px）",
+      "x-group": "高级属性",
+      "x-priority": 20
     },
-    "align": {
-      "type": "string",
-      "enum": [
-        "bottom",
-        "middle",
-        "top"
+    "sm": {
+      "type": [
+        "string",
+        "number"
       ],
-      "title": "垂直对齐",
-      "x-group": "基础属性",
-      "x-priority": 12
+      "title": "响应式 sm 断点（≥576px）",
+      "x-group": "高级属性",
+      "x-priority": 21
     },
-    "wrap": {
-      "type": "boolean",
-      "title": "自动换行",
-      "x-group": "基础属性",
-      "x-priority": 13
+    "md": {
+      "type": [
+        "string",
+        "number"
+      ],
+      "title": "响应式 md 断点（≥768px）",
+      "x-group": "高级属性",
+      "x-priority": 22
+    },
+    "lg": {
+      "type": [
+        "string",
+        "number"
+      ],
+      "title": "响应式 lg 断点（≥992px）",
+      "x-group": "高级属性",
+      "x-priority": 23
+    },
+    "xl": {
+      "type": [
+        "string",
+        "number"
+      ],
+      "title": "响应式 xl 断点（≥1200px）",
+      "x-group": "高级属性",
+      "x-priority": 24
+    },
+    "xxl": {
+      "type": [
+        "string",
+        "number"
+      ],
+      "title": "响应式 xxl 断点（≥1600px）",
+      "x-group": "高级属性",
+      "x-priority": 25
+    },
+    "xxxl": {
+      "type": [
+        "string",
+        "number"
+      ],
+      "title": "响应式 xxxl 断点（≥2000px）",
+      "x-group": "高级属性",
+      "x-priority": 26
     },
     "name": {
       "type": "string",

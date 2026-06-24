@@ -1,3 +1,5 @@
+import type { FormDataContext } from './form';
+
 /**
  * 环境变量类型定义
  *
@@ -75,6 +77,8 @@ interface ComponentState {
   visible: boolean;
   disabled: boolean;
   loading: boolean;
+  /** 表单数据上下文（仅 Form 组件实例拥有） */
+  $form?: FormDataContext;
   [key: string]: any;
 }
 

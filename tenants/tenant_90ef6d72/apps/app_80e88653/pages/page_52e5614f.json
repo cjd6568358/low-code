@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "version": 8,
+  "name": "弹性页面",
+  "createdAt": 1782187054006,
+  "updatedAt": 1782279440253,
+  "references": {},
+  "pageId": "52e5614f",
+  "layout": {
+    "type": "flex",
+    "vertical": true,
+    "gap": 16
+  },
+  "components": [
+    {
+      "id": "form_01",
+      "type": "form",
+      "name": "表单_01",
+      "props": {
+        "labelCol": "80px",
+        "wrapperCol": "25",
+        "labelAlign": "left",
+        "layout": "inline",
+        "colon": true
+      },
+      "children": [
+        "input_01",
+        "colorpicker_01"
+      ]
+    },
+    {
+      "id": "flex_01",
+      "type": "flex",
+      "name": "弹性布局_01",
+      "props": {},
+      "children": [
+        "datepicker_01"
+      ]
+    },
+    {
+      "id": "datepicker_01",
+      "type": "datepicker",
+      "name": "日期选择_01",
+      "props": {},
+      "parentId": "flex_01"
+    },
+    {
+      "id": "colorpicker_01",
+      "type": "colorpicker",
+      "name": "颜色选择_01",
+      "props": {
+        "label": "颜色选择_01",
+        "style": {}
+      },
+      "parentId": "form_01"
+    },
+    {
+      "id": "input_01",
+      "type": "input",
+      "name": "输入框_01",
+      "props": {
+        "label": "输入框_01"
+      },
+      "parentId": "form_01"
+    }
+  ]
+}

@@ -42,6 +42,321 @@
       "x-group": "基础属性",
       "x-priority": 15
     },
+    "value": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": [
+              "string",
+              "number"
+            ]
+          }
+        },
+        {
+          "type": [
+            "string",
+            "number"
+          ]
+        }
+      ],
+      "title": "指定选中项",
+      "x-group": "基础属性",
+      "x-priority": 16
+    },
+    "defaultValue": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": [
+              "string",
+              "number"
+            ]
+          }
+        },
+        {
+          "type": [
+            "string",
+            "number"
+          ]
+        }
+      ],
+      "title": "默认选中项",
+      "x-group": "基础属性",
+      "x-priority": 17
+    },
+    "labelInValue": {
+      "type": "boolean",
+      "title": "是否以 LabeledValue 格式传值",
+      "x-group": "基础属性",
+      "x-priority": 18,
+      "x-no-binding": ""
+    },
+    "size": {
+      "type": "string",
+      "enum": [
+        "large",
+        "middle",
+        "small"
+      ],
+      "title": "尺寸",
+      "x-group": "基础属性",
+      "x-priority": 19,
+      "x-no-binding": ""
+    },
+    "loading": {
+      "type": "boolean",
+      "title": "加载中",
+      "x-group": "基础属性",
+      "x-priority": 20
+    },
+    "autoFocus": {
+      "type": "boolean",
+      "title": "自动聚焦",
+      "x-group": "基础属性",
+      "x-priority": 21,
+      "x-no-binding": ""
+    },
+    "fieldNames": {
+      "type": "object",
+      "title": "字段名称映射",
+      "x-group": "基础属性",
+      "x-priority": 30,
+      "x-no-binding": "",
+      "properties": {
+        "value": {
+          "type": "string",
+          "title": "选项值字段名",
+          "x-group": "基础属性"
+        },
+        "label": {
+          "type": "string",
+          "title": "选项标签字段名",
+          "x-group": "基础属性"
+        },
+        "groupLabel": {
+          "type": "string",
+          "title": "分组标签字段名",
+          "x-group": "基础属性"
+        },
+        "options": {
+          "type": "string",
+          "title": "子选项字段名",
+          "x-group": "基础属性"
+        }
+      }
+    },
+    "optionFilterProp": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "title": "搜索时过滤对应的 option 属性",
+      "x-group": "基础属性",
+      "x-priority": 31,
+      "x-no-binding": ""
+    },
+    "optionLabelProp": {
+      "type": "string",
+      "title": "回填到选中项的属性",
+      "x-group": "基础属性",
+      "x-priority": 32,
+      "x-no-binding": ""
+    },
+    "tokenSeparators": {
+      "type": "array",
+      "title": "自动分词分隔符",
+      "x-group": "基础属性",
+      "x-priority": 33,
+      "x-no-binding": ""
+    },
+    "autoClearSearchValue": {
+      "type": "boolean",
+      "title": "选中后是否自动清空搜索框",
+      "x-group": "基础属性",
+      "x-priority": 34,
+      "x-no-binding": "",
+      "default": true
+    },
+    "filterOption": {
+      "type": "boolean",
+      "title": "是否根据输入项进行筛选",
+      "x-group": "基础属性",
+      "x-priority": 35,
+      "x-no-binding": ""
+    },
+    "variant": {
+      "type": "string",
+      "enum": [
+        "borderless",
+        "filled",
+        "outlined",
+        "underlined"
+      ],
+      "title": "形态变体",
+      "x-group": "高级属性",
+      "x-priority": 40,
+      "x-no-binding": ""
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "error",
+        "warning"
+      ],
+      "title": "状态",
+      "x-group": "高级属性",
+      "x-priority": 41,
+      "x-no-binding": ""
+    },
+    "placement": {
+      "type": "string",
+      "enum": [
+        "bottomLeft",
+        "bottomRight",
+        "topLeft",
+        "topRight"
+      ],
+      "title": "弹出位置",
+      "x-group": "高级属性",
+      "x-priority": 42,
+      "x-no-binding": ""
+    },
+    "maxTagCount": {
+      "anyOf": [
+        {
+          "const": "responsive",
+          "type": "string"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "title": "最多显示标签数量",
+      "x-group": "高级属性",
+      "x-priority": 43
+    },
+    "maxTagTextLength": {
+      "type": "number",
+      "title": "最大标签文本长度",
+      "x-group": "高级属性",
+      "x-priority": 44
+    },
+    "maxCount": {
+      "type": "number",
+      "title": "最多可选数量",
+      "x-group": "高级属性",
+      "x-priority": 45
+    },
+    "maxLength": {
+      "type": "number",
+      "title": "最大输入长度",
+      "x-group": "高级属性",
+      "x-priority": 46
+    },
+    "open": {
+      "type": "boolean",
+      "title": "下拉菜单是否展开（受控）",
+      "x-group": "高级属性",
+      "x-priority": 47
+    },
+    "defaultOpen": {
+      "type": "boolean",
+      "title": "默认是否展开下拉菜单",
+      "x-group": "高级属性",
+      "x-priority": 48,
+      "x-no-binding": ""
+    },
+    "notFoundContent": {
+      "type": "string",
+      "title": "无选项时的内容",
+      "x-group": "高级属性",
+      "x-priority": 49
+    },
+    "virtual": {
+      "type": "boolean",
+      "title": "是否使用虚拟滚动",
+      "x-group": "高级属性",
+      "x-priority": 50,
+      "x-no-binding": ""
+    },
+    "listHeight": {
+      "type": "number",
+      "title": "下拉菜单高度",
+      "x-group": "高级属性",
+      "x-priority": 51,
+      "default": 256
+    },
+    "listItemHeight": {
+      "type": "number",
+      "title": "下拉菜单项高度",
+      "x-group": "高级属性",
+      "x-priority": 52
+    },
+    "popupMatchSelectWidth": {
+      "type": [
+        "number",
+        "boolean"
+      ],
+      "title": "下拉菜单宽度是否与选择器同宽",
+      "x-group": "高级属性",
+      "x-priority": 53
+    },
+    "popupStyle": {
+      "type": "object",
+      "title": "下拉菜单样式",
+      "x-group": "高级属性",
+      "x-priority": 54
+    },
+    "direction": {
+      "type": "string",
+      "enum": [
+        "ltr",
+        "rtl"
+      ],
+      "title": "文字方向",
+      "x-group": "高级属性",
+      "x-priority": 55,
+      "x-no-binding": ""
+    },
+    "showScrollBar": {
+      "enum": [
+        false,
+        "optional",
+        true
+      ],
+      "title": "是否显示滚动条",
+      "x-group": "高级属性",
+      "x-priority": 56,
+      "x-no-binding": ""
+    },
+    "showAction": {
+      "type": "array",
+      "title": "触发下拉的行为",
+      "x-group": "高级属性",
+      "x-priority": 57,
+      "x-no-binding": ""
+    },
+    "prefix": {
+      "type": "string",
+      "title": "前缀",
+      "x-group": "基础属性",
+      "x-priority": 60
+    },
+    "suffix": {
+      "type": "string",
+      "title": "后缀图标",
+      "x-group": "基础属性",
+      "x-priority": 61
+    },
     "name": {
       "type": "string",
       "title": "字段名称",

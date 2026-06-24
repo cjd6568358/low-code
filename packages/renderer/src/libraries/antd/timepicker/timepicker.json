@@ -14,12 +14,6 @@
       "x-group": "基础属性",
       "x-priority": 11
     },
-    "use12Hours": {
-      "type": "boolean",
-      "title": "12小时制",
-      "x-group": "高级属性",
-      "x-priority": 20
-    },
     "allowClear": {
       "type": "boolean",
       "title": "允许清除",
@@ -31,6 +25,235 @@
       "title": "禁用",
       "x-group": "基础属性",
       "x-priority": 13
+    },
+    "use12Hours": {
+      "type": "boolean",
+      "title": "12小时制",
+      "x-group": "基础属性",
+      "x-priority": 14
+    },
+    "defaultValue": {
+      "type": "string",
+      "title": "默认值",
+      "x-group": "基础属性",
+      "x-priority": 15
+    },
+    "value": {
+      "type": "string",
+      "title": "当前值（受控）",
+      "x-group": "基础属性",
+      "x-priority": 16
+    },
+    "size": {
+      "type": "string",
+      "enum": [
+        "large",
+        "middle",
+        "small"
+      ],
+      "title": "尺寸",
+      "x-group": "基础属性",
+      "x-priority": 17,
+      "x-no-binding": ""
+    },
+    "inputReadOnly": {
+      "type": "boolean",
+      "title": "输入框只读",
+      "x-group": "基础属性",
+      "x-priority": 18,
+      "x-no-binding": ""
+    },
+    "autoFocus": {
+      "type": "boolean",
+      "title": "自动获取焦点",
+      "x-group": "基础属性",
+      "x-priority": 19,
+      "x-no-binding": ""
+    },
+    "hourStep": {
+      "type": "number",
+      "title": "小时选项间隔",
+      "x-group": "高级属性",
+      "x-priority": 20,
+      "x-no-binding": ""
+    },
+    "minuteStep": {
+      "type": "number",
+      "title": "分钟选项间隔",
+      "x-group": "高级属性",
+      "x-priority": 21,
+      "x-no-binding": ""
+    },
+    "secondStep": {
+      "type": "number",
+      "title": "秒选项间隔",
+      "x-group": "高级属性",
+      "x-priority": 22,
+      "x-no-binding": ""
+    },
+    "millisecondStep": {
+      "type": "number",
+      "title": "毫秒选项间隔",
+      "x-group": "高级属性",
+      "x-priority": 23,
+      "x-no-binding": ""
+    },
+    "showHour": {
+      "type": "boolean",
+      "title": "显示小时",
+      "x-group": "基础属性",
+      "x-priority": 30,
+      "x-no-binding": ""
+    },
+    "showMinute": {
+      "type": "boolean",
+      "title": "显示分钟",
+      "x-group": "基础属性",
+      "x-priority": 31,
+      "x-no-binding": ""
+    },
+    "showSecond": {
+      "type": "boolean",
+      "title": "显示秒",
+      "x-group": "基础属性",
+      "x-priority": 32,
+      "x-no-binding": ""
+    },
+    "showMillisecond": {
+      "type": "boolean",
+      "title": "显示毫秒",
+      "x-group": "基础属性",
+      "x-priority": 33,
+      "x-no-binding": ""
+    },
+    "showNow": {
+      "type": "boolean",
+      "title": "显示此刻按钮",
+      "x-group": "基础属性",
+      "x-priority": 34,
+      "x-no-binding": ""
+    },
+    "hideDisabledOptions": {
+      "type": "boolean",
+      "title": "隐藏禁止选项",
+      "x-group": "基础属性",
+      "x-priority": 35,
+      "x-no-binding": ""
+    },
+    "changeOnScroll": {
+      "type": "boolean",
+      "title": "滚动时即刻变更",
+      "x-group": "基础属性",
+      "x-priority": 36,
+      "x-no-binding": ""
+    },
+    "variant": {
+      "type": "string",
+      "enum": [
+        "borderless",
+        "filled",
+        "outlined",
+        "underlined"
+      ],
+      "title": "形态变体",
+      "x-group": "高级属性",
+      "x-priority": 40,
+      "x-no-binding": ""
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "error",
+        "warning"
+      ],
+      "title": "校验状态",
+      "x-group": "高级属性",
+      "x-priority": 41,
+      "x-no-binding": ""
+    },
+    "placement": {
+      "type": "string",
+      "enum": [
+        "bottomLeft",
+        "bottomRight",
+        "topLeft",
+        "topRight"
+      ],
+      "title": "弹出位置",
+      "x-group": "高级属性",
+      "x-priority": 42,
+      "x-no-binding": ""
+    },
+    "defaultOpenValue": {
+      "type": "string",
+      "title": "默认面板时间",
+      "x-group": "高级属性",
+      "x-priority": 43
+    },
+    "open": {
+      "type": "boolean",
+      "title": "面板是否打开（受控）",
+      "x-group": "高级属性",
+      "x-priority": 44
+    },
+    "defaultOpen": {
+      "type": "boolean",
+      "title": "默认面板是否打开",
+      "x-group": "高级属性",
+      "x-priority": 45,
+      "x-no-binding": ""
+    },
+    "needConfirm": {
+      "type": "boolean",
+      "title": "是否需要确认按钮",
+      "x-group": "高级属性",
+      "x-priority": 46,
+      "x-no-binding": ""
+    },
+    "transitionName": {
+      "type": "string",
+      "title": "弹出层过渡动画名称",
+      "x-group": "高级属性",
+      "x-priority": 47,
+      "x-no-binding": ""
+    },
+    "direction": {
+      "type": "string",
+      "enum": [
+        "ltr",
+        "rtl"
+      ],
+      "title": "文字方向",
+      "x-group": "高级属性",
+      "x-priority": 48,
+      "x-no-binding": ""
+    },
+    "order": {
+      "type": "boolean",
+      "title": "排序（开始时间早于结束时间）",
+      "x-group": "高级属性",
+      "x-priority": 49,
+      "x-no-binding": ""
+    },
+    "popupClassName": {
+      "type": "string",
+      "title": "弹出层类名",
+      "x-group": "基础属性",
+      "x-priority": 60,
+      "x-no-binding": ""
+    },
+    "rootClassName": {
+      "type": "string",
+      "title": "根节点类名",
+      "x-group": "基础属性",
+      "x-priority": 61,
+      "x-no-binding": ""
+    },
+    "addon": {
+      "type": "string",
+      "title": "附加内容",
+      "x-group": "基础属性",
+      "x-priority": 62
     },
     "name": {
       "type": "string",

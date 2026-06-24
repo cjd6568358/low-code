@@ -13,7 +13,6 @@
 export type ExposableResourceType =
   | 'pages'
   | 'cards'
-  | 'forms'
   | 'tables'
   | 'workflows'
   | 'automations'

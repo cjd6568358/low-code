@@ -13,7 +13,7 @@ export interface SliderProps extends BaseProps {
    * 最小值
    * @group 基础属性
    * @priority 10
-
+   * @default 0
    */
   min?: number;
 
@@ -21,7 +21,7 @@ export interface SliderProps extends BaseProps {
    * 最大值
    * @group 基础属性
    * @priority 11
-
+   * @default 100
    */
   max?: number;
 
@@ -29,7 +29,7 @@ export interface SliderProps extends BaseProps {
    * 步长
    * @group 基础属性
    * @priority 12
-
+   * @default 1
    */
   step?: number;
 

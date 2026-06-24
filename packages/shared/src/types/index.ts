@@ -11,3 +11,4 @@ export * from './expression';
 export * from './permission';
 export * from './app';
 export * from './environment';
+export * from './table';

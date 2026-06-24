@@ -16,15 +16,13 @@ export interface DescriptionsProps extends BaseProps {
    * 数据项
    * @group 基础属性
    * @priority 10
-
    */
-  items?: any[];
+  items?: object[];
 
   /**
    * 列数
    * @group 基础属性
    * @priority 11
-
    */
   column?: number;
 
@@ -32,7 +30,6 @@ export interface DescriptionsProps extends BaseProps {
    * 边框
    * @group 基础属性
    * @priority 12
-
    */
   bordered?: boolean;
 
@@ -40,6 +37,7 @@ export interface DescriptionsProps extends BaseProps {
    * 布局
    * @group 基础属性
    * @priority 13
+   * @default "horizontal"
    */
   layout?: 'horizontal' | 'vertical';
 
@@ -47,12 +45,27 @@ export interface DescriptionsProps extends BaseProps {
    * 尺寸
    * @group 基础属性
    * @priority 14
+   */
+  size?: 'small' | 'middle' | 'large';
 
   /**
    * 标题
    * @group 基础属性
    * @priority 15
-
    */
   title?: string;
+
+  /**
+   * 标题右侧操作区域
+   * @group 基础属性
+   * @priority 16
+   */
+  extra?: string;
+
+  /**
+   * 是否显示冒号
+   * @group 基础属性
+   * @priority 17
+   */
+  colon?: boolean;
 }

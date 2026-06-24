@@ -22,19 +22,237 @@
       ],
       "title": "类型",
       "x-group": "基础属性",
-      "x-priority": 12
+      "x-priority": 12,
+      "default": "default"
     },
     "mask": {
-      "type": "boolean",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "style": {
+              "type": "object",
+              "propertyOrder": []
+            },
+            "color": {
+              "type": "string"
+            }
+          },
+          "propertyOrder": [
+            "style",
+            "color"
+          ]
+        },
+        {
+          "type": "boolean"
+        }
+      ],
       "title": "遮罩",
       "x-group": "基础属性",
       "x-priority": 13
     },
     "arrow": {
-      "type": "boolean",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "pointAtCenter": {
+              "type": "boolean"
+            }
+          },
+          "propertyOrder": [
+            "pointAtCenter"
+          ]
+        },
+        {
+          "type": "boolean"
+        }
+      ],
       "title": "箭头",
       "x-group": "基础属性",
-      "x-priority": 14
+      "x-priority": 14,
+      "default": true
+    },
+    "open": {
+      "type": "boolean",
+      "title": "受控展开",
+      "x-group": "基础属性",
+      "x-priority": 15
+    },
+    "defaultOpen": {
+      "type": "boolean",
+      "title": "默认展开",
+      "x-group": "基础属性",
+      "x-priority": 16
+    },
+    "keyboard": {
+      "type": "boolean",
+      "title": "键盘导航",
+      "x-group": "基础属性",
+      "x-priority": 17
+    },
+    "defaultCurrent": {
+      "type": "number",
+      "title": "默认步骤索引",
+      "x-group": "基础属性",
+      "x-priority": 18
+    },
+    "closable": {
+      "type": "boolean",
+      "title": "可关闭",
+      "x-group": "基础属性",
+      "x-priority": 19,
+      "default": true
+    },
+    "closeIcon": {
+      "type": "string",
+      "title": "关闭图标",
+      "x-group": "高级属性",
+      "x-priority": 20
+    },
+    "animated": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "placeholder": {
+              "type": "boolean"
+            }
+          },
+          "propertyOrder": [
+            "placeholder"
+          ]
+        },
+        {
+          "type": "boolean"
+        }
+      ],
+      "title": "动画",
+      "x-group": "高级属性",
+      "x-priority": 21,
+      "default": true
+    },
+    "placement": {
+      "type": "string",
+      "enum": [
+        "bottom",
+        "bottomLeft",
+        "bottomRight",
+        "left",
+        "leftBottom",
+        "leftTop",
+        "right",
+        "rightBottom",
+        "rightTop",
+        "top",
+        "topLeft",
+        "topRight"
+      ],
+      "title": "弹出位置",
+      "x-group": "高级属性",
+      "x-priority": 22
+    },
+    "scrollIntoViewOptions": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "behavior": {
+              "enum": [
+                "auto",
+                "smooth"
+              ],
+              "type": "string"
+            },
+            "block": {
+              "enum": [
+                "center",
+                "end",
+                "nearest",
+                "start"
+              ],
+              "type": "string"
+            },
+            "inline": {
+              "enum": [
+                "center",
+                "end",
+                "nearest",
+                "start"
+              ],
+              "type": "string"
+            }
+          },
+          "propertyOrder": [
+            "behavior",
+            "block",
+            "inline"
+          ]
+        },
+        {
+          "type": "boolean"
+        }
+      ],
+      "title": "滚动至可见",
+      "x-group": "高级属性",
+      "x-priority": 23
+    },
+    "zIndex": {
+      "type": "number",
+      "title": "层级",
+      "x-group": "高级属性",
+      "x-priority": 24
+    },
+    "disabledInteraction": {
+      "type": "boolean",
+      "title": "禁用交互",
+      "x-group": "高级属性",
+      "x-priority": 25
+    },
+    "gap": {
+      "type": "object",
+      "title": "高亮间距",
+      "x-group": "高级属性",
+      "x-priority": 26,
+      "properties": {
+        "offset": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "minItems": 2,
+              "maxItems": 2
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "x-group": "基础属性"
+        },
+        "radius": {
+          "type": "number",
+          "x-group": "基础属性"
+        }
+      }
+    },
+    "className": {
+      "type": "string",
+      "title": "CSS 类名",
+      "x-group": "样式",
+      "x-priority": 30
+    },
+    "rootClassName": {
+      "type": "string",
+      "title": "根节点类名",
+      "x-group": "样式",
+      "x-priority": 31
     },
     "name": {
       "type": "string",

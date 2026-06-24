@@ -76,7 +76,7 @@ function resourceIdFromFilename(filename: string): string {
 }
 
 /** 资源类型列表 */
-const RESOURCE_TYPES = ['pages', 'cards', 'forms', 'tables', 'workflows', 'automations', 'computations'] as const;
+const RESOURCE_TYPES = ['pages', 'cards', 'tables', 'workflows', 'automations', 'computations'] as const;
 
 /**
  * 从文件读取资源内容（带前缀文件名）
@@ -271,7 +271,7 @@ export function createAppsRouter(): KoaRouter {
 
     // Create directory
     const appDir = path.join(TENANTS_DIR, targetTenantId, 'apps', appId);
-    const resourceDirs = ['pages', 'cards', 'forms', 'tables', 'workflows', 'automations', 'computations'];
+    const resourceDirs = ['pages', 'cards', 'tables', 'workflows', 'automations', 'computations'];
     for (const dir of resourceDirs) {
       fs.mkdirSync(path.join(appDir, dir), { recursive: true });
     }
@@ -492,7 +492,7 @@ export function createAppsRouter(): KoaRouter {
     }
 
     // 验证资源类型
-    const validTypes = ['pages', 'cards', 'forms', 'tables', 'workflows', 'automations', 'computations'];
+    const validTypes = ['pages', 'cards', 'tables', 'workflows', 'automations', 'computations'];
     if (!validTypes.includes(resourceType)) {
       ctx.status = 400;
       ctx.body = { success: false, error: `无效的资源类型: ${resourceType}` };
@@ -537,6 +537,11 @@ export function createAppsRouter(): KoaRouter {
       resourceContent.components = [];
     }
 
+    // 数据表类型：添加空字段列表
+    if (resourceType === 'tables') {
+      resourceContent.columns = [];
+    }
+
     // 写入文件
     fs.writeFileSync(
       path.join(resourceDir, filename),
@@ -557,7 +562,7 @@ export function createAppsRouter(): KoaRouter {
   router.get('/:appId/:resourceType/:resourceId', async (ctx) => {
     const { appId, resourceType, resourceId } = ctx.params;
 
-    const validTypes = ['pages', 'cards', 'forms', 'tables', 'workflows', 'automations', 'computations'];
+    const validTypes = ['pages', 'cards', 'tables', 'workflows', 'automations', 'computations'];
     if (!validTypes.includes(resourceType)) {
       ctx.status = 400;
       ctx.body = { success: false, error: `无效的资源类型: ${resourceType}` };
@@ -600,7 +605,7 @@ export function createAppsRouter(): KoaRouter {
     const updates = ctx.request.body as Record<string, any>;
 
     // 验证资源类型
-    const validTypes = ['pages', 'cards', 'forms', 'tables', 'workflows', 'automations', 'computations'];
+    const validTypes = ['pages', 'cards', 'tables', 'workflows', 'automations', 'computations'];
     if (!validTypes.includes(resourceType)) {
       ctx.status = 400;
       ctx.body = { success: false, error: `无效的资源类型: ${resourceType}` };
@@ -668,7 +673,7 @@ export function createAppsRouter(): KoaRouter {
     const { appId, resourceType, resourceId } = ctx.params;
 
     // 验证资源类型
-    const validTypes = ['pages', 'cards', 'forms', 'tables', 'workflows', 'automations', 'computations'];
+    const validTypes = ['pages', 'cards', 'tables', 'workflows', 'automations', 'computations'];
     if (!validTypes.includes(resourceType)) {
       ctx.status = 400;
       ctx.body = { success: false, error: `无效的资源类型: ${resourceType}` };

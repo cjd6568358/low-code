@@ -14,6 +14,42 @@
       "x-group": "基础属性",
       "x-priority": 11
     },
+    "dropdownIcon": {
+      "type": "string",
+      "title": "下拉菜单图标",
+      "x-group": "基础属性",
+      "x-priority": 12
+    },
+    "className": {
+      "type": "string",
+      "title": "自定义 CSS 类名",
+      "x-group": "样式",
+      "x-priority": 51
+    },
+    "rootClassName": {
+      "type": "string",
+      "title": "根节点 CSS 类名",
+      "x-group": "样式",
+      "x-priority": 52
+    },
+    "classNames": {
+      "type": "object",
+      "title": "语义化类名配置",
+      "x-group": "样式",
+      "x-priority": 53
+    },
+    "styles": {
+      "type": "object",
+      "title": "语义化样式配置",
+      "x-group": "样式",
+      "x-priority": 54
+    },
+    "itemRender": {
+      "type": "string",
+      "title": "自定义渲染函数（表达式字符串）",
+      "x-group": "高级属性",
+      "x-priority": 80
+    },
     "name": {
       "type": "string",
       "title": "字段名称",

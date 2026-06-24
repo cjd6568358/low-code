@@ -47,6 +47,24 @@
       "x-group": "高级属性",
       "x-priority": 21
     },
+    "loading": {
+      "type": "boolean",
+      "title": "加载状态",
+      "x-group": "高级属性",
+      "x-priority": 22
+    },
+    "formatter": {
+      "type": "string",
+      "title": "格式化模式，支持内置 \"number\" 和 \"countdown\"",
+      "x-group": "高级属性",
+      "x-priority": 23
+    },
+    "decimalSeparator": {
+      "type": "string",
+      "title": "小数点分隔符",
+      "x-group": "高级属性",
+      "x-priority": 24
+    },
     "name": {
       "type": "string",
       "title": "字段名称",

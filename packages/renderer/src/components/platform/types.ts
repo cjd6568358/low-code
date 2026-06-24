@@ -14,6 +14,8 @@ export interface FieldBinding {
   setValue: (value: any) => void;
   /** 绑定的字段路径（如 "userName" 或 "address.city"） */
   bindField?: string;
+  /** 绑定的表单 ID（标识字段属于哪个 Form 实例） */
+  formId?: string;
 }
 
 /** 联动引擎接口 — 负责联动规则评估 */

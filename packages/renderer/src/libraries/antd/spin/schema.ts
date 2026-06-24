@@ -16,7 +16,6 @@ export interface SpinProps extends BaseProps {
    * 加载中
    * @group 基础属性
    * @priority 10
-
    */
   spinning?: boolean;
 
@@ -24,28 +23,48 @@ export interface SpinProps extends BaseProps {
    * 尺寸
    * @group 基础属性
    * @priority 11
+   */
+  size?: 'small' | 'medium' | 'large';
 
   /**
-   * 提示
+   * 提示文案（已废弃，建议使用 description）
    * @group 基础属性
    * @priority 12
-
    */
   tip?: string;
 
   /**
-   * 延迟
+   * 描述文案
+   * @group 基础属性
+   * @priority 13
+   */
+  description?: string;
+
+  /**
+   * 延迟显示加载效果的时间（毫秒），防止闪烁
    * @group 高级属性
    * @priority 20
-
    */
   delay?: number;
 
   /**
-   * 指示器
+   * 自定义加载指示器
    * @group 高级属性
    * @priority 21
-
    */
   indicator?: string;
+
+  /**
+   * 全屏加载
+   * @group 高级属性
+   * @priority 22
+   */
+  fullscreen?: boolean;
+
+  /**
+   * 进度百分比，auto 时自动计算
+   * @group 高级属性
+   * @priority 23
+   */
+  percent?: number | 'auto';
 }

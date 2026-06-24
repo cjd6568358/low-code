@@ -3,7 +3,7 @@
 ## 设计理念
 
 - **Schema 即应用**：一个应用的完整定义 = `tenants/{tenantId}/apps/{appId}/` 目录下的所有 JSON 文件
-- **七种资源类型**：页面、卡片、表单、数据表、流程、自动化、运算，统一存储、统一管理
+- **六种资源类型**：页面、卡片、数据表、流程、自动化、运算，统一存储、统一管理
 - **文件即配置**：可 Git 版本管理、可导入导出、可跨环境迁移
 - **TS 类型驱动**：TypeScript 类型自动编译为 JSON Schema，各引擎自动映射消费
 
@@ -30,7 +30,7 @@
 |------|------|
 | 创建应用 | 从空白创建、从已有应用复制、从应用市场导入三种方式，支持应用分组管理 |
 | 应用发布 | 草稿应用可发布上线，发布后员工可见可使用；已发布应用可归档下线 |
-| 统一设计器 | `/designer/app/:id` 进入应用资源概览，支持页面、卡片、表单、数据表、流程、自动化、运算七种资源类型的可视化编辑 |
+| 统一设计器 | `/designer/app/:id` 进入应用资源概览，支持页面、卡片、数据表、流程、自动化、运算六种资源类型的可视化编辑 |
 | 数据表管理 | 可视化创建数据表，配置字段类型、校验规则、索引。数据表默认仅限当前应用使用，需显式开放权限后方可被指定应用引用 |
 | 数据运维 | 支持数据导出（CSV/Excel/SQL）、数据迁移（跨环境/跨库）、数据备份与恢复 |
 | 应用预览 | 实时预览应用效果，支持多端切换预览 |
@@ -75,7 +75,6 @@ tenants/
     │       │   ├── page_{uuid}.json
     │       │   └── page_{uuid}.json
     │       ├── cards/             # 卡片 Schema
-    │       ├── forms/             # 表单 Schema
     │       ├── tables/            # 数据表 Schema
     │       │   ├── table_{uuid}.json
     │       │   └── table_{uuid}.json
@@ -100,7 +99,7 @@ tenants/
 
 - **文件即数据源**：`tenants/{tenantId}/apps/` 是应用数据的唯一数据源，API 直接读写 JSON 文件，不依赖数据库存储应用元信息
 - **租户隔离**：`tenants/{tenantId}/` 物理隔离，每租户独立目录 + 独立 SQLite
-- **七种资源**：pages、cards、forms、tables、workflows、automations、computations，每种资源一个 JSON 文件
+- **六种资源**：pages、cards、tables、workflows、automations、computations，每种资源一个 JSON 文件
 - **统一格式**：所有资源 Schema 遵循各自的 JSON Schema 规范
 - **时间戳**：所有时间字段统一使用 Unix 毫秒时间戳（`number` 类型）
 - **标准字段**：所有资源 JSON 必须包含 `schemaVersion`（结构版本）、`version`（乐观锁版本）
@@ -154,7 +153,6 @@ tenants/
 |---------|------|
 | `pages` | 页面 |
 | `cards` | 卡片 |
-| `forms` | 表单 |
 | `tables` | 数据表 |
 | `workflows` | 流程 |
 | `automations` | 自动化 |
@@ -298,9 +296,6 @@ tenants/
     },
     "tables": {
       "xyz12345": { /* table schema */ }
-    },
-    "forms": {
-      "ghi12345": { /* form schema */ }
     }
     // 未被引用的资源不包含
   }
@@ -324,7 +319,6 @@ app_80e88653/
 ├── app.json                 # 应用元信息（含 status、publishedAt、bundleSize）
 ├── pages/                   # 源文件（保留，设计器用）
 ├── tables/
-├── forms/
 ├── ...
 └── dist/                    # 发布产物
     └── app.bundle.json      # 合并后的 bundle

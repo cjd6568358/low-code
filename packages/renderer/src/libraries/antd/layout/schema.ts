@@ -13,7 +13,31 @@ export interface LayoutProps extends BaseProps {
    * 包含侧边栏
    * @group 基础属性
    * @priority 10
-
+   * @no-binding 不支持变量/表达式绑定
    */
   hasSider?: boolean;
+
+  /**
+   * 自定义 CSS 类名
+   * @group 样式
+   * @priority 51
+   * @no-binding 不支持变量/表达式绑定
+   */
+  className?: string;
+
+  /**
+   * 根元素 CSS 类名
+   * @group 样式
+   * @priority 52
+   * @no-binding 不支持变量/表达式绑定
+   */
+  rootClassName?: string;
+
+  /**
+   * HTML 元素 id
+   * @group 基础属性
+   * @priority 3
+   * @no-binding 不支持变量/表达式绑定
+   */
+  id?: string;
 }

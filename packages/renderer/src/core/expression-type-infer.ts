@@ -127,11 +127,13 @@ function checkPromiseReturn(expression: string): TypeInferResult {
  * 支持：
  * - return xxx;
  * - return (xxx);
+ * - return xxx（无分号，后跟换行或 }）
  * - 多行代码取最后一个 return
  */
 function extractReturnExpression(code: string): string | null {
-  // 匹配 return 语句（支持换行）
-  const returnRegex = /return\s+([\s\S]*?)(?:;|$)/g;
+  // 匹配 return 语句（支持换行，支持无分号的情况）
+  // (?:;|$|[\r\n]|}) 匹配：分号、字符串结尾、换行、右花括号
+  const returnRegex = /return\s+([\s\S]*?)(?:;|$|[\r\n]|\})/g;
   let lastReturn: string | null = null;
   let match: RegExpExecArray | null;
 

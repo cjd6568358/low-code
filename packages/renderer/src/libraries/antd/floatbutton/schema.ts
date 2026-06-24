@@ -16,45 +16,78 @@ export interface FloatButtonProps extends BaseProps {
    * 图标
    * @group 基础属性
    * @priority 10
-
    */
   icon?: string;
 
   /**
-   * 描述
+   * 描述（已废弃，请使用 content）
    * @group 基础属性
    * @priority 11
-
    */
   description?: string;
 
   /**
-   * 类型
+   * 内容
    * @group 基础属性
    * @priority 12
+   */
+  content?: string;
+
+  /**
+   * 类型
+   * @group 基础属性
+   * @priority 13
+   * @default "default"
    */
   type?: 'default' | 'primary';
 
   /**
    * 形状
    * @group 基础属性
-   * @priority 13
+   * @priority 14
+   * @default "circle"
    */
   shape?: 'circle' | 'square';
 
   /**
-   * 提示
+   * 禁用状态
+   * @group 基础属性
+   * @priority 15
+   */
+  disabled?: boolean;
+
+  /**
+   * HTML 按钮类型
+   * @group 基础属性
+   * @priority 16
+   */
+  htmlType?: 'submit' | 'reset' | 'button';
+
+  /**
+   * 链接地址
    * @group 高级属性
    * @priority 20
+   */
+  href?: string;
 
+  /**
+   * 链接打开方式
+   * @group 高级属性
+   * @priority 21
+   */
+  target?: '_self' | '_blank' | '_parent' | '_top';
+
+  /**
+   * 提示
+   * @group 高级属性
+   * @priority 22
    */
   tooltip?: string;
 
   /**
    * 徽标
    * @group 高级属性
-   * @priority 21
-
+   * @priority 23
    */
   badge?: object;
 }

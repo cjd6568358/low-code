@@ -56,7 +56,7 @@ export class DependencyTracker {
         for (const id of exact) affected.add(id);
       }
 
-      // 前缀匹配（如 $context.currentUser 变化影响 $context.currentUser.name）
+      // 前缀匹配（如 $user 变化影响 $user.name）
       for (const [trackedPath, components] of this.pathToComponents) {
         if (trackedPath.startsWith(path + '.') || path.startsWith(trackedPath + '.')) {
           for (const id of components) affected.add(id);

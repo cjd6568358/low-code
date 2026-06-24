@@ -14,17 +14,108 @@
       "x-group": "基础属性",
       "x-priority": 11
     },
+    "mode": {
+      "type": "string",
+      "title": "颜色模式",
+      "x-group": "基础属性",
+      "x-priority": 12
+    },
     "showText": {
       "type": "boolean",
       "title": "显示文字",
       "x-group": "基础属性",
-      "x-priority": 12
+      "x-priority": 13
     },
-    "disabled": {
-      "type": "boolean",
+    "size": {
+      "type": "string",
       "title": "尺寸",
       "x-group": "基础属性",
       "x-priority": 14
+    },
+    "disabled": {
+      "type": "boolean",
+      "title": "禁用",
+      "x-group": "基础属性",
+      "x-priority": 15
+    },
+    "disabledAlpha": {
+      "type": "boolean",
+      "title": "禁用透明度",
+      "x-group": "基础属性",
+      "x-priority": 16
+    },
+    "disabledFormat": {
+      "type": "boolean",
+      "title": "禁用格式切换",
+      "x-group": "基础属性",
+      "x-priority": 17
+    },
+    "allowClear": {
+      "type": "boolean",
+      "title": "是否允许清除",
+      "x-group": "基础属性",
+      "x-priority": 18
+    },
+    "open": {
+      "type": "boolean",
+      "title": "弹出框打开状态",
+      "x-group": "高级属性",
+      "x-priority": 20
+    },
+    "trigger": {
+      "type": "string",
+      "title": "触发方式",
+      "x-group": "高级属性",
+      "x-priority": 21
+    },
+    "placement": {
+      "type": "string",
+      "title": "弹出位置",
+      "x-group": "高级属性",
+      "x-priority": 22
+    },
+    "arrow": {
+      "type": "boolean",
+      "title": "是否显示箭头",
+      "x-group": "高级属性",
+      "x-priority": 23
+    },
+    "format": {
+      "type": "string",
+      "title": "颜色格式",
+      "x-group": "高级属性",
+      "x-priority": 30,
+      "default": "'hex'"
+    },
+    "defaultFormat": {
+      "type": "string",
+      "title": "默认颜色格式",
+      "x-group": "高级属性",
+      "x-priority": 31
+    },
+    "onOpenChange": {
+      "type": "string",
+      "title": "弹出框打开状态变化回调",
+      "x-group": "事件",
+      "x-priority": 40
+    },
+    "onFormatChange": {
+      "type": "string",
+      "title": "颜色格式变化回调",
+      "x-group": "事件",
+      "x-priority": 41
+    },
+    "onClear": {
+      "type": "string",
+      "title": "清除颜色回调",
+      "x-group": "事件",
+      "x-priority": 42
+    },
+    "onChangeComplete": {
+      "type": "string",
+      "title": "颜色选择完成回调",
+      "x-group": "事件",
+      "x-priority": 43
     },
     "name": {
       "type": "string",

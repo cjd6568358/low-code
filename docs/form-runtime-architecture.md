@@ -932,14 +932,10 @@ const customScriptExecutor: ActionExecutor = {
   async execute(params, context, nativeEvent) {
     // 在沙箱中执行用户自定义脚本
     // 暴露有限的 API，禁止访问全局对象
+    // $form 从 formRegistry.getFormData() 获取，指向当前活跃表单的数据
     return await safeEvalAsync(params.script, {
-      $form: {
-        getValue: (field: string) => context.values[field],
-        setValue: (field: string, value: any) => context.setFieldValue(field, value),
-        validate: () => context.formRef.validate(),
-        submit: () => context.formRef.submit(),
-      },
-      $values: { ...context.values },
+      $form: context.formRegistry?.getFormData(params.formId) ?? {},
+      $values: context.formRegistry?.getFormData(params.formId) ?? {},
       $event: nativeEvent,
       $message: message,
       $request: request,

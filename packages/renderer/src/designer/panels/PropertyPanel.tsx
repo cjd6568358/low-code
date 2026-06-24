@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import { useDesigner } from '../core/DesignerContext';
+import { isInContainer } from '../utils';
 import type { WatermarkConfig, ComponentNode } from '@low-code/shared';
 
 import { AutoFormRenderer, controlRegistry, registerAntdControls } from '@low-code/auto-rendering';
@@ -8,6 +9,8 @@ import { EventActionChainEditor } from './EventActionChainEditor';
 import { VariablePicker } from './VariablePicker';
 import { StyleEditor } from './StyleEditor';
 import { DataSourcePanel } from './DataSourcePanel';
+import { ValidationRulesEditor } from './ValidationRulesEditor';
+import { FORM_FIELD_SCHEMA_PROPERTIES } from '../../libraries/antd/form/form-field-schema';
 import type { JSONSchema7 } from '@low-code/shared';
 
 // 注册 antd 控件到自动渲染引擎
@@ -34,10 +37,31 @@ export function PropertyPanel({ registry }: { registry: any }) {
 
   const propsSchema = registration?.propsSchema;
 
+  // 检测组件是否在 Form 容器内
+  const isInForm = useMemo(() => {
+    if (!selectedNode) return false;
+    return isInContainer(selectedNode, schema.components, 'form');
+  }, [selectedNode, schema.components]);
+
+  // 动态合并表单字段 Schema
+  const mergedPropsSchema = useMemo(() => {
+    if (!propsSchema) return propsSchema;
+    if (!isInForm) return propsSchema;
+
+    // 合并表单字段属性
+    return {
+      ...propsSchema,
+      properties: {
+        ...propsSchema.properties,
+        ...FORM_FIELD_SCHEMA_PROPERTIES,
+      },
+    };
+  }, [propsSchema, isInForm]);
+
   // 获取当前绑定字段的期望类型
   const expectedFieldType = useMemo(() => {
-    if (!bindingTarget || !propsSchema?.properties) return undefined;
-    const fieldSchema = propsSchema.properties[bindingTarget];
+    if (!bindingTarget || !mergedPropsSchema?.properties) return undefined;
+    const fieldSchema = mergedPropsSchema.properties[bindingTarget];
     if (!fieldSchema) return undefined;
     // 处理 anyOf 联合类型（取第一个类型）
     if (fieldSchema.anyOf && Array.isArray(fieldSchema.anyOf)) {
@@ -45,7 +69,7 @@ export function PropertyPanel({ registry }: { registry: any }) {
       if (firstType?.type) return firstType.type;
     }
     return fieldSchema.type;
-  }, [bindingTarget, propsSchema]);
+  }, [bindingTarget, mergedPropsSchema]);
 
   // 提取页面组件列表（用于 $component 代码提示）
   const pageComponents = useMemo(() => {
@@ -87,12 +111,16 @@ export function PropertyPanel({ registry }: { registry: any }) {
 
   // 计算各 tab 是否有内容（必须在 early return 之前，否则违反 Hooks 规则）
   const hasBasicProps = useMemo(
-    () => Object.values(propsSchema?.properties || {}).some((p: any) => p['x-group'] === '基础属性'),
-    [propsSchema],
+    () => Object.values(mergedPropsSchema?.properties || {}).some((p: any) => p['x-group'] === '基础属性'),
+    [mergedPropsSchema],
   );
   const hasAdvancedProps = useMemo(
-    () => Object.values(propsSchema?.properties || {}).some((p: any) => p['x-group'] === '高级属性'),
-    [propsSchema],
+    () => Object.values(mergedPropsSchema?.properties || {}).some((p: any) => p['x-group'] === '高级属性'),
+    [mergedPropsSchema],
+  );
+  const hasFormConfig = useMemo(
+    () => isInForm && Object.values(mergedPropsSchema?.properties || {}).some((p: any) => p['x-group'] === '表单配置'),
+    [isInForm, mergedPropsSchema],
   );
 
   // 属性变更处理
@@ -135,6 +163,7 @@ export function PropertyPanel({ registry }: { registry: any }) {
   const allTabs = [
     { key: 'props', label: '属性', visible: hasBasicProps },
     { key: 'advanced', label: '高级', visible: hasAdvancedProps },
+    { key: 'form', label: '表单', visible: hasFormConfig },
     { key: 'events', label: '事件', visible: hasEvents },
     { key: 'style', label: '样式', visible: hasStyle },
   ] as const;
@@ -147,7 +176,7 @@ export function PropertyPanel({ registry }: { registry: any }) {
     if (!visibleTabs.some((t) => t.key === activeTab) && visibleTabs.length > 0) {
       setActiveTab(visibleTabs[0].key);
     }
-  }, [selectedComponentId, hasBasicProps, hasAdvancedProps, activeTab]);
+  }, [selectedComponentId, hasBasicProps, hasAdvancedProps, hasFormConfig, activeTab]);
 
   // 未选中组件时，显示页面设置面板（必须在所有 hooks 之后）
   if (!selectedNode) {
@@ -204,8 +233,8 @@ export function PropertyPanel({ registry }: { registry: any }) {
         {activeTab === 'props' && (
           <>
             {/* 基础属性（仅显示 x-group === '基础属性' 的字段） */}
-            {propsSchema && (() => {
-              const filteredEntries = Object.entries(propsSchema.properties || {}).filter(
+            {mergedPropsSchema && (() => {
+              const filteredEntries = Object.entries(mergedPropsSchema.properties || {}).filter(
                 ([, prop]: [string, any]) => prop['x-group'] === '基础属性'
               );
               const strippedProperties = Object.fromEntries(
@@ -214,7 +243,7 @@ export function PropertyPanel({ registry }: { registry: any }) {
                   return [key, rest];
                 })
               );
-              const basicSchema = { ...propsSchema, properties: strippedProperties };
+              const basicSchema = { ...mergedPropsSchema, properties: strippedProperties };
               return filteredEntries.length > 0 ? (
                 <AutoFormRenderer
                   schema={basicSchema}
@@ -254,8 +283,8 @@ export function PropertyPanel({ registry }: { registry: any }) {
         {activeTab === 'advanced' && (
           <>
             {/* 高级属性（过滤 x-group === '高级属性'） */}
-            {propsSchema && (() => {
-              const filteredEntries = Object.entries(propsSchema.properties || {}).filter(
+            {mergedPropsSchema && (() => {
+              const filteredEntries = Object.entries(mergedPropsSchema.properties || {}).filter(
                 ([, prop]: [string, any]) => prop['x-group'] === '高级属性'
               );
               const strippedProperties = Object.fromEntries(
@@ -264,7 +293,7 @@ export function PropertyPanel({ registry }: { registry: any }) {
                   return [key, rest];
                 })
               );
-              const advancedSchema = { ...propsSchema, properties: strippedProperties };
+              const advancedSchema = { ...mergedPropsSchema, properties: strippedProperties };
               return filteredEntries.length > 0 ? (
                 <AutoFormRenderer
                   schema={advancedSchema}
@@ -300,6 +329,61 @@ export function PropertyPanel({ registry }: { registry: any }) {
             )}
           </>
         )}
+
+        {/* 表单配置 Tab */}
+        {activeTab === 'form' && mergedPropsSchema && (() => {
+          // 过滤表单配置字段，rules 单独用 ValidationRulesEditor 渲染
+          const filteredEntries = Object.entries(mergedPropsSchema.properties || {}).filter(
+            ([key, prop]: [string, any]) => prop['x-group'] === '表单配置' && key !== 'rules'
+          );
+          const strippedProperties = Object.fromEntries(
+            filteredEntries.map(([key, prop]: [string, any]) => {
+              const { 'x-group': _, ...rest } = prop;
+              return [key, rest];
+            })
+          );
+          const formSchema = { ...mergedPropsSchema, properties: strippedProperties };
+
+          return (
+            <>
+              {/* 其他表单字段（name、label、required 等） */}
+              <AutoFormRenderer
+                schema={formSchema}
+                value={selectedNode.props}
+                onChange={handlePropsChange}
+                layoutMode="sections"
+                dictionaryService={mockDictionaryService}
+                onVariablePickerOpen={(fieldName: string, initialTab: 'variable' | 'expression') => {
+                  setBindingTarget(fieldName);
+                  setBindingMode(initialTab);
+                }}
+              />
+
+              {/* 校验规则（专用编辑器） */}
+              <Section title="校验规则">
+                <ValidationRulesEditor
+                  value={selectedNode.props.rules || []}
+                  onChange={(rules) => handlePropsChange({ rules })}
+                />
+              </Section>
+
+              {/* VariablePicker 弹窗 */}
+              {bindingTarget && (
+                <VariablePicker
+                  visible={!!bindingTarget}
+                  value={selectedNode.props[bindingTarget] || ''}
+                  mode={bindingMode}
+                  onChange={(val) => handlePropsChange({ [bindingTarget]: val })}
+                  onClear={() => handlePropsChange({ [bindingTarget]: undefined })}
+                  onClose={() => setBindingTarget(null)}
+                  pageComponents={pageComponents}
+                  pageDataSources={pageDataSources}
+                  expectedType={expectedFieldType}
+                />
+              )}
+            </>
+          );
+        })()}
 
         {/* 事件 Tab */}
         {activeTab === 'events' && (
@@ -402,7 +486,7 @@ function filterPageSchema(group: string, layoutType?: string): JSONSchema7 {
 // ─── 页面设置面板 ───────────────────────────────────────
 
 /** 组件属性面板 tab 类型 */
-type ComponentSettingsTab = 'props' | 'advanced' | 'events' | 'style';
+type ComponentSettingsTab = 'props' | 'advanced' | 'form' | 'events' | 'style';
 
 /** 页面设置面板 tab 类型 */
 type PageSettingsTab = 'basic' | 'watermark' | 'dataSource' | 'bindings';

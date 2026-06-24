@@ -16,22 +16,58 @@ export interface TimelineProps extends BaseProps {
    * 数据项
    * @group 基础属性
    * @priority 10
-
    */
-  items?: any[];
+  items?: object[];
 
   /**
    * 模式
    * @group 基础属性
    * @priority 11
+   * @default "start"
    */
-  mode?: 'left' | 'alternate' | 'right';
+  mode?: 'start' | 'alternate' | 'end' | 'left' | 'right';
+
+  /**
+   * 排列方向
+   * @group 基础属性
+   * @priority 12
+   * @default "vertical"
+   */
+  orientation?: 'horizontal' | 'vertical';
+
+  /**
+   * 样式变体
+   * @group 基础属性
+   * @priority 13
+   * @default "outlined"
+   */
+  variant?: 'filled' | 'outlined';
+
+  /**
+   * 标题占位列数
+   * @group 基础属性
+   * @priority 14
+   */
+  titleSpan?: string | number;
+
+  /**
+   * 自定义类名
+   * @group 样式
+   * @priority 51
+   */
+  className?: string;
+
+  /**
+   * 根节点附加类名
+   * @group 样式
+   * @priority 52
+   */
+  rootClassName?: string;
 
   /**
    * 加载中
    * @group 高级属性
    * @priority 20
-
    */
   pending?: boolean;
 
@@ -39,7 +75,6 @@ export interface TimelineProps extends BaseProps {
    * 反向
    * @group 高级属性
    * @priority 21
-
    */
   reverse?: boolean;
 }

@@ -10,6 +10,11 @@ import { generateComponentName } from '../utils';
 
 const DND_DATA_TYPE = 'application/lc-component';
 
+const DEVICE_STYLES: Record<string, React.CSSProperties> = {
+  web: { width: '100%', maxWidth: '100%', height: '100%' },
+  mobile: { width: 375, height: 667, maxWidth: 375, margin: '0 auto', border: '1px solid #e8e8e8', borderRadius: 20 },
+};
+
 // ─── 类型 ─────────────────────────────────────────────────
 
 interface DropPosition {
@@ -27,7 +32,7 @@ interface DragState {
 // ─── 工具函数 ─────────────────────────────────────────────
 
 /** 判断组件是否为容器类型 */
-function isContainerNode(node: ComponentNode, registry: any): boolean {
+function isContainerNode(node: ComponentNode, registry: ComponentRegistryImpl): boolean {
   const reg = registry.resolve(node.type);
   return reg?.acceptsChildren || false;
 }
@@ -67,6 +72,49 @@ function resolvePropsForDesign(props: Record<string, any>): Record<string, any> 
 function WatermarkWrapper({ watermarkProps, children }: { watermarkProps: Record<string, any> | null; children: React.ReactNode }) {
   if (!watermarkProps) return <>{children}</>;
   return <Watermark {...watermarkProps}>{children}</Watermark>;
+}
+
+/** 从 JSON Schema 中提取所有属性的 default 值 */
+function extractDefaultsFromSchema(schema?: Record<string, any>): Record<string, unknown> {
+  if (!schema?.properties) return {};
+  const defaults: Record<string, unknown> = {};
+  for (const [key, prop] of Object.entries(schema.properties)) {
+    const field = prop as Record<string, unknown>;
+    if ('default' in field) {
+      defaults[key] = field.default;
+    }
+  }
+  return defaults;
+}
+
+/** 从拖放 dataTransfer 读取组件类型并构建新节点 */
+function buildNodeFromDrop(
+  e: React.DragEvent,
+  registry: ComponentRegistryImpl,
+  components: ComponentNode[],
+  parentType?: string,
+): { node: ComponentNode; parentId?: string } | null {
+  const componentType = e.dataTransfer.getData('component-type');
+  if (!componentType) return null;
+  const reg = registry.resolve(componentType);
+  const name = generateComponentName(componentType, components);
+  const isFormChild = parentType === 'form';
+  // 从 JSON Schema 提取 default 值作为初始 props
+  const schemaDefaults = extractDefaultsFromSchema(reg?.propsSchema as Record<string, any>);
+  return {
+    node: {
+      id: `${componentType}_${name.split('_')[1]}`,
+      type: componentType,
+      name,
+      props: {
+        ...schemaDefaults,
+        ...(reg?.defaultProps || {}),
+        // Form 内组件：label 默认从 name 复制
+        ...(isFormChild ? { label: name } : {}),
+      },
+      children: reg?.acceptsChildren ? [] : undefined,
+    },
+  };
 }
 
 export interface DesignCanvasProps {
@@ -236,23 +284,13 @@ export function DesignCanvas({ registry }: DesignCanvasProps) {
       }
 
       // 面板拖入
-      const componentType = e.dataTransfer.getData('component-type');
-      if (componentType) {
-        const registration = registry.resolve(componentType);
-        const defaultProps = registration?.defaultProps || {};
-        const fieldName = generateComponentName(componentType, schema.components);
-
+      const parentType = pos.parentId ? schema.components.find((c) => c.id === pos.parentId)?.type : undefined;
+      const built = buildNodeFromDrop(e, registry, schema.components, parentType);
+      if (built) {
         dispatch({
           type: 'ADD_COMPONENT',
           payload: {
-            node: {
-              id: `${componentType}_${Date.now()}`,
-              type: componentType,
-              name: fieldName,
-              props: { ...defaultProps },
-              parentId: pos.parentId,
-              children: registration?.acceptsChildren ? [] : undefined,
-            },
+            node: { ...built.node, parentId: pos.parentId },
             parentId: pos.parentId,
             index: newIndex,
           },
@@ -285,24 +323,9 @@ export function DesignCanvas({ registry }: DesignCanvasProps) {
         } catch { /* ignore */ }
       }
 
-      const componentType = e.dataTransfer.getData('component-type');
-      if (componentType) {
-        const registration = registry.resolve(componentType);
-        const defaultProps = registration?.defaultProps || {};
-        const fieldName = generateComponentName(componentType, schema.components);
-        dispatch({
-          type: 'ADD_COMPONENT',
-          payload: {
-            node: {
-              id: `${componentType}_${Date.now()}`,
-              type: componentType,
-              name: fieldName,
-              props: { ...defaultProps },
-              parentId: undefined,
-              children: registration?.acceptsChildren ? [] : undefined,
-            },
-          },
-        });
+      const built = buildNodeFromDrop(e, registry, schema.components);
+      if (built) {
+        dispatch({ type: 'ADD_COMPONENT', payload: { node: built.node } });
       }
 
       dragSourceRef.current = null;
@@ -322,7 +345,7 @@ export function DesignCanvas({ registry }: DesignCanvasProps) {
     if (!selectedComponentId) return;
     const node = schema.components.find((c) => c.id === selectedComponentId);
     if (node) {
-      navigator.clipboard.writeText(JSON.stringify(node)).catch(() => {});
+      navigator.clipboard.writeText(JSON.stringify(node)).catch(() => { });
     }
   }, [selectedComponentId, schema.components]);
 
@@ -330,13 +353,14 @@ export function DesignCanvas({ registry }: DesignCanvasProps) {
     if (!selectedComponentId) return;
     const node = schema.components.find((c) => c.id === selectedComponentId);
     if (!node) return;
+    const name = generateComponentName(node.type, schema.components)
     dispatch({
       type: 'ADD_COMPONENT',
       payload: {
         node: {
           ...node,
-          id: `${node.type}_${Date.now()}`,
-          name: generateComponentName(node.type, schema.components),
+          id: `${node.type}_${name.split('_')[1]}`,
+          name,
           children: node.children ? [...node.children] : undefined,
         },
         parentId: node.parentId,
@@ -389,7 +413,7 @@ export function DesignCanvas({ registry }: DesignCanvasProps) {
       const isSelected = selectedComponentId === node.id;
       const isDragSource = dragState.sourceId === node.id;
       const isContainer = isContainerNode(node, registry);
-      const ComponentImpl = ((registry as ComponentRegistryImpl).resolveComponent(node.type) || 'div') as React.ComponentType<any>;
+      const ComponentImpl = (registry.resolveComponent(node.type) || 'div') as React.ComponentType<any>;
 
       const childNodes = (node.children || [])
         .map((id) => schema.components.find((c) => c.id === id))
@@ -439,67 +463,77 @@ export function DesignCanvas({ registry }: DesignCanvasProps) {
 
       // 容器组件
       if (isContainer) {
+        // Form 组件使用 antd 自身布局（layout/labelCol/wrapperCol），不强制注入 flex 样式
+        const isForm = node.type === 'form';
+        const containerStyle = isForm ? {} : (node.type === 'flex' || node.type === 'grid') ? {
+          display: 'flex',
+          flexDirection: node.props.vertical !== false ? 'column' : 'row',
+          flexWrap: node.props.wrap ? 'wrap' : 'nowrap',
+          justifyContent: node.props.justify || 'flex-start',
+          alignItems: node.props.align || 'stretch',
+          gap: node.props.gap ?? 8,
+        } : { display: 'flex', flexDirection: 'column', gap: 8 };
+
         return (
           <React.Fragment key={node.id}>
-            <ComponentImpl
-              {...node.props}
-              {...designProps}
-              style={{
-                border: '1px dashed #c8c8c8',
-                borderRadius: 6,
-                padding: 8,
-                minHeight: 60,
-                ...((node.type === 'flex' || node.type === 'grid') ? {
-                  display: 'flex',
-                  flexDirection: node.props.vertical !== false ? 'column' : 'row',
-                  flexWrap: node.props.wrap ? 'wrap' : 'nowrap',
-                  justifyContent: node.props.justify || 'flex-start',
-                  alignItems: node.props.align || 'stretch',
-                  gap: node.props.gap ?? 8,
-                } : { display: 'flex', flexDirection: 'column', gap: 8 }),
-                ...node.props.style,
-              }}
-            >
-              {childNodes.map((child) => renderNode(child))}
-              {/* 容器内拖入区域 */}
+            {/* 包裹层：relative 定位，让拖入区域 absolute 贴在容器底部 */}
+            <div style={{ position: 'relative' }}>
+              <ComponentImpl
+                {...node.props}
+                name={node.name}
+                {...designProps}
+                style={{
+                  border: '1px dashed #c8c8c8',
+                  borderRadius: 6,
+                  padding: 8,
+                  // 底部留出空间给拖入区域
+                  paddingBottom: childNodes.length > 0 ? 28 : 44,
+                  minHeight: 60,
+                  ...containerStyle,
+                  ...node.props.style,
+                }}
+              >
+                {childNodes.map((child) => renderNode(child))}
+              </ComponentImpl>
+              {/* 拖入区域：absolute 贴底，不受容器布局影响 */}
               <div
-                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleDragOver(e, node.id);
+                }}
+                onDragLeave={(e) => {
+                  e.stopPropagation();
+                  handleDragLeave(e, node.id);
+                }}
                 onDrop={(e) => {
                   e.stopPropagation();
                   e.preventDefault();
-                  const componentType = e.dataTransfer.getData('component-type');
-                  if (componentType) {
-                    const reg = registry.resolve(componentType);
-                    const fieldName = generateComponentName(componentType, schema.components);
+                  const built = buildNodeFromDrop(e, registry, schema.components, node.type);
+                  if (built) {
                     dispatch({
                       type: 'ADD_COMPONENT',
-                      payload: {
-                        node: {
-                          id: `${componentType}_${Date.now()}`,
-                          type: componentType,
-                          name: fieldName,
-                          props: { ...(reg?.defaultProps || {}) },
-                          parentId: node.id,
-                          children: reg?.acceptsChildren ? [] : undefined,
-                        },
-                        parentId: node.id,
-                      },
+                      payload: { node: { ...built.node, parentId: node.id }, parentId: node.id },
                     });
                   }
                 }}
                 style={{
+                  position: 'absolute',
+                  bottom: 4,
+                  left: 8,
+                  right: 8,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  minHeight: childNodes.length > 0 ? 24 : 40,
+                  minHeight: childNodes.length > 0 ? 20 : 32,
                   color: '#bbb', fontSize: 12,
                   border: '1px dashed #d9d9d9',
                   borderRadius: 4,
-                  marginTop: childNodes.length > 0 ? 4 : 0,
                 }}
               >
                 {childNodes.length > 0 ? '+ 拖入更多' : '拖入组件'}
               </div>
-            </ComponentImpl>
-            {overlayProps && <DesignOverlay {...overlayProps} />}
+            </div>
+            {/* 容器 overlay：passthrough 避免拦截子组件交互，保留选中框和 drop 指示器 */}
+            {overlayProps && <DesignOverlay {...overlayProps} passthrough />}
           </React.Fragment>
         );
       }
@@ -509,6 +543,7 @@ export function DesignCanvas({ registry }: DesignCanvasProps) {
         <React.Fragment key={node.id}>
           <ComponentImpl
             {...resolvePropsForDesign(node.props)}
+            name={node.name}
             {...designProps}
           />
           {overlayProps && <DesignOverlay {...overlayProps} />}
@@ -516,18 +551,14 @@ export function DesignCanvas({ registry }: DesignCanvasProps) {
       );
     },
     [schema.components, selectedComponentId, previewMode, dragState, registry,
-     handleSelect, handleDragStart, handleDragEnd, handleDragOver, handleDragLeave,
-     handleDrop, handleCopy, handleMove, handleDelete, dispatch, scrollTick, resizeTick],
+      handleSelect, handleDragStart, handleDragEnd, handleDragOver, handleDragLeave,
+      handleDrop, handleCopy, handleMove, handleDelete, dispatch, scrollTick, resizeTick],
   );
 
   // ─── 根级组件 ──────────────────────────────────────────
 
-  const rootComponents = schema.components.filter((c) => !c.parentId);
+  const rootComponents = useMemo(() => schema.components.filter((c) => !c.parentId), [schema.components]);
 
-  const deviceStyles: Record<string, React.CSSProperties> = {
-    web: { width: '100%', maxWidth: '100%', height: '100%' },
-    mobile: { width: 375, height: 667, maxWidth: 375, margin: '0 auto', border: '1px solid #e8e8e8', borderRadius: 20 },
-  };
 
   // 提取水印字面量 props（设计态不解析变量/表达式，仅展示常量值）
   const watermarkProps = useMemo(() => {
@@ -649,77 +680,64 @@ export function DesignCanvas({ registry }: DesignCanvasProps) {
       {/* 画布 */}
       <div ref={canvasScrollRef} style={{ flex: 1, overflow: 'auto', backgroundColor: '#f0f2f5', padding: 24 }}>
         <WatermarkWrapper watermarkProps={watermarkProps}>
-        <div
-          onClick={() => handleSelect(null)}
-          onDragOver={handleCanvasDragOver}
-          onDrop={handleCanvasDrop}
-          style={{
-            ...deviceStyles[previewDevice],
-            backgroundColor: '#fff',
-            padding: 16,
-            minHeight: 500,
-            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-            border: '2px dashed #d9d9d9',
-            borderRadius: 8,
-            position: 'relative',
-          }}
-        >
-          {rootComponents.length === 0 ? (
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              minHeight: 200, color: '#bbb', fontSize: 16,
-            }}>
-              从左侧拖拽组件到此处
-            </div>
-          ) : (
-            <>
-              {/* 组件区域 — 受布局配置影响 */}
+          <div
+            onClick={() => handleSelect(null)}
+            onDragOver={handleCanvasDragOver}
+            onDrop={handleCanvasDrop}
+            style={{
+              ...DEVICE_STYLES[previewDevice],
+              backgroundColor: '#fff',
+              padding: 16,
+              minHeight: 500,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+              border: '2px dashed #d9d9d9',
+              borderRadius: 8,
+              position: 'relative',
+            }}
+          >
+            {rootComponents.length === 0 ? (
               <div style={{
-                display: schema.layout.type === 'grid' ? 'grid' : 'flex',
-                flexDirection: schema.layout.type === 'flex' ? (schema.layout.vertical !== false ? 'column' : 'row') : undefined,
-                flexWrap: schema.layout.type === 'flex' ? (schema.layout.wrap ? 'wrap' : 'nowrap') : undefined,
-                justifyContent: schema.layout.type === 'flex' ? (schema.layout.justify || 'flex-start') : undefined,
-                alignItems: schema.layout.type === 'flex' ? (schema.layout.align || 'stretch') : undefined,
-                gridTemplateColumns: schema.layout.type === 'grid' ? `repeat(${schema.layout.columns || 24}, 1fr)` : undefined,
-                gap: schema.layout.gap ?? 16,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                minHeight: 200, color: '#bbb', fontSize: 16,
               }}>
-                {rootComponents.map((node) => renderNode(node))}
+                从左侧拖拽组件到此处
               </div>
-              {/* 根级放置区域 — 不受布局影响 */}
-              <div
-                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                onDrop={(e) => {
-                  e.stopPropagation();
-                  e.preventDefault();
-                  const componentType = e.dataTransfer.getData('component-type');
-                  if (componentType) {
-                    const reg = registry.resolve(componentType);
-                    const fieldName = generateComponentName(componentType, schema.components);
-                    dispatch({
-                      type: 'ADD_COMPONENT',
-                      payload: {
-                        node: {
-                          id: `${componentType}_${Date.now()}`,
-                          type: componentType,
-                          name: fieldName,
-                          props: { ...(reg?.defaultProps || {}) },
-                          children: reg?.acceptsChildren ? [] : undefined,
-                        },
-                      },
-                    });
-                  }
-                }}
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  minHeight: 24, color: '#bbb', fontSize: 12,
-                  border: '1px dashed #d9d9d9', borderRadius: 4, marginTop: 8,
-                }}
-              >
-                + 拖入更多组件
-              </div>
-            </>
-          )}
-        </div>
+            ) : (
+              <>
+                {/* 组件区域 — 受布局配置影响 */}
+                <div style={{
+                  display: schema.layout.type === 'grid' ? 'grid' : 'flex',
+                  flexDirection: schema.layout.type === 'flex' ? (schema.layout.vertical !== false ? 'column' : 'row') : undefined,
+                  flexWrap: schema.layout.type === 'flex' ? (schema.layout.wrap ? 'wrap' : 'nowrap') : undefined,
+                  justifyContent: schema.layout.type === 'flex' ? (schema.layout.justify || 'flex-start') : undefined,
+                  alignItems: schema.layout.type === 'flex' ? (schema.layout.align || 'stretch') : undefined,
+                  gridTemplateColumns: schema.layout.type === 'grid' ? `repeat(${schema.layout.columns || 24}, 1fr)` : undefined,
+                  gap: schema.layout.gap ?? 16,
+                }}>
+                  {rootComponents.map((node) => renderNode(node))}
+                </div>
+                {/* 根级放置区域 — 不受布局影响 */}
+                <div
+                  onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                  onDrop={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    const built = buildNodeFromDrop(e, registry, schema.components);
+                    if (built) {
+                      dispatch({ type: 'ADD_COMPONENT', payload: { node: built.node } });
+                    }
+                  }}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    minHeight: 24, color: '#bbb', fontSize: 12,
+                    border: '1px dashed #d9d9d9', borderRadius: 4, marginTop: 8,
+                  }}
+                >
+                  + 拖入更多组件
+                </div>
+              </>
+            )}
+          </div>
         </WatermarkWrapper>
       </div>
     </div>

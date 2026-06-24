@@ -32,7 +32,7 @@ export interface InputNumberProps extends BaseProps {
    * 步长
    * @group 基础属性
    * @priority 12
-
+   * @default 1
    */
   step?: number;
 
@@ -88,7 +88,7 @@ export interface InputNumberProps extends BaseProps {
    * 显示按钮
    * @group 基础属性
    * @priority 15
-
+   * @default true
    */
   controls?: boolean;
 }

@@ -13,15 +13,62 @@ export interface RadioProps extends BaseProps {
    * 选中
    * @group 基础属性
    * @priority 10
-
    */
   checked?: boolean;
 
   /**
-   * 禁用
+   * 默认选中
    * @group 基础属性
    * @priority 11
+   */
+  defaultChecked?: boolean;
 
+  /**
+   * 禁用
+   * @group 基础属性
+   * @priority 12
    */
   disabled?: boolean;
+
+  /**
+   * 自动获取焦点
+   * @group 基础属性
+   * @priority 13
+   */
+  autoFocus?: boolean;
+
+  /**
+   * 必填
+   * @group 基础属性
+   * @priority 14
+   */
+  required?: boolean;
+
+  /**
+   * 根据 value 进行比较，判断是否选中（配合 Radio.Group 使用）
+   * @group 基础属性
+   * @priority 15
+   */
+  value?: string;
+
+  /**
+   * 组件 ID
+   * @group 基础属性
+   * @priority 20
+   */
+  id?: string;
+
+  /**
+   * CSS 类名
+   * @group 样式
+   * @priority 51
+   */
+  className?: string;
+
+  /**
+   * 提示文本
+   * @group 基础属性
+   * @priority 21
+   */
+  title?: string;
 }

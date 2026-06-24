@@ -2,20 +2,21 @@
  * SchemaCompiler — 基于 typescript-json-schema 的 TS → JSON Schema 编译器
  *
  * 使用 typescript-json-schema 从 TypeScript 接口生成 JSON Schema，
- * 并通过后处理注入 x-* 扩展字段（x-group / x-priority / x-hidden 等）。
+ * 并通过后处理注入 x-* 扩展字段（x-group / x-priority 等）。
  *
  * JSDoc 注解映射规则：
- * | JSDoc 注解        | 扩展字段              | 说明       |
- * |-------------------|----------------------|-----------|
- * | @group xxx        | x-group: "xxx"       | 字段分组   |
- * | @priority N       | x-priority: N        | 排序权重   |
- * | @component xxx    | x-component: "xxx"   | 自定义控件 |
- * | @visible expr     | x-visible: "expr"    | 条件显隐   |
- * | @disabled expr    | x-disabled: "expr"   | 条件禁用   |
- * | @hidden           | x-hidden: true       | 强制隐藏   |
- * | @dictionary xxx   | x-dictionary: "xxx"  | 字典引用   |
- * | @dataSource xxx   | x-dataSource: "xxx"  | 数据源     |
- * | @validator xxx    | x-validator: "xxx"   | 校验规则   |
+ * | JSDoc 注解        | 扩展字段              | 说明                     |
+ * |-------------------|----------------------|--------------------------|
+ * | @group xxx        | x-group: "xxx"       | 字段分组                 |
+ * | @priority N       | x-priority: N        | 排序权重                 |
+ * | @component xxx    | x-component: "xxx"   | 自定义控件               |
+ * | @visible expr     | x-visible: "expr"    | 条件显隐                 |
+ * | @disabled expr    | x-disabled: "expr"   | 条件禁用                 |
+ * | @ignore           | （编译时丢弃）        | 属性不出现在 JSON Schema |
+ * | @dictionary xxx   | x-dictionary: "xxx"  | 字典引用                 |
+ * | @dataSource xxx   | x-dataSource: "xxx"  | 数据源                   |
+ * | @validator xxx    | x-validator: "xxx"   | 校验规则                 |
+ * | @default xxx      | default: xxx         | 默认值                   |
  */
 import * as path from 'path';
 import { generateSchema, getProgramFromFiles } from 'typescript-json-schema';
@@ -38,6 +39,9 @@ const X_PREFIX_TAGS = new Set([
   'no-binding', 'value-type',
 ]);
 
+/** typescript-json-schema 需识别的额外关键字（不带 x- 前缀） */
+const PASSTHROUGH_KEYWORDS = new Set(['default']);
+
 /** typescript-json-schema 默认参数 */
 const DEFAULT_ARGS: Partial<Args> = {
   ref: false,
@@ -48,7 +52,7 @@ const DEFAULT_ARGS: Partial<Args> = {
   noExtraProps: false,
   propOrder: true,
   typeOfKeyword: false,
-  validationKeywords: [...X_PREFIX_TAGS, 'hidden'],
+  validationKeywords: [...X_PREFIX_TAGS, ...PASSTHROUGH_KEYWORDS],
 };
 
 /**
@@ -157,10 +161,10 @@ export class SchemaCompiler {
    * 1. 移除顶层 $schema
    * 2. description → title
    * 3. group → x-group, priority → x-priority
-   * 4. hidden → x-hidden: true
-   * 5. React 类型引用（$ref）→ 转为 string
-   * 6. CSSProperties 展开 → 简化为 {type: "object"}
-   * 7. 移除 definitions
+   * 4. React 类型引用（$ref）→ 转为 string
+   * 5. CSSProperties 展开 → 简化为 {type: "object"}
+   * 6. 移除 definitions
+   * 注：@ignore 属性在 generateSchema 阶段已被 typescript-json-schema 丢弃
    */
   private postProcess(schema: JSONSchema7): JSONSchema7 {
     const result = { ...schema };
@@ -221,9 +225,11 @@ export class SchemaCompiler {
       }
     }
 
-    // hidden → x-hidden: true
-    if ('hidden' in prop) {
-      result['x-hidden'] = true;
+    // 透传标准 JSON Schema 关键字（如 @default）
+    for (const key of PASSTHROUGH_KEYWORDS) {
+      if (key in prop && prop[key] !== undefined) {
+        result[key] = prop[key];
+      }
     }
 
     // 没有 x-group 的属性默认归入"基础属性"

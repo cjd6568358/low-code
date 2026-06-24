@@ -20,6 +20,13 @@
       "x-group": "基础属性",
       "x-priority": 12
     },
+    "defaultValue": {
+      "type": "string",
+      "title": "默认值",
+      "x-group": "基础属性",
+      "x-priority": 13,
+      "x-no-binding": ""
+    },
     "prefix": {
       "anyOf": [
         {
@@ -34,19 +41,150 @@
       ],
       "title": "触发前缀",
       "x-group": "基础属性",
-      "x-priority": 13
+      "x-priority": 14,
+      "x-no-binding": ""
+    },
+    "split": {
+      "type": "string",
+      "title": "分隔符",
+      "x-group": "基础属性",
+      "x-priority": 15,
+      "x-no-binding": ""
     },
     "disabled": {
       "type": "boolean",
       "title": "禁用",
       "x-group": "基础属性",
-      "x-priority": 14
+      "x-priority": 16
+    },
+    "readOnly": {
+      "type": "boolean",
+      "title": "只读",
+      "x-group": "基础属性",
+      "x-priority": 17,
+      "x-no-binding": ""
+    },
+    "autoFocus": {
+      "type": "boolean",
+      "title": "自动聚焦",
+      "x-group": "基础属性",
+      "x-priority": 18,
+      "x-no-binding": ""
     },
     "rows": {
       "type": "number",
       "title": "行数",
       "x-group": "基础属性",
-      "x-priority": 15
+      "x-priority": 20
+    },
+    "autoSize": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "minRows": {
+              "type": "number"
+            },
+            "maxRows": {
+              "type": "number"
+            }
+          },
+          "propertyOrder": [
+            "minRows",
+            "maxRows"
+          ]
+        },
+        {
+          "type": "boolean"
+        }
+      ],
+      "title": "自适应高度",
+      "x-group": "基础属性",
+      "x-priority": 21,
+      "x-no-binding": ""
+    },
+    "maxLength": {
+      "type": "number",
+      "title": "最大长度",
+      "x-group": "基础属性",
+      "x-priority": 22
+    },
+    "allowClear": {
+      "type": "boolean",
+      "title": "允许清除",
+      "x-group": "基础属性",
+      "x-priority": 23,
+      "x-no-binding": ""
+    },
+    "size": {
+      "type": "string",
+      "enum": [
+        "large",
+        "middle",
+        "small"
+      ],
+      "title": "尺寸",
+      "x-group": "基础属性",
+      "x-priority": 30,
+      "x-no-binding": ""
+    },
+    "variant": {
+      "type": "string",
+      "enum": [
+        "borderless",
+        "filled",
+        "outlined",
+        "underlined"
+      ],
+      "title": "形态变体",
+      "x-group": "基础属性",
+      "x-priority": 31,
+      "x-no-binding": ""
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "error",
+        "warning"
+      ],
+      "title": "状态",
+      "x-group": "基础属性",
+      "x-priority": 32,
+      "x-no-binding": ""
+    },
+    "loading": {
+      "type": "boolean",
+      "title": "加载中",
+      "x-group": "基础属性",
+      "x-priority": 33
+    },
+    "notFoundContent": {
+      "type": "string",
+      "title": "无选项时的内容",
+      "x-group": "高级属性",
+      "x-priority": 40
+    },
+    "placement": {
+      "type": "string",
+      "enum": [
+        "bottom",
+        "top"
+      ],
+      "title": "弹出位置",
+      "x-group": "高级属性",
+      "x-priority": 41,
+      "x-no-binding": ""
+    },
+    "direction": {
+      "type": "string",
+      "enum": [
+        "ltr",
+        "rtl"
+      ],
+      "title": "文字方向",
+      "x-group": "高级属性",
+      "x-priority": 42,
+      "x-no-binding": ""
     },
     "name": {
       "type": "string",

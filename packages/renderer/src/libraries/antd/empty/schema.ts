@@ -16,7 +16,6 @@ export interface EmptyProps extends BaseProps {
    * 描述
    * @group 基础属性
    * @priority 10
-
    */
   description?: string;
 
@@ -24,15 +23,27 @@ export interface EmptyProps extends BaseProps {
    * 图片
    * @group 基础属性
    * @priority 11
-
    */
   image?: string;
 
   /**
-   * 图片样式
-   * @group 高级属性
-   * @priority 20
-
+   * 子内容
+   * @group 基础属性
+   * @priority 12
    */
-  imageStyle?: Record<string, unknown>;
+  children?: string;
+
+  /**
+   * 自定义 CSS 类名
+   * @group 样式
+   * @priority 51
+   */
+  className?: string;
+
+  /**
+   * 根节点 CSS 类名
+   * @group 样式
+   * @priority 52
+   */
+  rootClassName?: string;
 }

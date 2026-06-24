@@ -16,6 +16,7 @@ export interface ResultProps extends BaseProps {
    * 状态
    * @group 基础属性
    * @priority 10
+   * @default "info"
    */
   status?: 'success' | 'error' | 'info' | 'warning' | '404' | '403' | '500';
 
@@ -50,4 +51,39 @@ export interface ResultProps extends BaseProps {
 
    */
   icon?: string;
+
+  /**
+   * 子内容
+   * @group 基础属性
+   * @priority 13
+   */
+  children?: string;
+
+  /**
+   * 自定义 CSS 类名
+   * @group 样式
+   * @priority 51
+   */
+  className?: string;
+
+  /**
+   * 根节点 CSS 类名
+   * @group 样式
+   * @priority 52
+   */
+  rootClassName?: string;
+
+  /**
+   * 语义化类名配置
+   * @group 样式
+   * @priority 53
+   */
+  classNames?: Record<string, unknown>;
+
+  /**
+   * 语义化样式配置
+   * @group 样式
+   * @priority 54
+   */
+  styles?: Record<string, unknown>;
 }

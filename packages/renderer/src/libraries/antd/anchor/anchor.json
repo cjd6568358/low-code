@@ -16,13 +16,15 @@
       ],
       "title": "方向",
       "x-group": "基础属性",
-      "x-priority": 11
+      "x-priority": 11,
+      "default": "vertical"
     },
     "affix": {
       "type": "boolean",
       "title": "固定模式",
       "x-group": "基础属性",
-      "x-priority": 12
+      "x-priority": 12,
+      "default": true
     },
     "offsetTop": {
       "type": "number",
@@ -35,6 +37,30 @@
       "title": "锚点偏移",
       "x-group": "基础属性",
       "x-priority": 14
+    },
+    "bounds": {
+      "type": "number",
+      "title": "锚点区域边界偏移量",
+      "x-group": "基础属性",
+      "x-priority": 15
+    },
+    "showInkInFixed": {
+      "type": "boolean",
+      "title": "固定模式是否显示小方块",
+      "x-group": "基础属性",
+      "x-priority": 16
+    },
+    "getContainer": {
+      "type": "string",
+      "title": "获取滚动容器的 CSS 选择器",
+      "x-group": "基础属性",
+      "x-priority": 17
+    },
+    "replace": {
+      "type": "boolean",
+      "title": "是否替换浏览器历史记录",
+      "x-group": "基础属性",
+      "x-priority": 18
     },
     "name": {
       "type": "string",

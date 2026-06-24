@@ -3,7 +3,7 @@
   "type": "object",
   "properties": {
     "count": {
-      "type": "number",
+      "type": "string",
       "title": "数量",
       "x-group": "基础属性",
       "x-priority": 10
@@ -22,15 +22,58 @@
     },
     "overflowCount": {
       "type": "number",
-      "title": "封顶值",
+      "title": "封顶数值",
       "x-group": "基础属性",
-      "x-priority": 13
+      "x-priority": 13,
+      "default": 99
     },
     "color": {
       "type": "string",
       "title": "颜色",
       "x-group": "基础属性",
       "x-priority": 14
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "default",
+        "error",
+        "processing",
+        "success",
+        "warning"
+      ],
+      "title": "状态",
+      "x-group": "基础属性",
+      "x-priority": 15
+    },
+    "text": {
+      "type": "string",
+      "title": "文字",
+      "x-group": "基础属性",
+      "x-priority": 16
+    },
+    "size": {
+      "type": "string",
+      "enum": [
+        "default",
+        "medium",
+        "small"
+      ],
+      "title": "大小",
+      "x-group": "基础属性",
+      "x-priority": 17
+    },
+    "offset": {
+      "type": "array",
+      "title": "偏移量",
+      "x-group": "高级属性",
+      "x-priority": 20
+    },
+    "title": {
+      "type": "string",
+      "title": "鼠标放在状态点上显示的标题",
+      "x-group": "高级属性",
+      "x-priority": 21
     },
     "name": {
       "type": "string",

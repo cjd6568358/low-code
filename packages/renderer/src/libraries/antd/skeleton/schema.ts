@@ -13,7 +13,6 @@ export interface SkeletonProps extends BaseProps {
    * 动画
    * @group 基础属性
    * @priority 10
-
    */
   active?: boolean;
 
@@ -21,7 +20,6 @@ export interface SkeletonProps extends BaseProps {
    * 加载中
    * @group 基础属性
    * @priority 11
-
    */
   loading?: boolean;
 
@@ -29,31 +27,42 @@ export interface SkeletonProps extends BaseProps {
    * 头像
    * @group 基础属性
    * @priority 12
-
    */
-  avatar?: boolean | object;
+  avatar?: boolean | {
+    /** 头像尺寸 */
+    size?: 'large' | 'small' | 'default' | number;
+    /** 头像形状 */
+    shape?: 'circle' | 'square';
+  };
 
   /**
    * 标题
    * @group 基础属性
    * @priority 13
-
+   * @default true
    */
-  title?: boolean | object;
+  title?: boolean | {
+    /** 标题宽度 */
+    width?: number | string;
+  };
 
   /**
    * 段落
    * @group 基础属性
    * @priority 14
-
+   * @default true
    */
-  paragraph?: boolean | object;
+  paragraph?: boolean | {
+    /** 段落行数 */
+    rows?: number;
+    /** 段落宽度，多行时可传数组分别设置每行宽度 */
+    width?: number | string | Array<number | string>;
+  };
 
   /**
    * 圆角
    * @group 高级属性
    * @priority 20
-
    */
   round?: boolean;
 }

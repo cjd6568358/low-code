@@ -20,16 +20,83 @@
     },
     "font": {
       "type": "object",
-      "title": "字体",
+      "title": "字体配置",
       "x-group": "高级属性",
       "x-priority": 20,
-      "properties": {}
+      "properties": {
+        "color": {
+          "type": "string",
+          "title": "字体颜色",
+          "x-group": "高级属性",
+          "x-priority": 20
+        },
+        "fontSize": {
+          "type": [
+            "string",
+            "number"
+          ],
+          "title": "字体大小",
+          "x-group": "高级属性",
+          "x-priority": 21
+        },
+        "fontWeight": {
+          "anyOf": [
+            {
+              "enum": [
+                "bold",
+                "bolder",
+                "lighter",
+                "normal"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "字体粗细",
+          "x-group": "高级属性",
+          "x-priority": 22
+        },
+        "fontStyle": {
+          "type": "string",
+          "enum": [
+            "italic",
+            "none",
+            "normal",
+            "oblique"
+          ],
+          "title": "字体样式",
+          "x-group": "高级属性",
+          "x-priority": 23
+        },
+        "fontFamily": {
+          "type": "string",
+          "title": "字体族",
+          "x-group": "高级属性",
+          "x-priority": 24
+        },
+        "textAlign": {
+          "type": "string",
+          "enum": [
+            "center",
+            "end",
+            "left",
+            "right",
+            "start"
+          ],
+          "title": "文本对齐方式",
+          "x-group": "高级属性",
+          "x-priority": 25
+        }
+      }
     },
     "rotate": {
       "type": "number",
-      "title": "旋转",
+      "title": "旋转角度",
       "x-group": "高级属性",
-      "x-priority": 21
+      "x-priority": 21,
+      "default": -22
     },
     "zIndex": {
       "type": "number",
@@ -39,9 +106,41 @@
     },
     "image": {
       "type": "string",
-      "title": "图片",
+      "title": "图片地址",
       "x-group": "高级属性",
       "x-priority": 23
+    },
+    "width": {
+      "type": "number",
+      "title": "水印宽度",
+      "x-group": "基础属性",
+      "x-priority": 11,
+      "default": 120
+    },
+    "height": {
+      "type": "number",
+      "title": "水印高度",
+      "x-group": "基础属性",
+      "x-priority": 12,
+      "default": 64
+    },
+    "gap": {
+      "type": "array",
+      "title": "水印间距 [水平, 垂直]",
+      "x-group": "高级属性",
+      "x-priority": 26
+    },
+    "offset": {
+      "type": "array",
+      "title": "水印偏移量 [水平, 垂直]",
+      "x-group": "高级属性",
+      "x-priority": 27
+    },
+    "inherit": {
+      "type": "boolean",
+      "title": "是否继承父级水印",
+      "x-group": "高级属性",
+      "x-priority": 28
     },
     "name": {
       "type": "string",

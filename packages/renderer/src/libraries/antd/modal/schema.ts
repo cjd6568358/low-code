@@ -32,7 +32,7 @@ export interface ModalProps extends BaseProps {
    * 宽度
    * @group 基础属性
    * @priority 12
-
+   * @default 520
    */
   width?: number | string;
 
@@ -48,7 +48,7 @@ export interface ModalProps extends BaseProps {
    * 可关闭
    * @group 基础属性
    * @priority 14
-
+   * @default true
    */
   closable?: boolean;
 
@@ -56,7 +56,7 @@ export interface ModalProps extends BaseProps {
    * 遮罩
    * @group 基础属性
    * @priority 15
-
+   * @default true
    */
   mask?: boolean;
 
@@ -64,7 +64,7 @@ export interface ModalProps extends BaseProps {
    * 点击遮罩关闭
    * @group 基础属性
    * @priority 16
-
+   * @default true
    */
   maskClosable?: boolean;
 

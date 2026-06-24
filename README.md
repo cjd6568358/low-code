@@ -10,9 +10,9 @@
 
 系统的一切皆 Schema。设计器负责**写** Schema，运行时引擎负责**读** Schema 渲染/执行。设计时与运行时通过 JSON Schema 文件完全解耦，同一份 Schema 可驱动 Web、Mobile、小程序多端渲染。
 
-### 2. 七种资源统一管理
+### 2. 六种资源统一管理
 
-页面、卡片、表单、数据表、流程、自动化、运算 — 七种资源类型全部以 JSON Schema 文件存储在 `tenants/{tenantId}/apps/{appId}/` 下，统一入口、统一格式、统一版本管理。
+页面、卡片、数据表、流程、自动化、运算 — 六种资源类型全部以 JSON Schema 文件存储在 `tenants/{tenantId}/apps/{appId}/` 下，统一入口、统一格式、统一版本管理。
 
 ### 3. 物理级租户隔离
 
@@ -82,7 +82,7 @@
 
 ### 统一设计器
 
-应用资源的统一设计入口，支持页面、卡片、表单、数据表、流程、自动化、运算七种资源类型。路由格式：`/designer/:resourceType/:id`。
+应用资源的统一设计入口，支持页面、卡片、数据表、流程、自动化、运算六种资源类型。路由格式：`/designer/:resourceType/:id`。
 
 - **应用资源概览**（`/designer/app/:id`）：展示应用内所有资源（页面/数据表/流程等），点击进入对应资源编辑器
 - **页面设计器**（`/designer/page/:id`）：三栏布局，左侧基础组件面板 / 中间设计区+预览 / 右侧属性配置面板，预览支持 Web / Mobile 切换
@@ -353,7 +353,6 @@ low-code/
 │       │       ├── app.json           # 应用元信息（含 schemaVersion、version、expose）
 │       │       ├── pages/             # 页面 Schema
 │       │       ├── cards/             # 卡片 Schema
-│       │       ├── forms/             # 表单 Schema
 │       │       ├── tables/            # 数据表 Schema
 │       │       ├── workflows/         # 流程 Schema
 │       │       ├── automations/       # 自动化 Schema

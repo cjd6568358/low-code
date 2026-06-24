@@ -8,23 +8,60 @@
       "x-group": "基础属性",
       "x-priority": 10
     },
+    "size": {
+      "type": "string",
+      "enum": [
+        "large",
+        "medium",
+        "small"
+      ],
+      "title": "尺寸",
+      "x-group": "基础属性",
+      "x-priority": 11
+    },
     "tip": {
       "type": "string",
-      "title": "尺寸",
+      "title": "提示文案（已废弃，建议使用 description）",
       "x-group": "基础属性",
       "x-priority": 12
     },
+    "description": {
+      "type": "string",
+      "title": "描述文案",
+      "x-group": "基础属性",
+      "x-priority": 13
+    },
     "delay": {
       "type": "number",
-      "title": "延迟",
+      "title": "延迟显示加载效果的时间（毫秒），防止闪烁",
       "x-group": "高级属性",
       "x-priority": 20
     },
     "indicator": {
       "type": "string",
-      "title": "指示器",
+      "title": "自定义加载指示器",
       "x-group": "高级属性",
       "x-priority": 21
+    },
+    "fullscreen": {
+      "type": "boolean",
+      "title": "全屏加载",
+      "x-group": "高级属性",
+      "x-priority": 22
+    },
+    "percent": {
+      "anyOf": [
+        {
+          "const": "auto",
+          "type": "string"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "title": "进度百分比，auto 时自动计算",
+      "x-group": "高级属性",
+      "x-priority": 23
     },
     "name": {
       "type": "string",

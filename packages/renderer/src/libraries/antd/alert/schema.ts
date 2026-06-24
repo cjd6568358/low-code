@@ -16,46 +16,92 @@ export interface AlertProps extends BaseProps {
    * 提示内容
    * @group 基础属性
    * @priority 10
-
    */
   message?: string;
 
   /**
-   * 描述
+   * 标题
    * @group 基础属性
    * @priority 11
+   */
+  title?: string;
 
+  /**
+   * 描述
+   * @group 基础属性
+   * @priority 12
    */
   description?: string;
 
   /**
    * 类型
    * @group 基础属性
-   * @priority 12
+   * @priority 13
+   * @default "info"
    */
   type?: 'success' | 'info' | 'warning' | 'error';
 
   /**
+   * 变体风格
+   * @group 基础属性
+   * @priority 14
+   * @default "outlined"
+   */
+  variant?: 'outlined' | 'filled';
+
+  /**
    * 显示图标
    * @group 基础属性
-   * @priority 13
-
+   * @priority 15
    */
   showIcon?: boolean;
 
   /**
+   * 自定义图标
+   * @group 基础属性
+   * @priority 16
+   */
+  icon?: string;
+
+  /**
    * 可关闭
    * @group 基础属性
-   * @priority 14
-
+   * @priority 17
    */
   closable?: boolean;
 
   /**
-   * 横幅
+   * 操作区
    * @group 高级属性
    * @priority 20
+   */
+  action?: string;
 
+  /**
+   * 横幅
+   * @group 高级属性
+   * @priority 21
    */
   banner?: boolean;
+
+  /**
+   * 元素ID
+   * @group 高级属性
+   * @priority 22
+   */
+  id?: string;
+
+  /**
+   * 关闭回调
+   * @group 事件
+   * @priority 80
+   */
+  onClose?: string;
+
+  /**
+   * 点击回调
+   * @group 事件
+   * @priority 81
+   */
+  onClick?: string;
 }

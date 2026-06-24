@@ -67,4 +67,28 @@ export interface StatisticProps extends BaseProps {
 
    */
   groupSeparator?: string;
+
+  /**
+   * 加载状态
+   * @group 高级属性
+   * @priority 22
+
+   */
+  loading?: boolean;
+
+  /**
+   * 格式化模式，支持内置 "number" 和 "countdown"
+   * @group 高级属性
+   * @priority 23
+
+   */
+  formatter?: string;
+
+  /**
+   * 小数点分隔符
+   * @group 高级属性
+   * @priority 24
+
+   */
+  decimalSeparator?: string;
 }

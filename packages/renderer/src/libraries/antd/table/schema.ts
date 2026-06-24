@@ -7,6 +7,9 @@
  */
 import type { BaseProps } from '../base-props';
 
+// React 类型已替换：React.ReactNode → string, React.CSSProperties → Record<string, unknown>
+// 低代码平台不支持写 React 组件，属性面板统一用字符串配置
+
 /** 表格 组件属性 */
 export interface TableProps extends BaseProps {
   /**
@@ -45,6 +48,26 @@ export interface TableProps extends BaseProps {
    * 尺寸
    * @group 基础属性
    * @priority 14
+   * @default 'large'
+
+   */
+  size?: 'small' | 'middle' | 'large';
+
+  /**
+   * 列统一属性
+   * @group 基础属性
+   * @priority 15
+
+   */
+  column?: Record<string, unknown>;
+
+  /**
+   * 虚拟滚动
+   * @group 基础属性
+   * @priority 16
+
+   */
+  virtual?: boolean;
 
   /**
    * 分页
@@ -60,7 +83,7 @@ export interface TableProps extends BaseProps {
    * @priority 21
 
    */
-  scroll?: { x?: number; y?: number };
+  scroll?: { x?: number | string; y?: number | string; scrollToFirstRowOnChange?: boolean };
 
   /**
    * 行选择
@@ -69,4 +92,52 @@ export interface TableProps extends BaseProps {
 
    */
   rowSelection?: object;
+
+  /**
+   * 排序方向
+   * @group 高级属性
+   * @priority 23
+
+   */
+  sortDirections?: ('ascend' | 'descend')[];
+
+  /**
+   * 排序提示
+   * @group 高级属性
+   * @priority 24
+
+   */
+  showSorterTooltip?: boolean | Record<string, unknown>;
+
+  /**
+   * 国际化文案
+   * @group 高级属性
+   * @priority 25
+
+   */
+  locale?: Record<string, unknown>;
+
+  /**
+   * 根节点 CSS 类名
+   * @group 样式
+   * @priority 51
+
+   */
+  rootClassName?: string;
+
+  /**
+   * 弹出容器
+   * @group 高级属性
+   * @priority 26
+
+   */
+  getPopupContainer?: string;
+
+  /**
+   * 表格变化回调
+   * @group 事件
+   * @priority 80
+
+   */
+  onChange?: string;
 }

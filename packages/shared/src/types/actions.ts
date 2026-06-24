@@ -20,13 +20,24 @@ export interface ActionExecutor {
   ): Promise<any>;
 }
 
+/** 表单注册表接口（避免循环依赖） */
+export interface FormRegistryLike {
+  get(formId: string): { getValues(): Record<string, any>; getInitialValues(): Record<string, any> } | undefined;
+  getActiveFormId(): string | undefined;
+  getFormData(formId?: string): Record<string, any>;
+}
+
 /** 动作执行上下文 */
 export interface ActionContext {
   renderContext: Record<string, any>;
   event?: any;
   $result?: any;
+  /** 表单注册表（通过 formId 获取表单数据） */
+  formRegistry?: FormRegistryLike;
+  /** 当前活跃表单 ID（由 Form 组件栈维护） */
+  activeFormId?: string;
+  /** 设置表单字段值（写入回调，由宿主应用提供） */
   setFormValue?: (field: string, value: any) => void;
-  getFormValue?: (field: string) => any;
   navigate?: (url: string, params?: Record<string, string>) => void;
   showMessage?: (type: string, content: string, duration?: number) => void;
   showModal?: (modalId: string, data?: any) => Promise<any>;

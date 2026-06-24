@@ -16,7 +16,6 @@ export interface ListProps extends BaseProps {
    * 数据源
    * @group 基础属性
    * @priority 10
-
    */
   dataSource?: any[];
 
@@ -24,7 +23,6 @@ export interface ListProps extends BaseProps {
    * 加载中
    * @group 基础属性
    * @priority 11
-
    */
   loading?: boolean;
 
@@ -32,7 +30,6 @@ export interface ListProps extends BaseProps {
    * 边框
    * @group 基础属性
    * @priority 12
-
    */
   bordered?: boolean;
 
@@ -40,7 +37,6 @@ export interface ListProps extends BaseProps {
    * 分割线
    * @group 基础属性
    * @priority 13
-
    */
   split?: boolean;
 
@@ -48,12 +44,27 @@ export interface ListProps extends BaseProps {
    * 尺寸
    * @group 基础属性
    * @priority 14
+   */
+  size?: 'small' | 'default' | 'large';
+
+  /**
+   * 列表项布局
+   * @group 基础属性
+   * @priority 15
+   */
+  itemLayout?: 'horizontal' | 'vertical';
+
+  /**
+   * 栅格布局配置
+   * @group 基础属性
+   * @priority 16
+   */
+  grid?: Record<string, unknown>;
 
   /**
    * 头部
    * @group 高级属性
    * @priority 20
-
    */
   header?: string;
 
@@ -61,15 +72,27 @@ export interface ListProps extends BaseProps {
    * 底部
    * @group 高级属性
    * @priority 21
-
    */
   footer?: string;
 
   /**
-   * 分页
+   * 额外内容
    * @group 高级属性
    * @priority 22
+   */
+  extra?: string;
 
+  /**
+   * 加载更多
+   * @group 高级属性
+   * @priority 23
+   */
+  loadMore?: string;
+
+  /**
+   * 分页
+   * @group 高级属性
+   * @priority 24
    */
   pagination?: object;
 }

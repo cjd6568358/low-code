@@ -21,7 +21,7 @@ This file provides guidance to Claude Code when working with this repository.
 ### 核心设计理念
 
 - **全 Schema 驱动**：设计器写 Schema，运行时读 Schema，设计时与运行时通过 JSON Schema 解耦
-- **七种资源统一**：页面/卡片/表单/数据表/流程/自动化/运算，全部 JSON 文件存储
+- **六种资源统一**：页面/卡片/数据表/流程/自动化/运算，全部 JSON 文件存储
 - **物理级租户隔离**：每租户独立目录（Schema + SQLite），文件系统级隔离
 - **TS 类型即实体**：不需要单独实体层，TS 类型自动编译为 JSON Schema 供各引擎消费
 - **纯引擎架构**：packages/ 不依赖框架，可独立测试，server 组装引擎，frontend 调用 API
@@ -91,6 +91,7 @@ This file provides guidance to Claude Code when working with this repository.
 - 禁止 `any`、`enum`、空 catch、`console.log` 做持久日志
 - 禁止硬编码密钥/密码
 - 禁止直接引用包内子路径（应通过 barrel export）
+- **禁止手动修改组件 JSON Schema 文件（*.json）** — JSON Schema 只能从 `schema.ts` 通过 `lc-schema scan` 命令自动生成，所有改动必须在 `schema.ts` 中进行
 
 ### 会话规范
 - **每次会话响应结尾必须包含 "-------是的，我还清醒---------"**
@@ -152,7 +153,7 @@ yarn test
 frontend/        ← 前端门户（Vite + React，端口 5173）
   src/auth/        认证（AuthContext、ProtectedRoute、mockAuth）
   src/components/  通用组件（PermissionGuard、PageRuntime）
-  src/designers/   资源设计器（PageDesign、CardDesign、FormDesign、TableDesign、...）
+  src/designers/   资源设计器（PageDesign、CardDesign、TableDesign、...）
   src/layouts/     布局（MainLayout）
   src/pages/       页面（LoginPage、WorkspacePage、AppCenterPage、WorkflowCenterPage、ConfigCenterPage、AppDesignPage）
   src/styles/      全局样式

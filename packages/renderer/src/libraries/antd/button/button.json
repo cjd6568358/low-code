@@ -19,7 +19,8 @@
       ],
       "title": "按钮类型",
       "x-group": "基础属性",
-      "x-priority": 2
+      "x-priority": 2,
+      "default": "default"
     },
     "htmlType": {
       "type": "string",
@@ -30,18 +31,21 @@
       ],
       "title": "HTML 类型",
       "x-group": "基础属性",
-      "x-priority": 3
+      "x-priority": 3,
+      "default": "button"
     },
     "shape": {
       "type": "string",
       "enum": [
         "circle",
         "default",
-        "round"
+        "round",
+        "square"
       ],
       "title": "形状",
       "x-group": "基础属性",
-      "x-priority": 4
+      "x-priority": 4,
+      "default": "default"
     },
     "loading": {
       "anyOf": [
@@ -78,7 +82,8 @@
       ],
       "title": "图标位置",
       "x-group": "高级属性",
-      "x-priority": 11
+      "x-priority": 11,
+      "default": "start"
     },
     "ghost": {
       "type": "boolean",
@@ -97,6 +102,46 @@
       "title": "块级按钮",
       "x-group": "高级属性",
       "x-priority": 14
+    },
+    "color": {
+      "type": "string",
+      "enum": [
+        "blue",
+        "cyan",
+        "danger",
+        "default",
+        "geekblue",
+        "gold",
+        "green",
+        "lime",
+        "magenta",
+        "orange",
+        "pink",
+        "primary",
+        "purple",
+        "red",
+        "volcano",
+        "yellow"
+      ],
+      "title": "按钮颜色",
+      "x-group": "高级属性",
+      "x-priority": 15,
+      "default": "default"
+    },
+    "variant": {
+      "type": "string",
+      "enum": [
+        "dashed",
+        "filled",
+        "link",
+        "outlined",
+        "solid",
+        "text"
+      ],
+      "title": "按钮变体",
+      "x-group": "高级属性",
+      "x-priority": 16,
+      "default": "outlined"
     },
     "name": {
       "type": "string",

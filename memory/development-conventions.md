@@ -174,6 +174,30 @@ import { expressionEngine } from '@low-code/computation';
 | `x-dictionary` | string | 字典引用 code |
 | `x-placeholder` | string | 占位提示 |
 | `x-visible` | string | 可见性条件表达式 |
+| `default` | any | 属性默认值（通过 `@default` JSDoc 注解生成） |
+
+### 4.3 JSDoc 注解映射规则
+
+`schema.ts` 中的 JSDoc 注解会被 `SchemaCompiler` 编译为 JSON Schema 字段：
+
+| JSDoc 注解 | JSON Schema 字段 | 说明 |
+|------------|-----------------|------|
+| `@group xxx` | `x-group: "xxx"` | 字段分组 |
+| `@priority N` | `x-priority: N` | 排序权重 |
+| `@default xxx` | `default: xxx` | 属性默认值 |
+| `@component xxx` | `x-component: "xxx"` | 自定义控件 |
+| `@visible expr` | `x-visible: "expr"` | 条件显隐 |
+| `@disabled expr` | `x-disabled: "expr"` | 条件禁用 |
+| `@hidden` | `x-hidden: true` | 强制隐藏 |
+| `@dictionary xxx` | `x-dictionary: "xxx"` | 字典引用 |
+| `@deprecated xxx` | `description` 中标注 | 废弃提示 |
+
+### 4.4 JSON Schema 生成规则（强制）
+
+- 组件 JSON Schema 文件（*.json）由 `lc-schema scan` 命令自动生成
+- **禁止手动修改 JSON Schema 文件**，所有改动必须在 `schema.ts` 中进行
+- 需要新增属性/修改类型/添加默认值时，只改 `schema.ts`，然后运行 `lc-schema scan` 重新生成
+- 编译命令：`npx lc-schema scan`（默认扫描 `packages/renderer/src/libraries/antd`）
 
 ### 4.2 组件属性 Schema 示例
 

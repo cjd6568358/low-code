@@ -36,6 +36,8 @@ interface DesignOverlayProps {
   dragSourceId: string | null;
   siblings: string[];
   scrollTick: number;
+  /** 容器模式：交互层 pointer-events:none，不拦截子组件点击/拖拽 */
+  passthrough?: boolean;
 }
 
 export function DesignOverlay({
@@ -46,6 +48,7 @@ export function DesignOverlay({
   onSelect,
   dragOverId, dropPosition, dragSourceId,
   siblings, scrollTick,
+  passthrough,
 }: DesignOverlayProps) {
   // 通过 className 唯一标记定位组件 DOM 元素
   const getCompRect = React.useCallback((): DOMRect | null => {
@@ -83,7 +86,7 @@ export function DesignOverlay({
           height: rect.height + 4,
           border: isSelected ? '2px solid #1890ff' : '2px solid transparent',
           borderRadius: 6,
-          pointerEvents: 'auto',
+          pointerEvents: passthrough ? 'none' : 'auto',
           zIndex: 10,
           cursor: isDragSource ? 'grabbing' : 'grab',
           backgroundColor: dragOverId === node.id && dropPosition === 'inside'

@@ -131,6 +131,7 @@ export function ComponentPanel({ registry }: { registry: any }) {
               {components.map((comp) => (
                 <div
                   key={comp.type}
+                  title={comp.type}
                   draggable
                   onDragStart={(e) => handleDragStart(e, comp.type)}
                   onDragEnd={handleDragEnd}

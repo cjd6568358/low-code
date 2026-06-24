@@ -8,11 +8,53 @@
       "x-group": "基础属性",
       "x-priority": 10
     },
+    "defaultChecked": {
+      "type": "boolean",
+      "title": "默认选中",
+      "x-group": "基础属性",
+      "x-priority": 11
+    },
     "disabled": {
       "type": "boolean",
       "title": "禁用",
       "x-group": "基础属性",
-      "x-priority": 11
+      "x-priority": 12
+    },
+    "autoFocus": {
+      "type": "boolean",
+      "title": "自动获取焦点",
+      "x-group": "基础属性",
+      "x-priority": 13
+    },
+    "required": {
+      "type": "boolean",
+      "title": "必填",
+      "x-group": "基础属性",
+      "x-priority": 14
+    },
+    "value": {
+      "type": "string",
+      "title": "根据 value 进行比较，判断是否选中（配合 Radio.Group 使用）",
+      "x-group": "基础属性",
+      "x-priority": 15
+    },
+    "id": {
+      "type": "string",
+      "title": "组件 ID",
+      "x-group": "基础属性",
+      "x-priority": 20
+    },
+    "className": {
+      "type": "string",
+      "title": "CSS 类名",
+      "x-group": "样式",
+      "x-priority": 51
+    },
+    "title": {
+      "type": "string",
+      "title": "提示文本",
+      "x-group": "基础属性",
+      "x-priority": 21
     },
     "name": {
       "type": "string",

@@ -21,7 +21,8 @@
       ],
       "title": "宽度",
       "x-group": "基础属性",
-      "x-priority": 12
+      "x-priority": 12,
+      "default": 520
     },
     "centered": {
       "type": "boolean",
@@ -33,19 +34,22 @@
       "type": "boolean",
       "title": "可关闭",
       "x-group": "基础属性",
-      "x-priority": 14
+      "x-priority": 14,
+      "default": true
     },
     "mask": {
       "type": "boolean",
       "title": "遮罩",
       "x-group": "基础属性",
-      "x-priority": 15
+      "x-priority": 15,
+      "default": true
     },
     "maskClosable": {
       "type": "boolean",
       "title": "点击遮罩关闭",
       "x-group": "基础属性",
-      "x-priority": 16
+      "x-priority": 16,
+      "default": true
     },
     "footer": {
       "type": "string",

@@ -8,24 +8,6 @@
       "x-group": "基础属性",
       "x-priority": 10
     },
-    "activeKey": {
-      "type": "string",
-      "title": "当前标签",
-      "x-group": "基础属性",
-      "x-priority": 11
-    },
-    "tabPosition": {
-      "type": "string",
-      "enum": [
-        "bottom",
-        "left",
-        "right",
-        "top"
-      ],
-      "title": "位置",
-      "x-group": "基础属性",
-      "x-priority": 12
-    },
     "type": {
       "type": "string",
       "enum": [
@@ -33,21 +15,227 @@
         "editable-card",
         "line"
       ],
-      "title": "类型",
+      "title": "标签类型",
+      "x-group": "基础属性",
+      "x-priority": 11,
+      "default": "'line'"
+    },
+    "activeKey": {
+      "type": "string",
+      "title": "当前激活标签",
+      "x-group": "基础属性",
+      "x-priority": 12
+    },
+    "defaultActiveKey": {
+      "type": "string",
+      "title": "默认激活标签",
       "x-group": "基础属性",
       "x-priority": 13
     },
-    "centered": {
-      "type": "boolean",
+    "tabPlacement": {
+      "type": "string",
+      "enum": [
+        "bottom",
+        "end",
+        "start",
+        "top"
+      ],
+      "title": "标签放置位置",
+      "x-group": "基础属性",
+      "x-priority": 15,
+      "default": "top"
+    },
+    "size": {
+      "type": "string",
+      "enum": [
+        "large",
+        "middle",
+        "small"
+      ],
       "title": "尺寸",
       "x-group": "基础属性",
-      "x-priority": 15
+      "x-priority": 16
     },
-    "animated": {
+    "centered": {
       "type": "boolean",
-      "title": "动画",
+      "title": "居中排列",
+      "x-group": "基础属性",
+      "x-priority": 17
+    },
+    "hideAdd": {
+      "type": "boolean",
+      "title": "隐藏添加按钮",
+      "x-group": "基础属性",
+      "x-priority": 18
+    },
+    "destroyOnHidden": {
+      "type": "boolean",
+      "title": "销毁隐藏面板",
       "x-group": "高级属性",
       "x-priority": 20
+    },
+    "animated": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "inkBar": {
+              "type": "boolean"
+            },
+            "tabPane": {
+              "type": "boolean"
+            }
+          },
+          "propertyOrder": [
+            "inkBar",
+            "tabPane"
+          ]
+        },
+        {
+          "type": "boolean"
+        }
+      ],
+      "title": "动画配置",
+      "x-group": "高级属性",
+      "x-priority": 21
+    },
+    "direction": {
+      "type": "string",
+      "enum": [
+        "ltr",
+        "rtl"
+      ],
+      "title": "方向",
+      "x-group": "高级属性",
+      "x-priority": 22
+    },
+    "tabBarExtraContent": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "left": {
+              "type": "string"
+            },
+            "right": {
+              "type": "string"
+            }
+          },
+          "propertyOrder": [
+            "left",
+            "right"
+          ]
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "title": "附加操作栏内容",
+      "x-group": "高级属性",
+      "x-priority": 23
+    },
+    "tabBarGutter": {
+      "type": "number",
+      "title": "标签栏间距",
+      "x-group": "高级属性",
+      "x-priority": 24
+    },
+    "tabBarStyle": {
+      "type": "object",
+      "title": "标签栏样式",
+      "x-group": "高级属性",
+      "x-priority": 25
+    },
+    "addIcon": {
+      "type": "string",
+      "title": "添加图标",
+      "x-group": "高级属性",
+      "x-priority": 26
+    },
+    "moreIcon": {
+      "type": "string",
+      "title": "更多图标",
+      "x-group": "高级属性",
+      "x-priority": 27
+    },
+    "removeIcon": {
+      "type": "string",
+      "title": "删除图标",
+      "x-group": "高级属性",
+      "x-priority": 28
+    },
+    "more": {
+      "type": "object",
+      "title": "下拉菜单配置",
+      "x-group": "高级属性",
+      "x-priority": 29,
+      "properties": {
+        "icon": {
+          "type": "string",
+          "x-group": "基础属性"
+        }
+      }
+    },
+    "indicator": {
+      "type": "object",
+      "title": "指示器配置",
+      "x-group": "高级属性",
+      "x-priority": 30,
+      "properties": {
+        "size": {
+          "anyOf": [
+            {
+              "type": "object",
+              "propertyOrder": []
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "x-group": "基础属性"
+        },
+        "align": {
+          "type": "string",
+          "enum": [
+            "center",
+            "end",
+            "start"
+          ],
+          "x-group": "基础属性"
+        }
+      }
+    },
+    "locale": {
+      "type": "object",
+      "title": "国际化文案",
+      "x-group": "高级属性",
+      "x-priority": 31,
+      "properties": {
+        "dropdownAriaLabel": {
+          "type": "string",
+          "x-group": "基础属性"
+        },
+        "removeAriaLabel": {
+          "type": "string",
+          "x-group": "基础属性"
+        },
+        "addAriaLabel": {
+          "type": "string",
+          "x-group": "基础属性"
+        }
+      }
+    },
+    "rootClassName": {
+      "type": "string",
+      "title": "根节点样式类名",
+      "x-group": "高级属性",
+      "x-priority": 32
+    },
+    "id": {
+      "type": "string",
+      "title": "组件 ID",
+      "x-group": "高级属性",
+      "x-priority": 33
     },
     "name": {
       "type": "string",

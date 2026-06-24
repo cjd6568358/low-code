@@ -20,6 +20,8 @@ import { ComponentRefreshManager } from './ComponentRefreshManager';
 import { UnifiedDependencyGraph } from './UnifiedDependencyGraph';
 import { ServerVariableResolver } from './ServerVariableResolver';
 import { ResolvedComponent } from './ResolvedComponent';
+import { FormRegistry } from './FormRegistry';
+import { FormRegistryContext } from '../components/FormRegistryContext';
 import type { PlatformAdapter } from '@low-code/shared';
 
 /** 渲染器配置 */
@@ -99,6 +101,16 @@ export function PageRenderer(config: RendererConfig) {
   // 新增：统一依赖图
   const dependencyGraph = useMemo(() => new UnifiedDependencyGraph(), []);
 
+  // 表单注册表（每个 PageRenderer 实例独立）
+  const formRegistry = useMemo(() => new FormRegistry(), []);
+
+  // 当前渲染路径中的 formId 栈（支持嵌套表单）
+  const formIdStackRef = useRef<string[]>([]);
+  const getActiveFormId = useCallback(() => {
+    const stack = formIdStackRef.current;
+    return stack.length > 0 ? stack[stack.length - 1] : undefined;
+  }, []);
+
   // 构建环境变量（独立于数据源状态）
   const envContext = useMemo(() => {
     const $fetch = {
@@ -119,14 +131,14 @@ export function PageRenderer(config: RendererConfig) {
     });
 
     return {
-      $user: (context.$context as any)?.currentUser,
-      $platform: { web: true, mobile: false, miniApp: false },
-      $route: (context.$context as any)?.route,
-      $component: context.$components,
+      $user: context.user,
+      $platform: context.platform ?? { web: true, mobile: false, miniApp: false },
+      $route: context.route,
+      $component: context.component,
       $table,
-      $computation: {},
+      $computation: context.computation ?? {},
       $fetch,
-      $workflow: context.$workflow,
+      $workflow: context.workflow,
     };
   }, [context, adapter]);
 
@@ -249,7 +261,6 @@ export function PageRenderer(config: RendererConfig) {
     return {
       ...baseContext,
       $data: dataResult,
-      $api: { ...context.$api, $data: { data: dataResult, loading: false, error: null } },
     };
   }, [dataReady, context, dataResult, schema.dataSource, envContext]);
 
@@ -282,8 +293,9 @@ export function PageRenderer(config: RendererConfig) {
   const actionContext = useMemo<ActionContext>(
     () => ({
       renderContext: runtimeContext,
+      formRegistry,
+      activeFormId: getActiveFormId(),
       setFormValue: onFormValueChange,
-      getFormValue: (field: string) => runtimeContext.$form?.[field],
       navigate: (url, params) => adapter.navigate(url, params),
       apiRequest: (config) => adapter.api.request(config),
       showModal: (modalId: string, data?: any) => modalStack.open(modalId, data),
@@ -301,18 +313,17 @@ export function PageRenderer(config: RendererConfig) {
         return dependencyGraph.analyzeChangeImpact(changedPaths);
       },
     }),
-    [runtimeContext, adapter, onFormValueChange, modalStack, componentRefreshManager, dependencyGraph],
+    [runtimeContext, formRegistry, getActiveFormId, adapter, onFormValueChange, modalStack, componentRefreshManager, dependencyGraph],
   );
 
   // 渲染单个组件节点
   const renderNode = useCallback(
     (node: ComponentNode): React.ReactNode => {
-      // 1. 条件规则评估（含声明式权限检查）
+      // 1. 条件规则评估
       const ruleResult = conditionEngine.evaluateComponent(
         node.id,
         node.visible,
         runtimeContext,
-        node.permission,
       );
       if (!ruleResult.visible) return null;
 
@@ -351,10 +362,20 @@ export function PageRenderer(config: RendererConfig) {
 
       // 4. 渲染子组件
       const children = node.children || [];
-      const childElements = children
+      let childElements = children
         .map((childId) => componentMap.get(childId))
         .filter(Boolean)
         .map((child) => renderNode(child!));
+
+      // Form 组件：子树内的 $form 绑定指向当前表单实例
+      const isFormComponent = node.type === 'form';
+      if (isFormComponent && childElements.length > 0) {
+        childElements = [
+          <FormRegistryContext.Provider key="__form_ctx__" value={{ registry: formRegistry, activeFormId: node.id }}>
+            {childElements}
+          </FormRegistryContext.Provider>,
+        ];
+      }
 
       // 5. 事件编译
       const eventHandlers = node.events
@@ -392,10 +413,20 @@ export function PageRenderer(config: RendererConfig) {
             // 11. 构建平台能力 props
             const rawValue = node.props.value;
             let bindField: string | undefined;
+            let boundFormId: string | undefined;
             if (rawValue && typeof rawValue === 'object' && rawValue.type === 'variable') {
               const path = rawValue.value;
-              if (typeof path === 'string' && path.startsWith('$form.')) {
-                bindField = path.slice(6);
+              if (typeof path === 'string') {
+                // $form.fieldName → 活跃表单
+                if (path.startsWith('$form.')) {
+                  bindField = path.slice(6);
+                }
+                // $component.formId.$form.fieldName → 指定表单
+                else if (path.startsWith('$component.') && path.includes('.$form.')) {
+                  const formIdx = path.indexOf('.$form.');
+                  boundFormId = path.slice('$component.'.length, formIdx);
+                  bindField = path.slice(formIdx + '.$form.'.length);
+                }
               }
             }
 
@@ -409,6 +440,7 @@ export function PageRenderer(config: RendererConfig) {
                   }
                 },
                 bindField,
+                formId: boundFormId ?? formRegistry.getActiveFormId(),
               },
               events: mapEventHandlersToProps(eventHandlers),
               linkage: {
@@ -449,6 +481,7 @@ export function PageRenderer(config: RendererConfig) {
       actionContext,
       registry,
       adapter,
+      formRegistry,
     ],
   );
 
@@ -486,13 +519,15 @@ export function PageRenderer(config: RendererConfig) {
   }
 
   return (
-    <div
-      className="lc-page"
-      data-page-id={schema.pageId}
-      style={layoutStyle}
-    >
-      {rootChildren}
-    </div>
+    <FormRegistryContext.Provider value={{ registry: formRegistry, activeFormId: getActiveFormId() }}>
+      <div
+        className="lc-page"
+        data-page-id={schema.pageId}
+        style={layoutStyle}
+      >
+        {rootChildren}
+      </div>
+    </FormRegistryContext.Provider>
   );
 }
 

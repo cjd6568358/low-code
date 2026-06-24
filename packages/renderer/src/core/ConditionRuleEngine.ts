@@ -1,4 +1,4 @@
-import type { PageRule, RenderContext, ComponentPermissionConfig } from '@low-code/shared';
+import type { PageRule, RenderContext } from '@low-code/shared';
 import type { DefaultExpressionEngine } from '@low-code/computation';
 
 /** 条件规则求值结果 */
@@ -31,14 +31,11 @@ export class ConditionRuleEngine {
 
   /**
    * 评估某个组件的所有规则
-   *
-   * permission 与 visible 为 AND 关系：两者都通过才可见。
    */
   evaluateComponent(
     componentId: string,
     componentVisible: boolean | string | undefined,
     context: RenderContext,
-    permission?: ComponentPermissionConfig,
   ): RuleEvaluationResult {
     const result: RuleEvaluationResult = {
       visible: true,
@@ -54,12 +51,7 @@ export class ConditionRuleEngine {
       result.visible = !!this.expressionEngine.safeEvaluate(componentVisible, context);
     }
 
-    // 2. 检查声明式权限配置（AND 关系）
-    if (result.visible && permission) {
-      result.visible = this.checkPermission(permission, context);
-    }
-
-    // 3. 再处理页面级规则
+    // 2. 再处理页面级规则
     const componentRules = this.sortedRules.filter((r) => r.targetId === componentId);
     for (const rule of componentRules) {
       const conditionMet = !!this.expressionEngine.safeEvaluate(rule.condition, context);
@@ -103,7 +95,6 @@ export class ConditionRuleEngine {
     componentIds: string[],
     componentVisibleMap: Map<string, boolean | string | undefined>,
     context: RenderContext,
-    permissionMap?: Map<string, ComponentPermissionConfig | undefined>,
   ): Map<string, RuleEvaluationResult> {
     const results = new Map<string, RuleEvaluationResult>();
     for (const id of componentIds) {
@@ -113,53 +104,10 @@ export class ConditionRuleEngine {
           id,
           componentVisibleMap.get(id),
           context,
-          permissionMap?.get(id),
         ),
       );
     }
     return results;
   }
 
-  /**
-   * 检查声明式权限配置
-   *
-   * 规则：
-   * - allowedRoles 非空 → 当前用户角色须在列表中
-   * - allowedDepartments 非空 → 当前用户部门须在列表中
-   * - allowedUsers 非空 → 当前用户ID须在列表中
-   * - 所有非空条件须同时满足（AND）
-   * - 所有条件都为空 → 通过
-   */
-  private checkPermission(
-    permission: ComponentPermissionConfig,
-    context: RenderContext,
-  ): boolean {
-    const user = context.$context.currentUser;
-    const roles = user.roles || [];
-    const userId = user.id;
-    const department = user.department;
-
-    // 角色检查
-    if (permission.allowedRoles?.length) {
-      if (!roles.some((r) => permission.allowedRoles!.includes(r))) {
-        return false;
-      }
-    }
-
-    // 部门检查
-    if (permission.allowedDepartments?.length) {
-      if (!department || !permission.allowedDepartments.includes(department)) {
-        return false;
-      }
-    }
-
-    // 人员检查
-    if (permission.allowedUsers?.length) {
-      if (!userId || !permission.allowedUsers.includes(userId)) {
-        return false;
-      }
-    }
-
-    return true;
-  }
 }

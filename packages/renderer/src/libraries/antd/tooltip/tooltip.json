@@ -26,7 +26,8 @@
       ],
       "title": "位置",
       "x-group": "基础属性",
-      "x-priority": 11
+      "x-priority": 11,
+      "default": "top"
     },
     "color": {
       "type": "string",
@@ -39,6 +40,54 @@
       "title": "箭头",
       "x-group": "基础属性",
       "x-priority": 13
+    },
+    "overlay": {
+      "type": "string",
+      "title": "提示内容（替代 title）",
+      "x-group": "基础属性",
+      "x-priority": 14
+    },
+    "open": {
+      "type": "boolean",
+      "title": "受控显隐",
+      "x-group": "基础属性",
+      "x-priority": 15
+    },
+    "defaultOpen": {
+      "type": "boolean",
+      "title": "默认显隐",
+      "x-group": "基础属性",
+      "x-priority": 16
+    },
+    "autoAdjustOverflow": {
+      "type": "boolean",
+      "title": "自动调整弹出位置",
+      "x-group": "基础属性",
+      "x-priority": 17
+    },
+    "destroyOnHidden": {
+      "type": "boolean",
+      "title": "关闭时销毁内容",
+      "x-group": "基础属性",
+      "x-priority": 18
+    },
+    "className": {
+      "type": "string",
+      "title": "CSS 类名",
+      "x-group": "样式",
+      "x-priority": 30
+    },
+    "rootClassName": {
+      "type": "string",
+      "title": "根节点类名",
+      "x-group": "样式",
+      "x-priority": 31
+    },
+    "openClassName": {
+      "type": "string",
+      "title": "展开时的类名",
+      "x-group": "样式",
+      "x-priority": 32
     },
     "name": {
       "type": "string",

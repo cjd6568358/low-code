@@ -13,23 +13,83 @@ export interface CheckboxProps extends BaseProps {
    * 选中
    * @group 基础属性
    * @priority 10
-
    */
   checked?: boolean;
 
   /**
-   * 禁用
+   * 默认选中
    * @group 基础属性
    * @priority 11
+   */
+  defaultChecked?: boolean;
 
+  /**
+   * 禁用
+   * @group 基础属性
+   * @priority 12
    */
   disabled?: boolean;
 
   /**
    * 半选
    * @group 基础属性
-   * @priority 12
-
+   * @priority 13
    */
   indeterminate?: boolean;
+
+  /**
+   * 是否必填
+   * @group 基础属性
+   * @priority 14
+   */
+  required?: boolean;
+
+  /**
+   * 标签文本
+   * @group 基础属性
+   * @priority 15
+   */
+  title?: string;
+
+  /**
+   * 选项文本
+   * @group 基础属性
+   * @priority 20
+   */
+  children?: string;
+
+  /**
+   * 选项值
+   * @group 基础属性
+   * @priority 21
+   */
+  value?: string;
+
+  /**
+   * 组件 ID
+   * @group 高级属性
+   * @priority 30
+   */
+  id?: string;
+
+  /**
+   * CSS 类名
+   * @group 高级属性
+   * @priority 31
+   */
+  className?: string;
+
+  /**
+   * 自动获取焦点
+   * @group 高级属性
+   * @priority 32
+   */
+  autoFocus?: boolean;
+
+  /**
+   * Tab 键序号
+   * @group 高级属性
+   * @priority 33
+   */
+  tabIndex?: number;
 }

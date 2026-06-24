@@ -8,33 +8,118 @@
       "x-group": "基础属性",
       "x-priority": 10
     },
-    "accordion": {
-      "type": "boolean",
-      "title": "手风琴",
+    "activeKey": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": [
+              "string",
+              "number"
+            ]
+          }
+        },
+        {
+          "type": [
+            "string",
+            "number"
+          ]
+        }
+      ],
+      "title": "当前激活面板",
       "x-group": "基础属性",
       "x-priority": 11
+    },
+    "defaultActiveKey": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": [
+              "string",
+              "number"
+            ]
+          }
+        },
+        {
+          "type": [
+            "string",
+            "number"
+          ]
+        }
+      ],
+      "title": "默认激活面板",
+      "x-group": "基础属性",
+      "x-priority": 12
+    },
+    "accordion": {
+      "type": "boolean",
+      "title": "手风琴模式",
+      "x-group": "基础属性",
+      "x-priority": 13
     },
     "ghost": {
       "type": "boolean",
       "title": "幽灵模式",
       "x-group": "基础属性",
-      "x-priority": 12
+      "x-priority": 14
     },
     "bordered": {
       "type": "boolean",
       "title": "边框",
       "x-group": "基础属性",
-      "x-priority": 13
+      "x-priority": 15
     },
-    "expandIconPosition": {
+    "expandIconPlacement": {
       "type": "string",
       "enum": [
-        "left",
-        "right"
+        "end",
+        "start"
       ],
       "title": "图标位置",
       "x-group": "基础属性",
-      "x-priority": 14
+      "x-priority": 16,
+      "default": "start"
+    },
+    "collapsible": {
+      "type": "string",
+      "enum": [
+        "disabled",
+        "header",
+        "icon"
+      ],
+      "title": "可折叠触发区域",
+      "x-group": "基础属性",
+      "x-priority": 17
+    },
+    "size": {
+      "type": "string",
+      "enum": [
+        "large",
+        "middle",
+        "small"
+      ],
+      "title": "尺寸",
+      "x-group": "基础属性",
+      "x-priority": 18
+    },
+    "destroyOnHidden": {
+      "type": "boolean",
+      "title": "销毁隐藏面板",
+      "x-group": "高级属性",
+      "x-priority": 20
+    },
+    "className": {
+      "type": "string",
+      "title": "样式类名",
+      "x-group": "样式",
+      "x-priority": 51
+    },
+    "rootClassName": {
+      "type": "string",
+      "title": "根节点样式类名",
+      "x-group": "样式",
+      "x-priority": 52
     },
     "name": {
       "type": "string",

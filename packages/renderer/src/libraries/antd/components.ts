@@ -39,7 +39,8 @@ import { withPlatform } from '../../components/platform';
 
 // 从组件目录导入（每个组件一个目录：component.tsx + schema.ts + {type}.json）
 import { PlatformButton } from './button';
-export { PlatformButton };
+import { PlatformForm } from './form';
+export { PlatformButton, PlatformForm };
 
 const { Text } = Typography;
 const { TextArea } = Input;
@@ -75,7 +76,6 @@ export const PlatformCascader = withPlatform(Cascader);
 export const PlatformCheckbox = withPlatform(Checkbox);
 export const PlatformColorPicker = withPlatform(ColorPicker);
 export const PlatformDatePicker = withPlatform(DatePicker);
-export const PlatformForm = withPlatform(Form);
 export const PlatformInput = withPlatform(Input);
 export const PlatformInputNumber = withPlatform(InputNumber);
 export const PlatformMentions = withPlatform(Mentions);

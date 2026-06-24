@@ -1,6 +1,6 @@
 /**
  * 按路径从对象中取值
- * @example get(obj, '$context.currentUser.name') => obj.$context.currentUser.name
+ * @example get(obj, '$user.name') => obj.$user.name
  */
 export function get(obj: any, path: string): any {
   if (!obj || !path) return undefined;

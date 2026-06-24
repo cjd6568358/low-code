@@ -2,8 +2,36 @@
  * Monaco 编辑器包装组件
  */
 
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback, useImperativeHandle, forwardRef } from 'react';
 import * as monaco from 'monaco-editor';
+
+/** 代码诊断信息 */
+export interface CodeDiagnostic {
+  /** 错误级别：error | warning | info */
+  severity: 'error' | 'warning' | 'info';
+  /** 错误信息 */
+  message: string;
+  /** 行号 */
+  lineNumber: number;
+  /** 列号 */
+  column: number;
+  /** 错误代码 */
+  code?: string | number;
+}
+
+/** Monaco 编辑器暴露的方法 */
+export interface MonacoEditorRef {
+  /** 获取编辑器实例 */
+  getEditor: () => monaco.editor.IStandaloneCodeEditor | null;
+  /** 格式化文档 */
+  formatDocument: () => Promise<void>;
+  /** 获取格式化后的值 */
+  getFormattedValue: () => Promise<string>;
+  /** 获取代码诊断信息（语法错误、警告等） */
+  getDiagnostics: () => CodeDiagnostic[];
+  /** 检查代码是否有错误 */
+  hasErrors: () => boolean;
+}
 
 /** Monaco 编辑器属性 */
 export interface MonacoEditorProps {
@@ -29,7 +57,7 @@ export interface CompletionItem {
 /**
  * Monaco 编辑器包装组件
  */
-export function MonacoEditor(props: MonacoEditorProps) {
+export const MonacoEditor = forwardRef<MonacoEditorRef, MonacoEditorProps>((props, ref) => {
   const {
     value,
     onChange,
@@ -48,6 +76,49 @@ export function MonacoEditor(props: MonacoEditorProps) {
 
   // 保持 completionItems 引用最新
   completionItemsRef.current = completionItems;
+
+  // 暴露方法给父组件
+  useImperativeHandle(ref, () => ({
+    /** 获取编辑器实例 */
+    getEditor: () => editorRef.current,
+    /** 格式化文档 */
+    formatDocument: async () => {
+      if (!editorRef.current) return;
+      await editorRef.current.getAction('editor.action.formatDocument')?.run();
+    },
+    /** 获取格式化后的值 */
+    getFormattedValue: async () => {
+      if (!editorRef.current) return '';
+      await editorRef.current.getAction('editor.action.formatDocument')?.run();
+      return editorRef.current.getValue();
+    },
+    /** 获取代码诊断信息（语法错误、警告等） */
+    getDiagnostics: (): CodeDiagnostic[] => {
+      if (!editorRef.current) return [];
+      const model = editorRef.current.getModel();
+      if (!model) return [];
+
+      // 获取 Monaco 的语法验证标记
+      const markers = monaco.editor.getModelMarkers({ resource: model.uri });
+      return markers.map(marker => ({
+        severity: marker.severity === monaco.MarkerSeverity.Error ? 'error' :
+                  marker.severity === monaco.MarkerSeverity.Warning ? 'warning' : 'info',
+        message: marker.message,
+        lineNumber: marker.startLineNumber,
+        column: marker.startColumn,
+        code: typeof marker.code === 'object' ? marker.code?.value : marker.code,
+      }));
+    },
+    /** 检查代码是否有错误 */
+    hasErrors: (): boolean => {
+      if (!editorRef.current) return false;
+      const model = editorRef.current.getModel();
+      if (!model) return false;
+
+      const markers = monaco.editor.getModelMarkers({ resource: model.uri });
+      return markers.some(marker => marker.severity === monaco.MarkerSeverity.Error);
+    },
+  }), []);
 
   // 清理资源
   const cleanup = useCallback(() => {
@@ -207,7 +278,9 @@ export function MonacoEditor(props: MonacoEditorProps) {
       }}
     />
   );
-}
+});
+
+MonacoEditor.displayName = 'MonacoEditor';
 
 /**
  * 获取 Monaco 自动补全类型

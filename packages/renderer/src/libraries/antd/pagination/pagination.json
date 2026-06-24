@@ -14,35 +14,122 @@
       "x-group": "基础属性",
       "x-priority": 11
     },
+    "defaultCurrent": {
+      "type": "number",
+      "title": "默认当前页",
+      "x-group": "基础属性",
+      "x-priority": 12,
+      "x-no-binding": ""
+    },
     "pageSize": {
       "type": "number",
       "title": "每页条数",
       "x-group": "基础属性",
-      "x-priority": 12
+      "x-priority": 13
+    },
+    "defaultPageSize": {
+      "type": "number",
+      "title": "默认每页条数",
+      "x-group": "基础属性",
+      "x-priority": 14,
+      "x-no-binding": "",
+      "default": 10
+    },
+    "disabled": {
+      "type": "boolean",
+      "title": "禁用",
+      "x-group": "基础属性",
+      "x-priority": 15
+    },
+    "size": {
+      "type": "string",
+      "enum": [
+        "default",
+        "small"
+      ],
+      "title": "尺寸",
+      "x-group": "基础属性",
+      "x-priority": 16,
+      "x-no-binding": ""
     },
     "showSizeChanger": {
       "type": "boolean",
       "title": "显示条数切换",
       "x-group": "基础属性",
-      "x-priority": 13
+      "x-priority": 20
+    },
+    "pageSizeOptions": {
+      "type": "array",
+      "title": "指定每页可以显示多少条",
+      "x-group": "基础属性",
+      "x-priority": 21,
+      "x-no-binding": ""
     },
     "showQuickJumper": {
       "type": "boolean",
       "title": "快速跳转",
       "x-group": "基础属性",
-      "x-priority": 14
+      "x-priority": 22
     },
     "showTotal": {
       "type": "boolean",
       "title": "显示总数",
       "x-group": "基础属性",
-      "x-priority": 15
+      "x-priority": 23
+    },
+    "hideOnSinglePage": {
+      "type": "boolean",
+      "title": "少于 5 条时隐藏分页",
+      "x-group": "基础属性",
+      "x-priority": 24
+    },
+    "showLessItems": {
+      "type": "boolean",
+      "title": "显示较少的页码按钮",
+      "x-group": "基础属性",
+      "x-priority": 25
+    },
+    "showPrevNextJumpers": {
+      "type": "boolean",
+      "title": "显示前后翻页按钮",
+      "x-group": "基础属性",
+      "x-priority": 26
+    },
+    "showTitle": {
+      "type": "boolean",
+      "title": "显示页码按钮的 title",
+      "x-group": "基础属性",
+      "x-priority": 27
+    },
+    "align": {
+      "type": "string",
+      "enum": [
+        "center",
+        "end",
+        "start"
+      ],
+      "title": "对齐方式",
+      "x-group": "基础属性",
+      "x-priority": 28,
+      "x-no-binding": ""
     },
     "simple": {
       "type": "boolean",
       "title": "简洁模式",
       "x-group": "高级属性",
-      "x-priority": 20
+      "x-priority": 30
+    },
+    "responsive": {
+      "type": "boolean",
+      "title": "根据屏幕宽度自动调整",
+      "x-group": "高级属性",
+      "x-priority": 31
+    },
+    "totalBoundaryShowSizeChanger": {
+      "type": "number",
+      "title": "小于该值时自动隐藏 sizeChanger",
+      "x-group": "高级属性",
+      "x-priority": 32
     },
     "name": {
       "type": "string",

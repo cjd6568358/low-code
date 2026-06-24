@@ -344,6 +344,42 @@ DesignOverlay（Portal，position: fixed）
 - `handleDragOver` 检测到面板拖入后跳过 `dragSourceRef` 检查，正常计算 drop 位置
 - 拖入指示线（before/after/inside）正确显示
 
+##### 6. 容器 overlay：passthrough 模式
+
+**问题**：容器（Form/Flex 等）的 overlay 覆盖整个区域，`pointer-events: auto` 拦截了子组件的点击和拖拽，导致子组件无法选中。
+
+**方案 — passthrough 模式**：
+- 容器使用 `DesignOverlay` + `passthrough` prop
+- passthrough 模式下交互层 `pointer-events: none`，不拦截子组件交互
+- 选中框和 drop 指示器正常显示（`z-index: 10`）
+- 容器通过 `withPlatform` 注入的 `onMouseDown`（点击边框/padding 区域）选中
+
+##### 7. "+ 拖入更多" 容器外绝对定位
+
+**问题**：容器的 "+ 拖入更多" 拖入区域放在 `ComponentImpl` 内部时，受容器布局影响（inline 布局时水平排列，flex 布局时参与排列）。
+
+**方案**：
+- 拖入区域移到 `ComponentImpl` 外部，用 `position: relative` 包裹层 + `position: absolute; bottom` 贴底
+- 容器 `paddingBottom` 预留空间，内容不遮挡拖入区域
+- 视觉上在容器虚线边框内，但不受容器布局（inline/flex/grid）影响
+
+##### 8. 表单容器 FormContext 传递
+
+**问题**：`components.ts` 中 `PlatformForm = withPlatform(Form)` 直接包了 antd 的 `Form`，绕过了 `FormWithProvider`（提供 `FormContext.Provider`）。子组件的 `useFormContext()` 永远返回 `null`，`isInForm` 为 false，Form.Item 自动包装不生效。
+
+**修复**：`PlatformForm` 改为从 `form/component.tsx` 导入（使用 `FormWithProvider`，内含 `FormContext.Provider`）。
+
+**Form.Item 自动包装**：`withPlatform` 检测 `isInForm && hasFieldName` 时，自动将组件包裹在 `Form.Item` 中，`label` 默认取 `name` 字段值。
+
+**labelCol/wrapperCol 归一化**：`FormWithProvider` 将字符串/数字格式的 `labelCol`/`wrapperCol`（如 `"8"`）转换为 antd 期望的对象格式（如 `{span: 8}`）。
+
+**labelCol 像素模式（inline 布局专用）**：`labelCol` 支持以 `"px"` 结尾的像素值（如 `"80px"`），表示 label 的最小宽度而非栅格列数。
+
+- 背景：inline 布局下 Form.Item 宽度由内容撑开，小尺寸组件（如 ColorPicker 触发器仅 ~32px）会导致整个行宽不足，label 被挤压
+- 栅格模式：`"8"` → `{ span: 8 }`（antd 栅格列数，水平/垂直布局适用）
+- 像素模式：`"80px"` → `{ style: { minWidth: '80px' } }`（inline 布局适用，label 保底宽度）
+- `FormWithProvider` 通过 `FormContext.labelColPx` 标记通知 `withPlatform`，在 inline 模式下给 Form.Item 的 labelCol 注入 minWidth
+
 ### 右侧 — 属性配置面板
 
 属性配置面板基于 [自动渲染引擎](auto-rendering-engine.md) 实现，读取组件的 TypeScript 类型定义并自动渲染为可视化配置表单。**所有控件统一使用 Ant Design 组件**，确保样式一致性。
@@ -553,6 +589,7 @@ name?: string;
 #### 实现文件
 
 - `packages/renderer/src/core/expression-type-infer.ts` — 表达式类型推断工具
+- `packages/renderer/src/components/MonacoEditor.tsx` — Monaco 编辑器包装（暴露格式化/诊断方法）
 - `packages/renderer/src/designer/panels/VariablePicker.tsx` — 变量选择器（集成类型校验）
 - `packages/renderer/src/designer/panels/TypeMismatchModal.tsx` — 类型不匹配确认对话框
 
@@ -1234,13 +1271,13 @@ interface CardEventDef {
 │  ── 变量引用 ──────────────────────────────────────  │
 │                                                      │
 │  ▼ 页面上下文                                         │
-│    $context.currentUser.name                         │
-│    $context.currentRecord.customerName               │
-│    $context.route.params.id                          │
+│    $user.name                                        │
+│    $component.xxx.props.value                        │
+│    $route.params.id                                  │
 │                                                      │
-│  ▼ 表单数据                                          │
-│    $form.orderNo                                     │
-│    $form.amount                                      │
+│  ▼ 表单数据（通过 Form 实例访问）                     │
+│    $component.form_01.$form.orderNo                  │
+│    $component.form_01.$form.amount                   │
 │                                                      │
 │  ▼ API 返回值                                        │
 │    $api.getCustomerList.data[0].name                 │
@@ -1267,9 +1304,10 @@ interface CardEventDef {
 
 变量选择器的数据源树由平台统一提供，包含：
 
-- **页面上下文** (`$context`) — 当前用户、当前记录、路由参数、全局变量
-- **表单数据** (`$form`) — 所属表单的字段值
-- **API 返回值** (`$api`) — 页面已配置的 API 接口返回数据
+- **页面上下文** (`$user`、`$platform`、`$route`) — 当前用户、平台标识、路由参数
+- **组件状态** (`$component.xxx`) — 组件的值、可见性、禁用状态等
+- **表单数据** (`$component.formId.$form.xxx`) — Form 实例的字段值（通过 Form 组件 ID 访问）
+- **数据源** (`$data`) — 页面已配置的数据源返回数据
 - **其他组件** — 页面中其他组件的可读属性（通过组件 ID 引用）
 
 选择变量后自动生成绑定表达式，用户无需手写。表达式模式下提供函数/字段引用的自动补全。
@@ -2037,6 +2075,79 @@ async () => {
 - 输入 `$component.`：显示页面组件列表（动态注册）
 - 提示格式：`[类型] 中文说明`，跨应用资源显示 `[应用名] 资源名`
 
+#### 实时类型检查
+
+编辑器支持实时类型检查功能，在用户输入过程中自动推断表达式返回类型，并与属性期望类型进行对比：
+
+**功能特性**：
+1. **属性期望类型展示**：编辑器上方显示当前属性期望的类型（蓝色标签）
+2. **当前返回类型展示**：编辑器下方实时显示推断的返回类型
+3. **类型兼容性检查**：
+   - ✅ 兼容：绿色标签，表示类型匹配
+   - ⚠️ 不兼容：橙色标签，表示类型不匹配
+   - ❌ 错误：红色标签，表示禁止的返回类型（如 Promise）
+
+**实时推断规则**：
+- 使用 debounce（300ms）避免频繁计算
+- 支持变量模式和表达式模式
+- 复杂表达式可手动指定返回类型覆盖自动推断
+- `any` 类型跳过校验
+
+**UI 布局**：
+```
+┌─────────────────────────────────────────────┐
+│  📋 属性期望类型：string                      │  ← 编辑器上方
+├─────────────────────────────────────────────┤
+│  ┌─────────────────────────────────────────┐│
+│  │  Monaco 编辑器                           ││
+│  └─────────────────────────────────────────┘│
+├─────────────────────────────────────────────┤
+│  📊 当前返回类型：string ✅                    │  ← 编辑器下方
+│  ⚠️ 类型不匹配：期望 string，实际 number       │  ← 不匹配时显示
+└─────────────────────────────────────────────┘
+```
+
+#### 保存前自动格式化与语法检查
+
+表达式保存前经过 Monaco 内置格式化和语法检查，确保代码质量和正确性。
+
+**格式化能力**（Monaco 内置）：
+- 自动缩进和代码对齐
+- 花括号智能配对
+- 代码风格统一
+
+**语法检查**（Monaco 语法验证）：
+- 实时语法错误检测
+- 错误时**阻止保存**，弹窗提示错误位置和原因
+- 仅 error 级别阻止保存，warning 不阻止
+
+**保存流程**：
+```
+点击确定
+  ↓
+① Monaco 格式化（自动缩进、对齐）
+  ↓
+② Monaco 语法检查 → 有错误？阻止保存，弹窗提示
+  ↓
+③ 类型校验 → 不匹配？弹窗确认
+  ↓
+④ 保存
+```
+
+**MonacoEditor 暴露的方法**：
+
+| 方法 | 说明 |
+|------|------|
+| `getEditor()` | 获取编辑器实例 |
+| `formatDocument()` | 格式化文档 |
+| `getFormattedValue()` | 获取格式化后的值 |
+| `getDiagnostics()` | 获取代码诊断信息 |
+| `hasErrors()` | 检查是否有语法错误 |
+
+**实现文件**：
+- `packages/renderer/src/components/MonacoEditor.tsx` — MonacoEditorRef 接口
+- `packages/renderer/src/designer/panels/VariablePicker.tsx` — formatExpression / getCodeErrors
+
 #### 已知问题
 
 **Monaco 内置补全干扰**：
@@ -2274,12 +2385,12 @@ interface ComponentDataSource {
     "api": {
       "url": "/api/departments",
       "method": "GET",
-      "params": { "status": "$form.filterStatus" },
+      "params": { "status": "$component.filterForm.$form.filterStatus" },
       "dataPath": "data.list"
     },
     "targetProp": "options",
     "autoLoad": true,
-    "dependencies": ["$form.filterStatus"]
+    "dependencies": ["$component.filterForm.$form.filterStatus"]
   },
   "props": {
     "placeholder": "请选择部门"
@@ -2335,7 +2446,7 @@ await actionContext.refreshWithDependencyOrder(['dept_select', 'user_select']);
 
 ```typescript
 // 分析变更影响
-const impact = actionContext.analyzeChangeImpact(new Set(['$form.status', '$context.currentUser']));
+const impact = actionContext.analyzeChangeImpact(new Set(['$component.form_01.$form.status', '$user']));
 console.log(impact.directAffectedComponents);  // 直接受影响的组件
 console.log(impact.updateOrder);                // 按拓扑排序的更新顺序
 ```

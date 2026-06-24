@@ -17,7 +17,8 @@
       ],
       "title": "模式",
       "x-group": "基础属性",
-      "x-priority": 11
+      "x-priority": 11,
+      "default": "'vertical'"
     },
     "theme": {
       "type": "string",
@@ -27,7 +28,8 @@
       ],
       "title": "主题",
       "x-group": "基础属性",
-      "x-priority": 12
+      "x-priority": 12,
+      "default": "light"
     },
     "defaultSelectedKeys": {
       "type": "array",
@@ -40,6 +42,125 @@
       "title": "默认展开",
       "x-group": "基础属性",
       "x-priority": 14
+    },
+    "selectedKeys": {
+      "type": "array",
+      "title": "当前选中",
+      "x-group": "基础属性",
+      "x-priority": 15
+    },
+    "openKeys": {
+      "type": "array",
+      "title": "当前展开",
+      "x-group": "基础属性",
+      "x-priority": 16
+    },
+    "selectable": {
+      "type": "boolean",
+      "title": "是否可选中",
+      "x-group": "基础属性",
+      "x-priority": 17
+    },
+    "multiple": {
+      "type": "boolean",
+      "title": "是否允许多选",
+      "x-group": "基础属性",
+      "x-priority": 18
+    },
+    "disabled": {
+      "type": "boolean",
+      "title": "是否禁用",
+      "x-group": "基础属性",
+      "x-priority": 19
+    },
+    "inlineIndent": {
+      "type": "number",
+      "title": "内联缩进宽度",
+      "x-group": "基础属性",
+      "x-priority": 20
+    },
+    "inlineCollapsed": {
+      "type": "boolean",
+      "title": "内联菜单是否收起",
+      "x-group": "基础属性",
+      "x-priority": 21
+    },
+    "direction": {
+      "type": "string",
+      "enum": [
+        "ltr",
+        "rtl"
+      ],
+      "title": "文字方向",
+      "x-group": "高级属性",
+      "x-priority": 30
+    },
+    "subMenuOpenDelay": {
+      "type": "number",
+      "title": "子菜单打开延迟（毫秒）",
+      "x-group": "高级属性",
+      "x-priority": 31
+    },
+    "subMenuCloseDelay": {
+      "type": "number",
+      "title": "子菜单关闭延迟（毫秒）",
+      "x-group": "高级属性",
+      "x-priority": 32
+    },
+    "triggerSubMenuAction": {
+      "type": "string",
+      "enum": [
+        "click",
+        "hover"
+      ],
+      "title": "子菜单触发方式",
+      "x-group": "高级属性",
+      "x-priority": 33
+    },
+    "forceSubMenuRender": {
+      "type": "boolean",
+      "title": "是否强制渲染子菜单",
+      "x-group": "高级属性",
+      "x-priority": 34
+    },
+    "itemIcon": {
+      "type": "string",
+      "title": "菜单项图标",
+      "x-group": "高级属性",
+      "x-priority": 35
+    },
+    "expandIcon": {
+      "type": "string",
+      "title": "展开图标",
+      "x-group": "高级属性",
+      "x-priority": 36
+    },
+    "overflowedIndicator": {
+      "type": "string",
+      "title": "溢出指示器内容",
+      "x-group": "高级属性",
+      "x-priority": 37
+    },
+    "tooltip": {
+      "anyOf": [
+        {
+          "type": "object",
+          "propertyOrder": []
+        },
+        {
+          "const": false,
+          "type": "boolean"
+        }
+      ],
+      "title": "提示配置，false 可关闭",
+      "x-group": "高级属性",
+      "x-priority": 38
+    },
+    "rootClassName": {
+      "type": "string",
+      "title": "根节点样式类名",
+      "x-group": "高级属性",
+      "x-priority": 39
     },
     "name": {
       "type": "string",

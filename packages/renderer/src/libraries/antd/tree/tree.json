@@ -8,41 +8,170 @@
       "x-group": "基础属性",
       "x-priority": 10
     },
+    "fieldNames": {
+      "type": "object",
+      "title": "自定义字段名",
+      "x-group": "基础属性",
+      "x-priority": 11
+    },
     "checkable": {
       "type": "boolean",
       "title": "可勾选",
       "x-group": "基础属性",
-      "x-priority": 11
+      "x-priority": 12
+    },
+    "checkStrictly": {
+      "type": "boolean",
+      "title": "勾选完全受控（父子节点选中状态不再关联）",
+      "x-group": "基础属性",
+      "x-priority": 13
     },
     "draggable": {
       "type": "boolean",
       "title": "可拖拽",
       "x-group": "基础属性",
-      "x-priority": 12
+      "x-priority": 14
     },
     "showLine": {
       "type": "boolean",
       "title": "连接线",
       "x-group": "基础属性",
-      "x-priority": 13
+      "x-priority": 15
     },
-    "defaultExpandAll": {
+    "showIcon": {
       "type": "boolean",
-      "title": "默认展开",
+      "title": "显示图标",
       "x-group": "基础属性",
-      "x-priority": 14
+      "x-priority": 16
+    },
+    "selectable": {
+      "type": "boolean",
+      "title": "可选择",
+      "x-group": "基础属性",
+      "x-priority": 17
     },
     "multiple": {
       "type": "boolean",
       "title": "多选",
       "x-group": "基础属性",
-      "x-priority": 15
+      "x-priority": 18
     },
     "disabled": {
       "type": "boolean",
       "title": "禁用",
       "x-group": "基础属性",
-      "x-priority": 16
+      "x-priority": 19
+    },
+    "blockNode": {
+      "type": "boolean",
+      "title": "节点占满整行",
+      "x-group": "基础属性",
+      "x-priority": 20
+    },
+    "defaultExpandAll": {
+      "type": "boolean",
+      "title": "默认展开所有节点",
+      "x-group": "基础属性",
+      "x-priority": 30
+    },
+    "defaultExpandParent": {
+      "type": "boolean",
+      "title": "默认自动展开父节点",
+      "x-group": "基础属性",
+      "x-priority": 31
+    },
+    "autoExpandParent": {
+      "type": "boolean",
+      "title": "自动展开父节点",
+      "x-group": "基础属性",
+      "x-priority": 32
+    },
+    "defaultExpandedKeys": {
+      "type": "array",
+      "title": "默认展开的节点 key",
+      "x-group": "基础属性",
+      "x-priority": 33
+    },
+    "expandedKeys": {
+      "type": "array",
+      "title": "展开的节点 key（受控）",
+      "x-group": "基础属性",
+      "x-priority": 34
+    },
+    "defaultCheckedKeys": {
+      "type": "array",
+      "title": "默认勾选的节点 key",
+      "x-group": "基础属性",
+      "x-priority": 35
+    },
+    "checkedKeys": {
+      "anyOf": [
+        {
+          "type": "object",
+          "propertyOrder": []
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      ],
+      "title": "勾选的节点 key（受控）",
+      "x-group": "基础属性",
+      "x-priority": 36
+    },
+    "defaultSelectedKeys": {
+      "type": "array",
+      "title": "默认选中的节点 key",
+      "x-group": "基础属性",
+      "x-priority": 37
+    },
+    "selectedKeys": {
+      "type": "array",
+      "title": "选中的节点 key（受控）",
+      "x-group": "基础属性",
+      "x-priority": 38
+    },
+    "loadedKeys": {
+      "type": "array",
+      "title": "已加载的节点 key（异步加载用）",
+      "x-group": "基础属性",
+      "x-priority": 39
+    },
+    "expandAction": {
+      "enum": [
+        "click",
+        "doubleClick",
+        false
+      ],
+      "title": "点击展开行为",
+      "x-group": "基础属性",
+      "x-priority": 40
+    },
+    "virtual": {
+      "type": "boolean",
+      "title": "开启虚拟滚动",
+      "x-group": "基础属性",
+      "x-priority": 60
+    },
+    "height": {
+      "type": "number",
+      "title": "虚拟滚动高度",
+      "x-group": "基础属性",
+      "x-priority": 61
+    },
+    "itemHeight": {
+      "type": "number",
+      "title": "虚拟滚动节点高度",
+      "x-group": "基础属性",
+      "x-priority": 62
+    },
+    "scrollWidth": {
+      "type": "number",
+      "title": "虚拟滚动宽度",
+      "x-group": "基础属性",
+      "x-priority": 63
     },
     "name": {
       "type": "string",

@@ -3,28 +3,47 @@
   "type": "object",
   "properties": {
     "autoplay": {
-      "type": "boolean",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "dotDuration": {
+              "type": "boolean"
+            }
+          },
+          "propertyOrder": [
+            "dotDuration"
+          ]
+        },
+        {
+          "type": "boolean"
+        }
+      ],
       "title": "自动播放",
       "x-group": "基础属性",
       "x-priority": 10
     },
     "dots": {
-      "type": "boolean",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "className": {
+              "type": "string"
+            }
+          },
+          "propertyOrder": [
+            "className"
+          ]
+        },
+        {
+          "type": "boolean"
+        }
+      ],
       "title": "指示点",
       "x-group": "基础属性",
-      "x-priority": 11
-    },
-    "dotPosition": {
-      "type": "string",
-      "enum": [
-        "bottom",
-        "left",
-        "right",
-        "top"
-      ],
-      "title": "指示点位置",
-      "x-group": "基础属性",
-      "x-priority": 12
+      "x-priority": 11,
+      "default": true
     },
     "effect": {
       "type": "string",
@@ -36,11 +55,270 @@
       "x-group": "基础属性",
       "x-priority": 13
     },
+    "dotPlacement": {
+      "type": "string",
+      "enum": [
+        "bottom",
+        "end",
+        "start",
+        "top"
+      ],
+      "title": "指示点位置",
+      "x-group": "基础属性",
+      "x-priority": 14,
+      "default": "bottom"
+    },
+    "initialSlide": {
+      "type": "number",
+      "title": "初始幻灯片索引",
+      "x-group": "基础属性",
+      "x-priority": 15
+    },
+    "infinite": {
+      "type": "boolean",
+      "title": "循环播放",
+      "x-group": "基础属性",
+      "x-priority": 16
+    },
+    "waitForAnimate": {
+      "type": "boolean",
+      "title": "等待动画完成",
+      "x-group": "基础属性",
+      "x-priority": 17
+    },
     "speed": {
       "type": "number",
-      "title": "速度",
+      "title": "切换速度(ms)",
       "x-group": "高级属性",
-      "x-priority": 20
+      "x-priority": 20,
+      "default": 500
+    },
+    "autoplaySpeed": {
+      "type": "number",
+      "title": "自动播放间隔（毫秒）",
+      "x-group": "高级属性",
+      "x-priority": 21
+    },
+    "pauseOnHover": {
+      "type": "boolean",
+      "title": "鼠标悬停暂停",
+      "x-group": "高级属性",
+      "x-priority": 22
+    },
+    "pauseOnFocus": {
+      "type": "boolean",
+      "title": "聚焦暂停",
+      "x-group": "高级属性",
+      "x-priority": 23
+    },
+    "pauseOnDotsHover": {
+      "type": "boolean",
+      "title": "指示点悬停暂停",
+      "x-group": "高级属性",
+      "x-priority": 24
+    },
+    "arrows": {
+      "type": "boolean",
+      "title": "显示箭头",
+      "x-group": "高级属性",
+      "x-priority": 25
+    },
+    "dotsClass": {
+      "type": "string",
+      "title": "指示点样式类名",
+      "x-group": "高级属性",
+      "x-priority": 26
+    },
+    "slidesToShow": {
+      "type": "number",
+      "title": "同时显示幻灯片数",
+      "x-group": "高级属性",
+      "x-priority": 27
+    },
+    "slidesToScroll": {
+      "type": "number",
+      "title": "每次滚动幻灯片数",
+      "x-group": "高级属性",
+      "x-priority": 28
+    },
+    "centerMode": {
+      "type": "boolean",
+      "title": "居中模式",
+      "x-group": "高级属性",
+      "x-priority": 29
+    },
+    "centerPadding": {
+      "type": "string",
+      "title": "居中模式内边距",
+      "x-group": "高级属性",
+      "x-priority": 30
+    },
+    "rows": {
+      "type": "number",
+      "title": "行数",
+      "x-group": "高级属性",
+      "x-priority": 31
+    },
+    "slidesPerRow": {
+      "type": "number",
+      "title": "每行幻灯片数",
+      "x-group": "高级属性",
+      "x-priority": 32
+    },
+    "variableWidth": {
+      "type": "boolean",
+      "title": "可变宽度",
+      "x-group": "高级属性",
+      "x-priority": 33
+    },
+    "adaptiveHeight": {
+      "type": "boolean",
+      "title": "自适应高度",
+      "x-group": "高级属性",
+      "x-priority": 34
+    },
+    "vertical": {
+      "type": "boolean",
+      "title": "垂直模式",
+      "x-group": "高级属性",
+      "x-priority": 35
+    },
+    "rtl": {
+      "type": "boolean",
+      "title": "从右到左",
+      "x-group": "高级属性",
+      "x-priority": 36
+    },
+    "draggable": {
+      "type": "boolean",
+      "title": "可拖拽",
+      "x-group": "高级属性",
+      "x-priority": 37
+    },
+    "swipe": {
+      "type": "boolean",
+      "title": "可滑动",
+      "x-group": "高级属性",
+      "x-priority": 38
+    },
+    "swipeToSlide": {
+      "type": "boolean",
+      "title": "滑动切换",
+      "x-group": "高级属性",
+      "x-priority": 39
+    },
+    "verticalSwiping": {
+      "type": "boolean",
+      "title": "垂直滑动",
+      "x-group": "高级属性",
+      "x-priority": 40
+    },
+    "touchMove": {
+      "type": "boolean",
+      "title": "触摸移动",
+      "x-group": "高级属性",
+      "x-priority": 41
+    },
+    "touchThreshold": {
+      "type": "number",
+      "title": "触摸阈值",
+      "x-group": "高级属性",
+      "x-priority": 42
+    },
+    "focusOnSelect": {
+      "type": "boolean",
+      "title": "点击聚焦",
+      "x-group": "高级属性",
+      "x-priority": 43
+    },
+    "edgeFriction": {
+      "type": "number",
+      "title": "边缘摩擦",
+      "x-group": "高级属性",
+      "x-priority": 44
+    },
+    "cssEase": {
+      "type": "string",
+      "title": "CSS 缓动函数",
+      "x-group": "高级属性",
+      "x-priority": 45
+    },
+    "easing": {
+      "type": "string",
+      "title": "缓动函数",
+      "x-group": "高级属性",
+      "x-priority": 46
+    },
+    "useCSS": {
+      "type": "boolean",
+      "title": "使用 CSS 过渡",
+      "x-group": "高级属性",
+      "x-priority": 47
+    },
+    "useTransform": {
+      "type": "boolean",
+      "title": "使用 CSS 变换",
+      "x-group": "高级属性",
+      "x-priority": 48
+    },
+    "lazyLoad": {
+      "type": "string",
+      "enum": [
+        "anticipated",
+        "ondemand",
+        "progressive"
+      ],
+      "title": "懒加载模式",
+      "x-group": "高级属性",
+      "x-priority": 49
+    },
+    "accessibility": {
+      "type": "boolean",
+      "title": "无障碍访问",
+      "x-group": "高级属性",
+      "x-priority": 50
+    },
+    "responsive": {
+      "type": "array",
+      "title": "响应式配置",
+      "x-group": "高级属性",
+      "x-priority": 51
+    },
+    "slide": {
+      "type": "string",
+      "title": "幻灯片选择器",
+      "x-group": "高级属性",
+      "x-priority": 52
+    },
+    "className": {
+      "type": "string",
+      "title": "样式类名",
+      "x-group": "高级属性",
+      "x-priority": 60
+    },
+    "rootClassName": {
+      "type": "string",
+      "title": "根节点样式类名",
+      "x-group": "高级属性",
+      "x-priority": 61
+    },
+    "id": {
+      "type": "string",
+      "title": "组件 ID",
+      "x-group": "高级属性",
+      "x-priority": 70
+    },
+    "slickGoTo": {
+      "type": "number",
+      "title": "跳转到指定幻灯片",
+      "x-group": "高级属性",
+      "x-priority": 71
+    },
+    "children": {
+      "type": "string",
+      "title": "内容",
+      "x-group": "高级属性",
+      "x-priority": 72
     },
     "name": {
       "type": "string",

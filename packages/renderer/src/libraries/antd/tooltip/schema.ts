@@ -24,6 +24,7 @@ export interface TooltipProps extends BaseProps {
    * 位置
    * @group 基础属性
    * @priority 11
+   * @default "top"
    */
   placement?: 'top' | 'left' | 'right' | 'bottom' | 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight' | 'leftTop' | 'leftBottom' | 'rightTop' | 'rightBottom';
 
@@ -42,4 +43,60 @@ export interface TooltipProps extends BaseProps {
 
    */
   arrow?: boolean;
+
+  /**
+   * 提示内容（替代 title）
+   * @group 基础属性
+   * @priority 14
+   */
+  overlay?: string;
+
+  /**
+   * 受控显隐
+   * @group 基础属性
+   * @priority 15
+   */
+  open?: boolean;
+
+  /**
+   * 默认显隐
+   * @group 基础属性
+   * @priority 16
+   */
+  defaultOpen?: boolean;
+
+  /**
+   * 自动调整弹出位置
+   * @group 基础属性
+   * @priority 17
+   */
+  autoAdjustOverflow?: boolean;
+
+  /**
+   * 关闭时销毁内容
+   * @group 基础属性
+   * @priority 18
+   */
+  destroyOnHidden?: boolean;
+
+  /**
+   * CSS 类名
+   * @group 样式
+   * @priority 30
+   */
+  className?: string;
+
+  /**
+   * 根节点类名
+   * @group 样式
+   * @priority 31
+   */
+  rootClassName?: string;
+
+  /**
+   * 展开时的类名
+   * @group 样式
+   * @priority 32
+   */
+  openClassName?: string;
 }

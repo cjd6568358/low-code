@@ -7,11 +7,14 @@
  * 3. enhanceValueOnChange() 自动关联 value ↔ onChange ↔ 联动规则
  * 4. 设计态注入 className 标记 lc-did-{id}（antd 组件通过 ...rest 传播到 DOM）
  * 5. 设计态注入 draggable/onMouseDown 等 DOM 事件
+ * 6. 在 Form 内时，自动包装 Form.Item
  *
  * DOM 元素定位：DesignOverlay 通过 document.querySelector('.lc-did-{id}') 定位。
  * 不添加额外 wrapper DOM，不依赖组件透传 data-* 属性。
  */
 import React from 'react';
+import { Form } from 'antd';
+import { useFormContext } from './FormContext';
 import type {
   PlatformComponentProps,
   DesignInjectedProps,
@@ -93,11 +96,14 @@ function enhanceValueOnChange(
  *
  * 注册时执行一次，返回带平台能力的组件。
  * 设计态通过 className 唯一标记 + useEffect 手动注入 data-component-id 到 DOM。
+ * 在 Form 内时，自动包装 Form.Item。
  */
 export function withPlatform<P extends Record<string, any>>(
   WrappedComponent: React.ComponentType<P>,
 ): React.FC<P & PlatformComponentProps> {
   const PlatformComponent: React.FC<P & PlatformComponentProps> = (props) => {
+    // 检测是否在 Form 内
+    const formContext = useFormContext();
     // 提取平台能力 props
     const {
       node, field, events, linkage, designMode, visible,
@@ -172,6 +178,60 @@ export function withPlatform<P extends Record<string, any>>(
         const existingClass = (enhancedProps as any).className || '';
         designAttrs['className'] = `${existingClass} ${markerClass}`.trim();
       }
+    }
+
+    // 如果在 Form 内且有 name 属性，自动包装 Form.Item
+    const isInForm = formContext !== null;
+    const hasFieldName = (enhancedProps as any).name !== undefined;
+
+    if (isInForm && hasFieldName) {
+      const {
+        name,
+        label,
+        rules,
+        required,
+        initialValue,
+        preserve,
+        help,
+        extra,
+        validateStatus,
+        ...componentProps
+      } = enhancedProps as any;
+
+      const itemLabel = label || name;
+
+      /**
+       * inline 布局 + 像素模式 labelCol：给 Form.Item 的 labelCol 注入 minWidth。
+       *
+       * 背景：inline 模式下 Form.Item 宽度由内容撑开。小尺寸组件（如 ColorPicker 触发器
+       * 仅 ~32px）会导致整个行宽不足，label 被挤压到几乎不可见。
+       * 像素模式（labelCol 以 "px" 结尾，如 "80px"）表示 label 需要固定最小宽度，
+       * 此时 FormWithProvider 将 labelColPx 标记传入 context，这里读取后注入 minWidth。
+       */
+      const isInlinePx = formContext?.layout === 'inline' && formContext?.labelColPx;
+      const itemLabelCol = isInlinePx
+        ? { ...formContext?.labelCol, style: { ...formContext?.labelCol?.style, minWidth: formContext?.labelCol?.style?.minWidth } }
+        : undefined;
+
+      return (
+        <Form.Item
+          name={name}
+          label={itemLabel}
+          labelCol={itemLabelCol}
+          rules={rules}
+          required={required}
+          initialValue={initialValue}
+          preserve={preserve}
+          help={help}
+          extra={extra}
+          validateStatus={validateStatus}
+        >
+          <WrappedComponent
+            {...(componentProps as P)}
+            {...(designAttrs as P)}
+          />
+        </Form.Item>
+      );
     }
 
     return (

@@ -7,6 +7,9 @@
  */
 import type { BaseProps } from '../base-props';
 
+// React 类型已替换：React.ReactNode → string, React.CSSProperties → Record<string, unknown>
+// 低代码平台不支持写 React 组件，属性面板统一用字符串配置
+
 /** 徽标 组件属性 */
 export interface BadgeProps extends BaseProps {
   /**
@@ -15,7 +18,7 @@ export interface BadgeProps extends BaseProps {
    * @priority 10
 
    */
-  count?: number;
+  count?: string;
 
   /**
    * 红点
@@ -34,10 +37,10 @@ export interface BadgeProps extends BaseProps {
   showZero?: boolean;
 
   /**
-   * 封顶值
+   * 封顶数值
    * @group 基础属性
    * @priority 13
-
+   * @default 99
    */
   overflowCount?: number;
 
@@ -48,4 +51,41 @@ export interface BadgeProps extends BaseProps {
 
    */
   color?: string;
+
+  /**
+   * 状态
+   * @group 基础属性
+   * @priority 15
+   */
+  status?: 'success' | 'processing' | 'default' | 'error' | 'warning';
+
+  /**
+   * 文字
+   * @group 基础属性
+   * @priority 16
+
+   */
+  text?: string;
+
+  /**
+   * 大小
+   * @group 基础属性
+   * @priority 17
+   */
+  size?: 'small' | 'default' | 'medium';
+
+  /**
+   * 偏移量
+   * @group 高级属性
+   * @priority 20
+   */
+  offset?: [number | string, number | string];
+
+  /**
+   * 鼠标放在状态点上显示的标题
+   * @group 高级属性
+   * @priority 21
+
+   */
+  title?: string;
 }

@@ -21,17 +21,32 @@ export interface TagProps extends BaseProps {
   color?: string;
 
   /**
-   * 可关闭
+   * 变体风格
    * @group 基础属性
    * @priority 11
+   */
+  variant?: 'filled' | 'solid' | 'outlined';
+
+  /**
+   * 可关闭
+   * @group 基础属性
+   * @priority 12
 
    */
   closable?: boolean;
 
   /**
+   * 关闭图标
+   * @group 基础属性
+   * @priority 13
+
+   */
+  closeIcon?: string;
+
+  /**
    * 图标
    * @group 基础属性
-   * @priority 12
+   * @priority 14
 
    */
   icon?: string;
@@ -39,8 +54,39 @@ export interface TagProps extends BaseProps {
   /**
    * 边框
    * @group 基础属性
-   * @priority 13
-
+   * @priority 15
+   * @default true
    */
   bordered?: boolean;
+
+  /**
+   * 超链接地址
+   * @group 高级属性
+   * @priority 20
+
+   */
+  href?: string;
+
+  /**
+   * 链接打开方式
+   * @group 高级属性
+   * @priority 21
+   */
+  target?: '_self' | '_blank' | '_parent' | '_top';
+
+  /**
+   * 禁用
+   * @group 高级属性
+   * @priority 22
+
+   */
+  disabled?: boolean;
+
+  /**
+   * 关闭回调
+   * @group 事件
+   * @priority 80
+
+   */
+  onClose?: string;
 }

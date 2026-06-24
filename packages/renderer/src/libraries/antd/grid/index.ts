@@ -7,4 +7,4 @@
  * - grid.json    — 从 TS 类型自动生成的 JSON Schema
  */
 export { PlatformRow } from './component';
-export type { RowProps } from './schema';
+export type { RowProps, ColProps } from './schema';

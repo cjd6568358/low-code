@@ -18,8 +18,36 @@
       "anyOf": [
         {
           "type": "object",
-          "properties": {},
-          "additionalProperties": true
+          "properties": {
+            "size": {
+              "description": "头像尺寸",
+              "anyOf": [
+                {
+                  "enum": [
+                    "default",
+                    "large",
+                    "small"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            "shape": {
+              "description": "头像形状",
+              "enum": [
+                "circle",
+                "square"
+              ],
+              "type": "string"
+            }
+          },
+          "propertyOrder": [
+            "size",
+            "shape"
+          ]
         },
         {
           "type": "boolean"
@@ -33,8 +61,18 @@
       "anyOf": [
         {
           "type": "object",
-          "properties": {},
-          "additionalProperties": true
+          "properties": {
+            "width": {
+              "description": "标题宽度",
+              "type": [
+                "string",
+                "number"
+              ]
+            }
+          },
+          "propertyOrder": [
+            "width"
+          ]
         },
         {
           "type": "boolean"
@@ -42,14 +80,43 @@
       ],
       "title": "标题",
       "x-group": "基础属性",
-      "x-priority": 13
+      "x-priority": 13,
+      "default": true
     },
     "paragraph": {
       "anyOf": [
         {
           "type": "object",
-          "properties": {},
-          "additionalProperties": true
+          "properties": {
+            "rows": {
+              "description": "段落行数",
+              "type": "number"
+            },
+            "width": {
+              "description": "段落宽度，多行时可传数组分别设置每行宽度",
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": [
+                      "string",
+                      "number"
+                    ]
+                  }
+                },
+                {
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                }
+              ]
+            }
+          },
+          "propertyOrder": [
+            "rows",
+            "width"
+          ]
         },
         {
           "type": "boolean"
@@ -57,7 +124,8 @@
       ],
       "title": "段落",
       "x-group": "基础属性",
-      "x-priority": 14
+      "x-priority": 14,
+      "default": true
     },
     "round": {
       "type": "boolean",

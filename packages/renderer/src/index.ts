@@ -11,6 +11,9 @@ export { WebAdapter, webAdapter } from './core/WebAdapter';
 export { PageRenderer } from './core/Renderer';
 export { ValidatorRegistryImpl, ValidationEngine } from './core/ValidationEngine';
 export { FormDataContextManager } from './core/FormDataContext';
+export { FormRegistry } from './core/FormRegistry';
+export { FormRegistryContext, useFormRegistryContext } from './components/FormRegistryContext';
+export type { FormRegistryContextValue } from './components/FormRegistryContext';
 export { DataSourceManager } from './core/DataSourceManager';
 export { DependencyTracker } from './core/DependencyTracker';
 export { ComponentRefreshManager } from './core/ComponentRefreshManager';
@@ -59,6 +62,8 @@ export type {
 // Components
 export { MonacoEditor } from './components/MonacoEditor';
 export type { MonacoEditorProps, CompletionItem } from './components/MonacoEditor';
+export { SelectableTree } from './components/SelectableTree';
+export type { SelectableTreeProps, TreeNodeData, SelectedKeys, SelectedKeysChange } from './components/SelectableTree';
 export { ResolvedComponent } from './core/ResolvedComponent';
 export type { ResolvedComponentProps } from './core/ResolvedComponent';
 

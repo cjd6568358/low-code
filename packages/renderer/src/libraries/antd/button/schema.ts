@@ -23,6 +23,7 @@ export interface ButtonProps extends BaseProps {
    * 按钮类型
    * @group 基础属性
    * @priority 2
+   * @default "default"
    */
   type?: 'primary' | 'default' | 'dashed' | 'text' | 'link';
 
@@ -30,6 +31,7 @@ export interface ButtonProps extends BaseProps {
    * HTML 类型
    * @group 基础属性
    * @priority 3
+   * @default "button"
    */
   htmlType?: 'submit' | 'reset' | 'button';
 
@@ -37,8 +39,9 @@ export interface ButtonProps extends BaseProps {
    * 形状
    * @group 基础属性
    * @priority 4
+   * @default "default"
    */
-  shape?: 'default' | 'circle' | 'round';
+  shape?: 'default' | 'circle' | 'round' | 'square';
 
   /**
    * 加载状态
@@ -58,6 +61,7 @@ export interface ButtonProps extends BaseProps {
    * 图标位置
    * @group 高级属性
    * @priority 11
+   * @default "start"
    */
   iconPlacement?: 'start' | 'end';
 
@@ -81,6 +85,22 @@ export interface ButtonProps extends BaseProps {
    * @priority 14
    */
   block?: boolean;
+
+  /**
+   * 按钮颜色
+   * @group 高级属性
+   * @priority 15
+   * @default "default"
+   */
+  color?: 'default' | 'primary' | 'danger' | 'blue' | 'purple' | 'cyan' | 'green' | 'magenta' | 'pink' | 'red' | 'orange' | 'yellow' | 'volcano' | 'geekblue' | 'lime' | 'gold';
+
+  /**
+   * 按钮变体
+   * @group 高级属性
+   * @priority 16
+   * @default "outlined"
+   */
+  variant?: 'outlined' | 'dashed' | 'solid' | 'filled' | 'text' | 'link';
 
   /**
    * @deprecated 使用 iconPlacement 代替

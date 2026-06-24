@@ -16,7 +16,6 @@ export interface InputProps extends BaseProps {
    * 占位提示
    * @group 基础属性
    * @priority 10
-
    */
   placeholder?: string;
 
@@ -24,7 +23,6 @@ export interface InputProps extends BaseProps {
    * 最大长度
    * @group 基础属性
    * @priority 11
-
    */
   maxLength?: number;
 
@@ -32,7 +30,7 @@ export interface InputProps extends BaseProps {
    * 允许清除
    * @group 基础属性
    * @priority 12
-
+   * @no-binding
    */
   allowClear?: boolean;
 
@@ -40,7 +38,7 @@ export interface InputProps extends BaseProps {
    * 显示字数
    * @group 基础属性
    * @priority 13
-
+   * @no-binding
    */
   showCount?: boolean;
 
@@ -48,7 +46,6 @@ export interface InputProps extends BaseProps {
    * 前缀
    * @group 高级属性
    * @priority 20
-
    */
   prefix?: string;
 
@@ -56,7 +53,6 @@ export interface InputProps extends BaseProps {
    * 后缀
    * @group 高级属性
    * @priority 21
-
    */
   suffix?: string;
 
@@ -64,7 +60,6 @@ export interface InputProps extends BaseProps {
    * 前置标签
    * @group 高级属性
    * @priority 22
-
    */
   addonBefore?: string;
 
@@ -72,7 +67,6 @@ export interface InputProps extends BaseProps {
    * 后置标签
    * @group 高级属性
    * @priority 23
-
    */
   addonAfter?: string;
 
@@ -80,7 +74,7 @@ export interface InputProps extends BaseProps {
    * 禁用
    * @group 基础属性
    * @priority 14
-
+   * @no-binding
    */
   disabled?: boolean;
 
@@ -88,7 +82,25 @@ export interface InputProps extends BaseProps {
    * 只读
    * @group 基础属性
    * @priority 15
-
+   * @no-binding
    */
   readOnly?: boolean;
+
+  /**
+   * 变体
+   * @group 基础属性
+   * @priority 16
+   * @no-binding
+   * @default 'outlined'
+   */
+  variant?: 'outlined' | 'borderless' | 'filled';
+
+  /**
+   * 输入框尺寸
+   * @group 基础属性
+   * @priority 17
+   * @no-binding
+   * @default 'middle'
+   */
+  size?: 'small' | 'middle' | 'large';
 }

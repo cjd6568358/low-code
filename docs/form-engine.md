@@ -2,6 +2,148 @@
 
 企业级表单能力，支持复杂表单联动、校验引擎、子表单、特殊控件、数据暂存等高级场景。
 
+## 表单设计思路
+
+### 核心理念
+
+**表单是页面组件，不是独立资源类型**。表单组件（Form）作为容器组件，拖入页面后，录入型组件（Input、Select 等）放入其中即可自动获得表单能力。
+
+### 架构设计
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         页面 (Page)                              │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │                    表单容器 (Form)                         │  │
+│  │  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐     │  │
+│  │  │ Input   │  │ Select  │  │ Checkbox│  │ DatePicker│    │  │
+│  │  │ (表单项) │  │ (表单项) │  │ (表单项) │  │ (表单项)  │    │  │
+│  │  └─────────┘  └─────────┘  └─────────┘  └─────────┘     │  │
+│  └───────────────────────────────────────────────────────────┘  │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │                    其他非表单组件                           │  │
+│  └───────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 动态表单能力
+
+录入型组件本身继承 `BaseProps`，是独立的组件。**只有当组件被拖入表单容器时**，才会动态获得表单字段配置能力：
+
+- `name` - 字段名称
+- `label` - 标签
+- `required` - 是否必填
+- `rules` - 校验规则
+- `initialValue` - 初始值
+- `preserve` - 字段卸载时保留值
+
+这种设计保证了组件的独立性——同一个 Input 组件可以单独使用（无表单能力），也可以在表单内使用（自动获得表单能力）。
+
+### 实现机制
+
+#### 1. 设计器层（属性面板动态合并 Schema）
+
+```typescript
+// PropertyPanel.tsx
+const isInForm = isInContainer(selectedNode, schema.components, 'form');
+
+const mergedPropsSchema = useMemo(() => {
+  if (!propsSchema || !isInForm) return propsSchema;
+  return {
+    ...propsSchema,
+    properties: {
+      ...propsSchema.properties,
+      ...FORM_FIELD_SCHEMA_PROPERTIES,  // 表单字段属性 Schema
+    },
+  };
+}, [propsSchema, isInForm]);
+```
+
+- 组件面板显示"表单" tab（仅在 Form 内时可见）
+- 表单字段配置（name、label、rules 等）通过 `x-group: '表单配置'` 分组
+
+#### 2. 运行时层（FormContext + Form.Item 自动包装）
+
+```typescript
+// Form 组件提供 FormContext
+<FormContext.Provider value={{ layout, labelCol, wrapperCol, ... }}>
+  <Form {...props}>{children}</Form>
+</FormContext.Provider>
+
+// withPlatform HOC 检测 FormContext，自动包装 Form.Item
+if (isInForm && hasFieldName) {
+  return (
+    <Form.Item name={name} label={label} rules={rules} ...>
+      <WrappedComponent {...props} />
+    </Form.Item>
+  );
+```
+
+> **labelCol 像素模式**：`labelCol` 支持 `"80px"` 格式，表示 label 最小宽度（`minWidth`）而非栅格列数。用于 inline 布局下防止小尺寸组件（如 ColorPicker）挤压 label。详见 [渲染引擎文档 - 表单容器 FormContext 传递](render-engine.md#8-表单容器-formcontext-传递)。
+}
+```
+
+#### 3. Schema 存储
+
+Form 内组件的表单字段配置存储在 `ComponentNode.props` 中：
+
+```json
+{
+  "id": "input_001",
+  "type": "input",
+  "parentId": "form_001",
+  "props": {
+    "placeholder": "请输入用户名",
+    "name": "username",
+    "label": "用户名",
+    "required": true,
+    "rules": [{ "type": "string", "min": 3, "message": "用户名至少3个字符" }]
+  }
+}
+```
+
+### 关键文件
+
+| 文件 | 职责 |
+|------|------|
+| `form/form-field-schema.ts` | 表单字段属性 Schema 定义 |
+| `designer/utils.ts` | `isInContainer()` 工具函数 |
+| `designer/panels/PropertyPanel.tsx` | 属性面板动态合并 Schema |
+| `components/platform/FormContext.ts` | 表单上下文定义 |
+| `form/component.tsx` | Form 组件提供 FormContext |
+| `components/platform/withPlatform.tsx` | 检测 FormContext 自动包装 Form.Item |
+
+### 校验规则 (ValidationRule)
+
+```typescript
+interface ValidationRule {
+  /** 规则类型 */
+  type?: 'string' | 'number' | 'boolean' | 'method' | 'regexp' | 'integer' | 'float' | 'object' | 'enum' | 'date' | 'url' | 'hex' | 'email' | 'tel';
+  /** 是否必填 */
+  required?: boolean;
+  /** 提示信息 */
+  message?: string;
+  /** 最小长度/值 */
+  min?: number;
+  /** 最大长度/值 */
+  max?: number;
+  /** 固定长度 */
+  len?: number;
+  /** 正则表达式 */
+  pattern?: string;
+  /** 枚举值 */
+  enum?: any[];
+  /** 是否允许空白字符 */
+  whitespace?: boolean;
+  /** 自定义校验器名称 */
+  validator?: string;
+  /** 警告模式 */
+  warningOnly?: boolean;
+  /** 触发时机 */
+  validateTrigger?: string | string[];
+}
+```
+
 ## 表单引擎定位
 
 ```

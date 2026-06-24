@@ -232,16 +232,28 @@ class EnvironmentRegistryImpl {
       // 从 propsSchema 中提取 value 属性的类型
       const valueType = this.extractValueType(info.type, info.propsSchema);
 
+      const subProps: VariableProperty[] = [
+        { name: 'value', type: valueType, description: '组件当前值' },
+        { name: 'visible', type: 'boolean', description: '是否可见' },
+        { name: 'disabled', type: 'boolean', description: '是否禁用' },
+        { name: 'loading', type: 'boolean', description: '是否加载中' },
+      ];
+
+      // Form 组件额外暴露 $form 子属性（表单字段数据）
+      if (info.type === 'form') {
+        subProps.push({
+          name: '$form',
+          type: 'Record<string, any>',
+          description: '表单字段数据（通过 $form.fieldName 访问字段值）',
+          properties: [], // 动态生成，取决于表单内的子组件
+        });
+      }
+
       return {
         name: id,
         type: 'ComponentState',
         description: `${info.label || info.type} (${id})`,
-        properties: [
-          { name: 'value', type: valueType, description: '组件当前值' },
-          { name: 'visible', type: 'boolean', description: '是否可见' },
-          { name: 'disabled', type: 'boolean', description: '是否禁用' },
-          { name: 'loading', type: 'boolean', description: '是否加载中' },
-        ],
+        properties: subProps,
       };
     });
 

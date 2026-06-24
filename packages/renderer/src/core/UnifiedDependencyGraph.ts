@@ -180,7 +180,7 @@ export class UnifiedDependencyGraph {
         }
       }
 
-      // 前缀匹配（如 $context.currentUser 变化会影响 $context.currentUser.name）
+      // 前缀匹配（如 $user 变化会影响 $user.name）
       for (const [nodePath, nodeIds] of this.pathToNodes) {
         if (nodePath.startsWith(path + '.') || path.startsWith(nodePath + '.')) {
           for (const nodeId of nodeIds) {

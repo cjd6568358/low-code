@@ -13,14 +13,14 @@ export interface AnchorProps extends BaseProps {
    * 锚点数据
    * @group 基础属性
    * @priority 10
-
    */
-  items?: any[];
+  items?: object[];
 
   /**
    * 方向
    * @group 基础属性
    * @priority 11
+   * @default "vertical"
    */
   direction?: 'vertical' | 'horizontal';
 
@@ -28,7 +28,7 @@ export interface AnchorProps extends BaseProps {
    * 固定模式
    * @group 基础属性
    * @priority 12
-
+   * @default true
    */
   affix?: boolean;
 
@@ -36,7 +36,6 @@ export interface AnchorProps extends BaseProps {
    * 偏移顶部
    * @group 基础属性
    * @priority 13
-
    */
   offsetTop?: number;
 
@@ -44,7 +43,34 @@ export interface AnchorProps extends BaseProps {
    * 锚点偏移
    * @group 基础属性
    * @priority 14
-
    */
   targetOffset?: number;
+
+  /**
+   * 锚点区域边界偏移量
+   * @group 基础属性
+   * @priority 15
+   */
+  bounds?: number;
+
+  /**
+   * 固定模式是否显示小方块
+   * @group 基础属性
+   * @priority 16
+   */
+  showInkInFixed?: boolean;
+
+  /**
+   * 获取滚动容器的 CSS 选择器
+   * @group 基础属性
+   * @priority 17
+   */
+  getContainer?: string;
+
+  /**
+   * 是否替换浏览器历史记录
+   * @group 基础属性
+   * @priority 18
+   */
+  replace?: boolean;
 }

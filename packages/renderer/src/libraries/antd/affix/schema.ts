@@ -13,7 +13,7 @@ export interface AffixProps extends BaseProps {
    * 偏移顶部
    * @group 基础属性
    * @priority 10
-
+   * @default 0
    */
   offsetTop?: number;
 
@@ -21,15 +21,35 @@ export interface AffixProps extends BaseProps {
    * 偏移底部
    * @group 基础属性
    * @priority 11
-
    */
   offsetBottom?: number;
+
+  /**
+   * CSS 类名
+   * @group 样式
+   * @priority 51
+   */
+  className?: string;
+
+  /**
+   * 根节点 CSS 类名
+   * @group 样式
+   * @priority 52
+   */
+  rootClassName?: string;
 
   /**
    * 目标容器
    * @group 高级属性
    * @priority 20
-
    */
   target?: () => HTMLElement;
+
+  /**
+   * 固定状态改变时的回调
+   * @group 事件
+   * @priority 30
+   * @no-binding
+   */
+  onChange?: (affixed?: boolean) => void;
 }

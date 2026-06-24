@@ -2,27 +2,6 @@
   "description": "分割线 组件属性",
   "type": "object",
   "properties": {
-    "type": {
-      "type": "string",
-      "enum": [
-        "horizontal",
-        "vertical"
-      ],
-      "title": "方向",
-      "x-group": "基础属性",
-      "x-priority": 10
-    },
-    "orientation": {
-      "type": "string",
-      "enum": [
-        "center",
-        "left",
-        "right"
-      ],
-      "title": "文字位置",
-      "x-group": "基础属性",
-      "x-priority": 11
-    },
     "dashed": {
       "type": "boolean",
       "title": "虚线",
@@ -33,7 +12,57 @@
       "type": "boolean",
       "title": "纯文字",
       "x-group": "基础属性",
-      "x-priority": 13
+      "x-priority": 13,
+      "default": true
+    },
+    "vertical": {
+      "type": "boolean",
+      "title": "是否垂直",
+      "x-group": "基础属性",
+      "x-priority": 14
+    },
+    "titlePlacement": {
+      "type": "string",
+      "enum": [
+        "center",
+        "end",
+        "left",
+        "right",
+        "start"
+      ],
+      "title": "标题位置",
+      "x-group": "基础属性",
+      "x-priority": 15,
+      "default": "center"
+    },
+    "children": {
+      "type": "string",
+      "title": "分割线文字",
+      "x-group": "基础属性",
+      "x-priority": 16
+    },
+    "variant": {
+      "type": "string",
+      "enum": [
+        "dashed",
+        "dotted",
+        "solid"
+      ],
+      "title": "线条变体",
+      "x-group": "基础属性",
+      "x-priority": 17,
+      "default": "solid"
+    },
+    "size": {
+      "type": "string",
+      "enum": [
+        "large",
+        "middle",
+        "small"
+      ],
+      "title": "大小",
+      "x-group": "基础属性",
+      "x-priority": 18
     },
     "name": {
       "type": "string",
