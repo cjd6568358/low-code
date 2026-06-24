@@ -125,8 +125,7 @@
       ],
       "title": "按钮颜色",
       "x-group": "高级属性",
-      "x-priority": 15,
-      "default": "default"
+      "x-priority": 15
     },
     "variant": {
       "type": "string",
@@ -142,6 +141,12 @@
       "x-group": "高级属性",
       "x-priority": 16,
       "default": "outlined"
+    },
+    "onClick": {
+      "type": "string",
+      "title": "点击按钮时的回调",
+      "x-group": "事件",
+      "x-priority": 80
     },
     "name": {
       "type": "string",

@@ -69,7 +69,6 @@
 |---------|------|------|
 | `x-visible` | `string` | 条件显隐表达式，引用当前表单值，如 `"type === 'email'"` |
 | `x-disabled` | `string` | 条件禁用表达式 |
-| `x-hidden` | `boolean` | 强制隐藏（不占位） |
 
 ### 绑定控制
 

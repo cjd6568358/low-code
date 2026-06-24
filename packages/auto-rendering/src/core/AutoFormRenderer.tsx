@@ -98,8 +98,6 @@ export function AutoFormRenderer(props: AutoFormRendererProps) {
     if (!schema.properties) return groups;
 
     for (const [key, fieldSchema] of Object.entries(schema.properties)) {
-      if ((fieldSchema as any)['x-hidden']) continue;
-
       const group = (fieldSchema as any)['x-group'] || '基础属性';
       if (!groups.has(group)) {
         groups.set(group, []);

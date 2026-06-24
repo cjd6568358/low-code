@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "version": 8,
+  "version": 10,
   "name": "弹性页面",
   "createdAt": 1782187054006,
-  "updatedAt": 1782279440253,
+  "updatedAt": 1782281307226,
   "references": {},
   "pageId": "52e5614f",
   "layout": {
@@ -62,6 +62,16 @@
         "label": "输入框_01"
       },
       "parentId": "form_01"
+    },
+    {
+      "id": "button_01",
+      "type": "button",
+      "name": "按钮_01",
+      "props": {
+        "type": "primary",
+        "variant": "outlined",
+        "children": "666"
+      }
     }
   ]
 }

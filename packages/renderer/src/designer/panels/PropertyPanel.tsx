@@ -391,9 +391,27 @@ export function PropertyPanel({ registry }: { registry: any }) {
             <EventActionChainEditor
               events={selectedNode.events || {}}
               onChange={handleEventsChange}
-              availableEvents={registration?.propsSchema?.properties ? Object.keys(registration.propsSchema.properties).filter((k) => k.startsWith('on')).map((k) => ({ name: k, title: k })) : []}
+              availableEvents={(() => {
+                if (!registration?.propsSchema?.properties) return [];
+                return Object.entries(registration.propsSchema.properties)
+                  .filter(([, prop]: [string, any]) => prop['x-group'] === '事件')
+                  .map(([key, prop]: [string, any]) => ({
+                    name: key,
+                    title: prop.title || key,
+                  }));
+              })()}
               availableMethods={[]}
-              availableFields={[]}
+              availableFields={(() => {
+                // 提取页面中所有组件的可写属性（name 字段）
+                return schema.components
+                  .filter((c) => c.name && c.type !== 'form')
+                  .map((c) => c.name as string);
+              })()}
+              formComponents={schema.components
+                .filter((c) => c.type === 'form')
+                .map((c) => ({ id: c.id, name: c.name || c.id }))}
+              pageComponents={pageComponents}
+              pageDataSources={pageDataSources}
             />
           </Section>
         )}

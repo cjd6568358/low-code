@@ -151,6 +151,51 @@ class EnvironmentRegistryImpl {
         { name: 'snapshots', type: 'Record<string, any>', description: '流程快照数据（各节点的历史数据）' },
       ],
     });
+
+    // $event — 事件对象（仅表达式，事件处理上下文）
+    this.register({
+      name: '$event',
+      description: '事件对象，仅在事件处理动作链中有效，包含触发事件的原生事件对象和组件状态',
+      modes: ['expression'],
+      properties: [
+        { name: 'type', type: 'string', description: '事件类型（如 click、change、submit）' },
+        { name: 'target', type: 'object', description: '触发事件的 DOM 元素或组件实例' },
+        { name: 'value', type: 'any', description: '事件携带的值（如 input 的输入值、select 的选中值）' },
+        { name: 'stopPropagation', type: 'function', description: '阻止事件冒泡' },
+        { name: 'preventDefault', type: 'function', description: '阻止默认行为' },
+        { name: 'nativeEvent', type: 'Event', description: '原生 DOM 事件对象' },
+        { name: 'componentId', type: 'string', description: '触发事件的组件 ID' },
+        { name: 'componentType', type: 'string', description: '触发事件的组件类型' },
+      ],
+    });
+
+    // $result — 上一个动作的返回值（仅表达式，动作链上下文）
+    this.register({
+      name: '$result',
+      description: '上一个动作的返回值，仅在动作链中有效，用于获取前一个动作的执行结果',
+      modes: ['expression'],
+      properties: [
+        { name: 'success', type: 'boolean', description: '动作是否执行成功' },
+        { name: 'data', type: 'any', description: '动作返回的数据' },
+        { name: 'error', type: 'string | null', description: '错误信息（如果失败）' },
+      ],
+    });
+
+    // $form — 表单数据（仅表达式，表单上下文）
+    this.register({
+      name: '$form',
+      description: '表单数据，仅在表单组件内的事件处理中有效，包含当前表单的所有字段值',
+      modes: ['expression'],
+      properties: [
+        { name: 'values', type: 'Record<string, any>', description: '表单所有字段的当前值' },
+        { name: 'initialValues', type: 'Record<string, any>', description: '表单初始值' },
+        { name: 'errors', type: 'Record<string, string>', description: '表单校验错误信息' },
+        { name: 'touched', type: 'Record<string, boolean>', description: '字段是否被触碰过' },
+        { name: 'dirty', type: 'boolean', description: '表单是否有修改' },
+        { name: 'valid', type: 'boolean', description: '表单是否校验通过' },
+        { name: 'submitting', type: 'boolean', description: '表单是否正在提交' },
+      ],
+    });
   }
 
   /**

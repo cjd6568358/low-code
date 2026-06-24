@@ -7,7 +7,7 @@
  * - 工具栏（复制/移动/删除）
  * - Drop 指示器（before/after/inside）
  *
- * 通过 data-component-id + document.querySelector 定位组件 DOM 元素。
+ * 通过 className 唯一标记 lc-did-{id} + document.querySelector 定位组件 DOM 元素。
  */
 import React from 'react';
 import { createPortal } from 'react-dom';

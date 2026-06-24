@@ -77,7 +77,57 @@
 
 ## P1 — 核心功能补全
 
-### 4. 数据表编辑器
+### 4. 设计器事件系统完善
+
+**问题**：当前 EventActionChainEditor 是基础框架，与设计文档存在较大差异。
+
+**需要实现**：
+
+#### 4.1 事件选择功能
+- 添加事件时，从组件 schema 的 `x-group: "事件"` 属性获取可选事件列表
+- 用户从下拉框选择事件（如 onClick、onChange），而非自动生成 eventName
+- 已配置的事件不可重复添加
+
+#### 4.2 动作类型调整
+- **移除**：setValue、setVisible、setDisabled、setLoading
+- **保留**：setValues、resetForm、submit、validate、clearValidate、navigate、redirect、showModal、closeModal、showMessage、triggerWorkflow、customScript、invokeMethod、copyToClipboard、refreshComponent、condition
+
+#### 4.3 setValues 选择器 UI
+- 弹出选择器，左侧展示组件变量树（页面中所有组件的可写属性）
+- 支持多选组件属性
+- 选中后右侧出现变量赋值配置（常量/变量/表达式三种模式）
+- 表达式模式支持 `$event` 环境变量
+
+#### 4.4 条件分支完整实现
+- 条件表达式输入框（支持 $event、$result 等环境变量）
+- then 动作链编辑区（可添加完整动作）
+- else 动作链编辑区（可添加完整动作）
+- 仅支持一层条件分支（不嵌套）
+
+#### 4.5 表单相关动作配置
+- resetForm/submit/validate/clearValidate 需要 formId 参数
+- 下拉框选择页面中的表单组件（type === 'form'）
+- 如果页面只有一个表单，默认选中
+
+#### 4.6 customScript 增强
+- 支持 `$fetch` 环境变量进行 HTTP 请求
+- 替代原有的 apiCall 动作
+
+#### 4.7 $event 环境变量
+- 表达式编辑器新增 `$event` 环境变量
+- 对应该事件触发后携带的原生事件对象
+- 根据选择的事件类型提供不同的类型提示
+
+#### 4.8 refreshComponent 实现
+- withPlatform HOC 增加 refreshComponent 能力
+- 支持刷新组件所有属性或指定属性列表
+- 支持按依赖顺序刷新多个组件
+
+**状态**：进行中
+
+---
+
+### 5. 数据表编辑器
 
 **问题**：`/designer/table/:id` 当前为占位页，字段定义、类型配置、索引管理待实现。
 
@@ -91,7 +141,7 @@
 
 ---
 
-### 5. 跨资源引用管理
+### 6. 跨资源引用管理
 
 **问题**：页面引用数据表字段，流程引用数据表数据，自动化监听数据表变更，运算依赖数据表字段。改了数据表字段名，需要同步更新所有引用它的资源。
 
@@ -117,7 +167,7 @@
 
 ---
 
-### 6. 其他资源编辑器
+### 7. 其他资源编辑器
 
 **问题**：页面设计器已有基础框架，其余 6 种资源编辑器均为占位页。
 
@@ -136,7 +186,7 @@
 
 ---
 
-### 7. 平台管理员后台
+### 8. 平台管理员后台
 
 **问题**：`/platform/*` 路由显示"即将上线"占位页。
 
@@ -151,7 +201,7 @@
 
 ## P2 — 前端 Mock 数据替换为真实 API
 
-### 8. 工作台 Mock 数据替换
+### 9. 工作台 Mock 数据替换
 
 **位置**：`frontend/src/pages/WorkspacePage.tsx`
 
@@ -164,7 +214,7 @@
 
 ---
 
-### 9. 应用中心 Mock 数据替换
+### 10. 应用中心 Mock 数据替换
 
 **位置**：`frontend/src/pages/AppCenterPage.tsx`
 
@@ -176,7 +226,7 @@
 
 ---
 
-### 10. 配置中心 Mock 数据替换
+### 11. 配置中心 Mock 数据替换
 
 **位置**：`frontend/src/pages/ConfigCenterPage.tsx`
 
@@ -189,7 +239,7 @@
 
 ---
 
-### 11. 流程中心 Mock 数据替换
+### 12. 流程中心 Mock 数据替换
 
 **位置**：`frontend/src/pages/WorkflowCenterPage.tsx`
 
@@ -201,7 +251,7 @@
 
 ---
 
-### 12. 页面 Schema 加载
+### 13. 页面 Schema 加载
 
 **位置**：`frontend/src/pages/AppDesignPage.tsx`
 
@@ -215,7 +265,7 @@
 
 ## P3 — 性能优化（后期）
 
-### 13. 文件 I/O 缓存层
+### 14. 文件 I/O 缓存层
 
 **问题**：复杂页面 JSON 文件几十 KB，每次加载都要读文件 + parse JSON。高并发场景下文件 I/O 会成为瓶颈。
 
@@ -228,7 +278,7 @@
 
 ---
 
-### 14. 跨租户查询性能
+### 15. 跨租户查询性能
 
 **问题**：平台管理员需要查看所有租户的资源使用情况。100 个租户 = 100 个 SQLite 文件，跨租户聚合查询需要遍历所有文件。
 
@@ -252,7 +302,7 @@ _system.db 获取 tenant_id 列表
 
 ## P4 — 引擎层补全
 
-### 15. ActionRegistry 占位实现
+### 16. ActionRegistry 占位实现
 
 **位置**：`packages/renderer/src/core/ActionRegistry.ts`
 

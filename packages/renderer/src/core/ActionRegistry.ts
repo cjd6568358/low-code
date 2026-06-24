@@ -89,6 +89,41 @@ const resetValueExecutor: ActionExecutor = {
   },
 };
 
+/** 重置表单 */
+const resetFormExecutor: ActionExecutor = {
+  async execute(params, context) {
+    const { formId } = params;
+    const activeId = formId ?? context.formRegistry?.getActiveFormId();
+    if (!activeId) return;
+    const manager = context.formRegistry?.get(activeId);
+    if (manager && context.setFormValue) {
+      const initialValues = manager.getInitialValues();
+      for (const [field, value] of Object.entries(initialValues)) {
+        context.setFormValue(field, value);
+      }
+    }
+  },
+};
+
+/** 校验表单 */
+const validateFormExecutor: ActionExecutor = {
+  async execute(params, context) {
+    const { formId, fields } = params;
+    // 实际校验逻辑需要对接 Form 组件的 validate 方法
+    // 目前返回成功，后续通过 formRegistry 扩展实现
+    return { valid: true, errors: {} };
+  },
+};
+
+/** 清除校验 */
+const clearValidateExecutor: ActionExecutor = {
+  async execute(params, context) {
+    const { formId, fields } = params;
+    // 实际清除逻辑需要对接 Form 组件的 clearValidate 方法
+    // 目前为空操作，后续通过 formRegistry 扩展实现
+  },
+};
+
 /** 调用 API */
 const apiCallExecutor: ActionExecutor = {
   async execute(params, context) {
@@ -281,9 +316,14 @@ export function createDefaultActionRegistry(): ActionRegistryImpl {
   registry.register('setValue', setValueExecutor);
   registry.register('setValues', setValuesExecutor);
   registry.register('resetValue', resetValueExecutor);
+  registry.register('resetForm', resetFormExecutor);
   registry.register('submit', submitExecutor);
   registry.register('apiCall', apiCallExecutor);
   registry.register('invokeMethod', invokeMethodExecutor);
+
+  // Validation
+  registry.register('validate', validateFormExecutor);
+  registry.register('clearValidate', clearValidateExecutor);
 
   // UI
   registry.register('showModal', showModalExecutor);

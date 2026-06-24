@@ -516,6 +516,9 @@ export function DesignCanvas({ registry }: DesignCanvasProps) {
                       payload: { node: { ...built.node, parentId: node.id }, parentId: node.id },
                     });
                   }
+                  // 清理拖拽状态（面板拖入无 handleDragEnd 触发，需手动重置）
+                  dragSourceRef.current = null;
+                  setDragState({ sourceId: null, overId: null, dropPosition: null });
                 }}
                 style={{
                   position: 'absolute',

@@ -31,7 +31,6 @@ export interface JSONSchema7 {
   /** 扩展字段 — 条件 */
   'x-visible'?: string;
   'x-disabled'?: string;
-  'x-hidden'?: boolean;
   /** 扩展字段 — 数据 */
   'x-placeholder'?: string;
   'x-dictionary'?: string;

@@ -126,7 +126,7 @@ packages/renderer/src/libraries/antd/*/*.json（最终 JSON Schema，含 x-group
 **编译管道**（`packages/build-tools`）：
 
 1. `typescript-json-schema` 从 `schema.ts` 的 Props 接口生成 JSON Schema
-2. 后处理：`description` → `title`，`group` → `x-group`，`priority` → `x-priority`
+2. 后处理：`description` → `title`，JSDoc 标签 → `x-*` 扩展字段（完整映射见下方表格）
 3. `$ref` 外部类型（React.ReactNode 等）→ 转为 `{ type: "string" }`
 4. `CSSProperties` 展开 → 简化为 `{ type: "object" }`
 5. 无 `x-group` 的属性 → 默认归入 `"基础属性"`
@@ -134,7 +134,7 @@ packages/renderer/src/libraries/antd/*/*.json（最终 JSON Schema，含 x-group
 **schema.ts 规范**：
 - 每个组件一个目录：`component.tsx` + `schema.ts` + `{type}.json` + `index.ts`
 - Props 接口 `extends BaseProps`，继承公共属性
-- JSDoc 注解定义 UI 元数据：`@group`、`@priority`、`@ignore` 等
+- JSDoc 注解定义 UI 元数据：`@group`、`@priority`、`@component`、`@visible`、`@disabled`、`@validator`、`@ignore` 等（完整列表见下方映射表）
 - 枚举值用 union literal type（`'primary' | 'default' | 'dashed'`），不用 `@enum`
 - React 类型已替换：`React.ReactNode` → `string`，`React.CSSProperties` → `Record<string, unknown>`
 - 废弃属性用 `@ignore` 标记，不出现在 JSON Schema 中
@@ -380,6 +380,29 @@ DesignOverlay（Portal，position: fixed）
 - 像素模式：`"80px"` → `{ style: { minWidth: '80px' } }`（inline 布局适用，label 保底宽度）
 - `FormWithProvider` 通过 `FormContext.labelColPx` 标记通知 `withPlatform`，在 inline 模式下给 Form.Item 的 labelCol 注入 minWidth
 
+##### 9. 面板拖入容器后 dragState 未清理
+
+**问题**：从左侧面板拖拽组件到容器（Flex/Grid 等）的 drop zone 后，容器 overlay 持续显示蓝色 drop 指示背景，无法通过点击取消。
+
+**根因**：容器 drop zone 的 `onDrop` 只调用了 `ADD_COMPONENT`，没有重置 `dragState`。拖拽源自左侧面板（非画布组件），画布组件的 `handleDragEnd` 不会触发。`dragState.overId` 始终指向容器 ID，`showDrop` 为 true，overlay 持续显示 drop 指示背景。
+
+**修复**：容器 `onDrop` 末尾补上 dragState 重置（与根级别 `handleCanvasDrop` 一致）：
+```jsx
+onDrop={(e) => {
+  e.stopPropagation();
+  e.preventDefault();
+  const built = buildNodeFromDrop(e, registry, schema.components, node.type);
+  if (built) {
+    dispatch({ type: 'ADD_COMPONENT', payload: { ... } });
+  }
+  // 清理拖拽状态（面板拖入无 handleDragEnd 触发，需手动重置）
+  dragSourceRef.current = null;
+  setDragState({ sourceId: null, overId: null, dropPosition: null });
+}}
+```
+
+**关键原则**：所有 `onDrop` handler 必须清理 dragState，无论拖拽源是画布内组件还是左侧面板。画布内拖拽有 `handleDragEnd` 兜底，面板拖入没有。
+
 ### 右侧 — 属性配置面板
 
 属性配置面板基于 [自动渲染引擎](auto-rendering-engine.md) 实现，读取组件的 TypeScript 类型定义并自动渲染为可视化配置表单。**所有控件统一使用 Ant Design 组件**，确保样式一致性。
@@ -457,7 +480,7 @@ interface InputProps extends BaseProps {
 |--------|------|
 | `ComponentSelector` | 组件选择器（从组件注册表中选择） |
 | `StyleEditor` | CSS 样式编辑器 |
-| `EventActionChainEditor` | 事件动作链编排器 |
+| `EventActionChainEditor` | 事件动作链编排器（支持条件分支表达式编辑器、批量赋值变量树选择器、嵌套条件分支过滤） |
 | `SlotSelector` | 插槽选择器 |
 
 > `VariablePicker` 和 `ExpressionEditor` 由自动渲染引擎内建提供，无需各引擎重复注册。
@@ -1341,6 +1364,86 @@ interface CardEventDef {
 
 事件数据通过 `{{事件.xxx}}` 模板变量引用，变量列表由 `EventDefinition.payload` 自动生成，用户从下拉列表选择，无需手写。
 
+##### 条件分支编辑器
+
+条件分支动作支持可视化配置条件表达式和 Then/Else 分支：
+
+```
+┌─────────────────────────────────────────────────────┐
+│  动作类型: [条件分支 ▼]                               │
+├─────────────────────────────────────────────────────┤
+│                                                      │
+│  条件表达式:                                          │
+│  ┌─────────────────────────────────┬──────────┐     │
+│  │ $event.value > 10               │ 编辑表达式 │     │
+│  └─────────────────────────────────┴──────────┘     │
+│  示例: $event.value > 10, $result.success === true   │
+│                                                      │
+│  ✅ Then（条件为真时执行）                             │
+│  ┌─ 1. ─────────────────────────────────────────┐   │
+│  │  动作类型: [消息提示 ▼]  (已过滤: 条件分支)     │   │
+│  │  类型: [信息 ▼]                               │   │
+│  │  内置: [操作成功]                              │   │
+│  └──────────────────────────────────────────────┘   │
+│  [+ 添加 Then 动作]                                  │
+│                                                      │
+│  ❌ Else（条件为假时执行）                             │
+│  ┌─ 1. ─────────────────────────────────────────┐   │
+│  │  动作类型: [消息提示 ▼]  (已过滤: 条件分支)     │   │
+│  │  类型: [错误 ▼]                               │   │
+│  │  内置: [条件不满足]                            │   │
+│  └──────────────────────────────────────────────┘   │
+│  [+ 添加 Else 动作]                                  │
+│                                                      │
+└─────────────────────────────────────────────────────┘
+```
+
+**关键特性**：
+
+- **表达式编辑器**：点击"编辑表达式"按钮打开 Monaco 编辑器，支持语法高亮、自动补全（`$event`、`$result`、`$component` 等环境变量）、实时类型推断
+- **嵌套限制**：Then/Else 分支的动作类型下拉列表**自动过滤掉"条件分支"**，防止无限嵌套
+- **分支独立**：Then 和 Else 分支各自维护独立的动作链，互不影响
+
+##### 批量设置值编辑器
+
+批量设置值动作支持为多个字段配置赋值，每个字段支持三种值模式：
+
+```
+┌─────────────────────────────────────────────────────┐
+│  动作类型: [批量设置值 ▼]                             │
+├─────────────────────────────────────────────────────┤
+│                                                      │
+│  批量设置值                                           │
+│                                                      │
+│  ┌─ fieldName ──────────────────────────────────┐   │
+│  │  [常量] [变量] [表达式]                        │   │
+│  │  ┌─────────────────────────┬──────────┐      │   │
+│  │  │ $data.customerName      │ 选择变量  │      │   │
+│  │  └─────────────────────────┴──────────┘      │   │
+│  └──────────────────────────────────────────────┘   │
+│                                                      │
+│  ┌─ status ────────────────────────────────────┐   │
+│  │  [常量] [变量] [表达式]                        │   │
+│  │  ┌─────────────────────────┬──────────┐      │   │
+│  │  │ active                  │          │      │   │
+│  │  └─────────────────────────┴──────────┘      │   │
+│  └──────────────────────────────────────────────┘   │
+│                                                      │
+│  [+ 添加字段]                                        │
+│                                                      │
+└─────────────────────────────────────────────────────┘
+```
+
+**值模式说明**：
+
+| 模式 | 说明 | 输入方式 |
+|------|------|---------|
+| 常量 | 静态值，直接输入 | 文本输入框 |
+| 变量 | 变量引用，如 `$data.name` | 文本输入 + "选择变量"按钮（打开变量树选择器） |
+| 表达式 | 表达式，如 `$event.value * 2` | 文本输入 + "选择表达式"按钮（打开 Monaco 编辑器） |
+
+**变量树选择器**：点击"选择变量"按钮打开 VariablePicker 的变量模式，展示页面组件树、数据源、用户信息等变量节点，点击即可选中变量路径，无需手写。
+
 #### 方法调用 — 动作配置中引用
 
 卡片暴露的方法出现在动作配置的**"调用组件方法"**动作类型中，供页面其他组件或流程节点调用：
@@ -2184,6 +2287,39 @@ interface ActionStep {
 }
 ```
 
+#### 事件动作链编排器 (EventActionChainEditor)
+
+事件动作链编排器是设计器中配置组件事件的核心控件，支持可视化编排动作链。
+
+**核心功能**：
+
+| 功能 | 说明 |
+|------|------|
+| 事件管理 | 添加/删除/编辑组件事件，自动从组件 Schema 提取可用事件列表 |
+| 动作编排 | 拖拽排序动作步骤，支持 16 种标准动作类型 |
+| 条件分支 | 支持 If-Then-Else 条件分支，条件表达式使用 Monaco 编辑器 |
+| 批量赋值 | 支持多字段批量设置值，每字段支持常量/变量/表达式三种模式 |
+| 嵌套限制 | 条件分支内的动作链自动过滤"条件分支"类型，防止无限嵌套 |
+
+**实现文件**：
+- `packages/renderer/src/designer/panels/EventActionChainEditor.tsx` — 主组件
+- `packages/renderer/src/designer/panels/VariablePicker.tsx` — 变量选择器（变量树 + 表达式编辑器）
+
+**Props 接口**：
+
+```typescript
+interface EventActionChainEditorProps {
+  events: Record<string, ActionChain[]>;
+  onChange: (events: Record<string, ActionChain[]>) => void;
+  availableEvents?: Array<{ name: string; title: string }>;
+  availableMethods?: ComponentMethod[];
+  availableFields?: string[];
+  formComponents?: Array<{ id: string; name: string }>;
+  pageComponents?: Record<string, { type: string; label?: string }>;
+  pageDataSources?: Record<string, { type: string; description?: string }>;
+}
+```
+
 > 📄 平台统一的动作类型注册表详见 [系统字典 — 动作类型字典](system-dictionaries.md#动作类型字典)
 
 #### 事件编译流程
@@ -2275,7 +2411,7 @@ npx tsx packages/build-tools/src/cli.ts sync-types
 
 **SchemaCompiler 工作流程**：
 1. `typescript-json-schema` 从 `schema.ts` 读取 Props 接口，生成基础 JSON Schema
-2. 后处理：`description` → `title`，`group` → `x-group`，`priority` → `x-priority`
+2. 后处理：`description` → `title`，JSDoc 标签 → `x-*` 扩展字段（完整映射见下方表格）
 3. `$ref` 外部类型（React.ReactNode 等）→ 转为 `{ type: "string" }`
 4. `@ignore` 标记的属性被排除（`typescript-json-schema` 原生支持）
 5. 无 `x-group` 的属性默认归入 `"基础属性"`
@@ -2294,7 +2430,7 @@ packages/renderer/src/libraries/antd/
   └── ...（66 个组件）
 ```
 
-JSDoc 注解到扩展字段的映射规则：
+JSDoc 注解到扩展字段的映射规则（源码定义见 `packages/build-tools/src/SchemaCompiler.ts` 的 `X_PREFIX_TAGS`）：
 
 | JSDoc 注解 | 扩展字段 | 说明 |
 |-----------|---------|------|
@@ -2303,12 +2439,18 @@ JSDoc 注解到扩展字段的映射规则：
 | `@component xxx` | `x-component: "xxx"` | 自定义控件 |
 | `@visible expr` | `x-visible: "expr"` | 条件显隐 |
 | `@disabled expr` | `x-disabled: "expr"` | 条件禁用 |
-| `@ignore` | 属性被排除 | 废弃属性不出现在 schema 中 |
 | `@dictionary xxx` | `x-dictionary: "xxx"` | 字典引用 |
 | `@dataSource xxx` | `x-dataSource: "xxx"` | 变量绑定数据源 |
-| `@validator xxx` | `x-validator: "xxx"` | 校验规则 |
-| `@no-binding` | `x-no-binding: "..."` | 禁止变量/表达式绑定 |
+| `@validator xxx` | `x-validator: "xxx"` | 校验规则名 |
+| `@validator-message xxx` | `x-validator-message: "xxx"` | 校验错误提示 |
+| `@placeholder xxx` | `x-placeholder: "xxx"` | 占位提示 |
+| `@layout xxx` | `x-layout: "xxx"` | 布局方式 |
+| `@layout-mode xxx` | `x-layout-mode: "xxx"` | 布局模式 |
+| `@decorator xxx` | `x-decorator: "xxx"` | 装饰器 |
+| `@no-binding` | `x-no-binding` | 禁止变量/表达式绑定 |
 | `@value-type xxx` | `x-value-type: "xxx"` | 组件值的 TypeScript 类型（从 antd 类型定义自动提取） |
+| `@default xxx` | `default: xxx` | 属性默认值（标准 JSON Schema 关键字） |
+| `@ignore` | （编译时丢弃） | 属性不出现在 JSON Schema 中 |
 
 #### 产物存储规范
 

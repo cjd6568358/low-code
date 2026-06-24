@@ -8,6 +8,7 @@
  * 4. 设计态注入 className 标记 lc-did-{id}（antd 组件通过 ...rest 传播到 DOM）
  * 5. 设计态注入 draggable/onMouseDown 等 DOM 事件
  * 6. 在 Form 内时，自动包装 Form.Item
+ * 7. 注入 refreshComponent/refreshWithDependencyOrder 刷新能力
  *
  * DOM 元素定位：DesignOverlay 通过 document.querySelector('.lc-did-{id}') 定位。
  * 不添加额外 wrapper DOM，不依赖组件透传 data-* 属性。
@@ -34,6 +35,7 @@ const DESIGN_KEYS = new Set([
 const PLATFORM_KEYS = new Set([
   'node', 'field', 'events', 'linkage', 'designMode',
   'visible',  // 平台级控制，不透传给底层组件（避免原生 DOM 警告）
+  'refreshComponent', 'refreshWithDependencyOrder',  // 刷新能力
 ]);
 
 /**
@@ -95,7 +97,7 @@ function enhanceValueOnChange(
  * 创建平台 HOC
  *
  * 注册时执行一次，返回带平台能力的组件。
- * 设计态通过 className 唯一标记 + useEffect 手动注入 data-component-id 到 DOM。
+ * 设计态通过 className 唯一标记 lc-did-{id} 定位 DOM 元素（antd 组件通过 ...rest 传播）。
  * 在 Form 内时，自动包装 Form.Item。
  */
 export function withPlatform<P extends Record<string, any>>(
@@ -107,6 +109,7 @@ export function withPlatform<P extends Record<string, any>>(
     // 提取平台能力 props
     const {
       node, field, events, linkage, designMode, visible,
+      refreshComponent, refreshWithDependencyOrder,
       ...restWithDesign
     } = props as P & PlatformComponentProps;
 
@@ -137,10 +140,25 @@ export function withPlatform<P extends Record<string, any>>(
       linkage,
     );
 
+    // 创建 refreshComponent 函数（如果提供了 refreshComponent 回调）
+    const handleRefreshComponent = refreshComponent
+      ? async (targetId: string, propNames?: string[]) => {
+          // 调用外部传入的 refreshComponent 函数
+          return await refreshComponent(targetId, propNames);
+        }
+      : undefined;
+
+    // 创建 refreshWithDependencyOrder 函数（如果提供了 refreshWithDependencyOrder 回调）
+    const handleRefreshWithDependencyOrder = refreshWithDependencyOrder
+      ? async (targetIds: string[]) => {
+          // 调用外部传入的 refreshWithDependencyOrder 函数
+          return await refreshWithDependencyOrder(targetIds);
+        }
+      : undefined;
+
     // 设计态注入 DOM 属性
     const designAttrs: Record<string, unknown> = {};
     if (designMode) {
-      designAttrs['data-component-id'] = designProps._designId;
       designAttrs['draggable'] = designProps._draggable;
 
       if (designProps._onSelect) {
@@ -183,6 +201,15 @@ export function withPlatform<P extends Record<string, any>>(
     // 如果在 Form 内且有 name 属性，自动包装 Form.Item
     const isInForm = formContext !== null;
     const hasFieldName = (enhancedProps as any).name !== undefined;
+
+    // 构建传递给组件的 refresh 相关 props
+    const refreshProps: Record<string, any> = {};
+    if (handleRefreshComponent) {
+      refreshProps.refreshComponent = handleRefreshComponent;
+    }
+    if (handleRefreshWithDependencyOrder) {
+      refreshProps.refreshWithDependencyOrder = handleRefreshWithDependencyOrder;
+    }
 
     if (isInForm && hasFieldName) {
       const {
@@ -229,6 +256,7 @@ export function withPlatform<P extends Record<string, any>>(
           <WrappedComponent
             {...(componentProps as P)}
             {...(designAttrs as P)}
+            {...(refreshProps as P)}
           />
         </Form.Item>
       );
@@ -238,6 +266,7 @@ export function withPlatform<P extends Record<string, any>>(
       <WrappedComponent
         {...(enhancedProps as P)}
         {...(designAttrs as P)}
+        {...(refreshProps as P)}
       />
     );
   };

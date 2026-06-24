@@ -178,19 +178,27 @@ import { expressionEngine } from '@low-code/computation';
 
 ### 4.3 JSDoc 注解映射规则
 
-`schema.ts` 中的 JSDoc 注解会被 `SchemaCompiler` 编译为 JSON Schema 字段：
+`schema.ts` 中的 JSDoc 注解会被 `SchemaCompiler` 编译为 JSON Schema 字段（源码定义见 `packages/build-tools/src/X_PREFIX_TAGS`）：
 
 | JSDoc 注解 | JSON Schema 字段 | 说明 |
 |------------|-----------------|------|
 | `@group xxx` | `x-group: "xxx"` | 字段分组 |
 | `@priority N` | `x-priority: N` | 排序权重 |
-| `@default xxx` | `default: xxx` | 属性默认值 |
 | `@component xxx` | `x-component: "xxx"` | 自定义控件 |
 | `@visible expr` | `x-visible: "expr"` | 条件显隐 |
 | `@disabled expr` | `x-disabled: "expr"` | 条件禁用 |
-| `@hidden` | `x-hidden: true` | 强制隐藏 |
 | `@dictionary xxx` | `x-dictionary: "xxx"` | 字典引用 |
-| `@deprecated xxx` | `description` 中标注 | 废弃提示 |
+| `@dataSource xxx` | `x-dataSource: "xxx"` | 数据源 |
+| `@validator xxx` | `x-validator: "xxx"` | 校验规则名 |
+| `@validator-message xxx` | `x-validator-message: "xxx"` | 校验错误提示 |
+| `@placeholder xxx` | `x-placeholder: "xxx"` | 占位提示 |
+| `@layout xxx` | `x-layout: "xxx"` | 布局方式 |
+| `@layout-mode xxx` | `x-layout-mode: "xxx"` | 布局模式 |
+| `@decorator xxx` | `x-decorator: "xxx"` | 装饰器 |
+| `@no-binding` | `x-no-binding: true` | 禁止数据绑定 |
+| `@value-type xxx` | `x-value-type: "xxx"` | 值类型（从 antd 类型定义提取） |
+| `@default xxx` | `default: xxx` | 属性默认值（标准 JSON Schema 关键字） |
+| `@ignore` | （编译时丢弃） | 属性不出现在 JSON Schema 中 |
 
 ### 4.4 JSON Schema 生成规则（强制）
 

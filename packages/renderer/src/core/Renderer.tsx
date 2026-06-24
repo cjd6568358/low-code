@@ -341,7 +341,7 @@ export function PageRenderer(config: RendererConfig) {
       if (!registration && !isCard) {
         console.warn(`Component type "${node.type}" not found in registry`);
         return (
-          <div key={node.id} data-component-id={node.id}>
+          <div key={node.id} className={`lc-did-${node.id}`}>
             <span style={{ color: '#999' }}>未找到组件: {node.type}</span>
           </div>
         );
@@ -457,7 +457,6 @@ export function PageRenderer(config: RendererConfig) {
               ...resolvedProps,
               ...platformProps.events,
               ...platformProps,
-              'data-component-id': node.id,
               style: { ...resolvedProps.style, ...layoutStyle },
               disabled: ruleResult.disabled || resolvedProps.disabled,
             };

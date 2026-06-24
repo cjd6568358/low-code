@@ -30,7 +30,6 @@ JSDoc 注解映射:
   @component xxx    → x-component: "xxx"   自定义控件
   @visible expr     → x-visible: "expr"    条件显隐
   @disabled expr    → x-disabled: "expr"   条件禁用
-  @hidden           → x-hidden: true       强制隐藏
   @dictionary xxx   → x-dictionary: "xxx"  字典引用
   @dataSource xxx   → x-dataSource: "xxx"  数据源
   @validator xxx    → x-validator: "xxx"   校验规则

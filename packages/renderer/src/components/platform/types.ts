@@ -32,7 +32,7 @@ export type CompiledEventHandlers = Record<string, CompiledEventHandler>;
 
 /** 设计态注入的 props（下划线前缀，HOC 内部过滤） */
 export interface DesignInjectedProps {
-  /** 组件 ID → data-component-id */
+  /** 组件 ID → className lc-did-{id} */
   _designId?: string;
   /** 是否可拖拽 → draggable */
   _draggable?: boolean;
@@ -68,4 +68,8 @@ export interface PlatformComponentProps extends DesignInjectedProps {
   designMode?: boolean;
   /** 平台级显隐控制（false 时不渲染，避免透传给原生 DOM） */
   visible?: boolean;
+  /** 刷新组件属性（支持指定属性列表或全部刷新） */
+  refreshComponent?: (targetId: string, propNames?: string[]) => Promise<any>;
+  /** 按依赖顺序刷新多个组件 */
+  refreshWithDependencyOrder?: (targetIds: string[]) => Promise<any[]>;
 }

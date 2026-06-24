@@ -90,7 +90,6 @@ export interface ButtonProps extends BaseProps {
    * 按钮颜色
    * @group 高级属性
    * @priority 15
-   * @default "default"
    */
   color?: 'default' | 'primary' | 'danger' | 'blue' | 'purple' | 'cyan' | 'green' | 'magenta' | 'pink' | 'red' | 'orange' | 'yellow' | 'volcano' | 'geekblue' | 'lime' | 'gold';
 
@@ -103,8 +102,14 @@ export interface ButtonProps extends BaseProps {
   variant?: 'outlined' | 'dashed' | 'solid' | 'filled' | 'text' | 'link';
 
   /**
-   * @deprecated 使用 iconPlacement 代替
-   * @ignore
+   * @ignore 使用 iconPlacement 代替
    */
   iconPosition?: 'start' | 'end';
+
+  /**
+   * 点击按钮时的回调
+   * @group 事件
+   * @priority 80
+   */
+  onClick?: string;
 }
