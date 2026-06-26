@@ -91,15 +91,24 @@
     },
     "size": {
       "type": "string",
-      "enum": [
-        "large",
-        "middle",
-        "small"
-      ],
       "title": "尺寸",
       "x-group": "基础属性",
       "x-priority": 19,
-      "x-no-binding": ""
+      "x-no-binding": "",
+      "oneOf": [
+        {
+          "const": "large",
+          "title": "大"
+        },
+        {
+          "const": "middle",
+          "title": "居中"
+        },
+        {
+          "const": "small",
+          "title": "小"
+        }
+      ]
     },
     "loading": {
       "type": "boolean",
@@ -176,15 +185,24 @@
     },
     "showCheckedStrategy": {
       "type": "string",
-      "enum": [
-        "SHOW_ALL",
-        "SHOW_CHILD",
-        "SHOW_PARENT"
-      ],
       "title": "定义选中项回填的方式",
       "x-group": "基础属性",
       "x-priority": 33,
-      "x-no-binding": ""
+      "x-no-binding": "",
+      "oneOf": [
+        {
+          "const": "SHOW_ALL",
+          "title": "全部"
+        },
+        {
+          "const": "SHOW_CHILD",
+          "title": "子节点"
+        },
+        {
+          "const": "SHOW_PARENT",
+          "title": "父节点"
+        }
+      ]
     },
     "tokenSeparators": {
       "type": "array",
@@ -247,40 +265,70 @@
     },
     "variant": {
       "type": "string",
-      "enum": [
-        "borderless",
-        "filled",
-        "outlined",
-        "underlined"
-      ],
       "title": "形态变体",
       "x-group": "高级属性",
       "x-priority": 50,
-      "x-no-binding": ""
+      "x-no-binding": "",
+      "oneOf": [
+        {
+          "const": "borderless",
+          "title": "无边框"
+        },
+        {
+          "const": "filled",
+          "title": "填充"
+        },
+        {
+          "const": "outlined",
+          "title": "描边"
+        },
+        {
+          "const": "underlined",
+          "title": "下划线"
+        }
+      ]
     },
     "status": {
       "type": "string",
-      "enum": [
-        "error",
-        "warning"
-      ],
       "title": "状态",
       "x-group": "高级属性",
       "x-priority": 51,
-      "x-no-binding": ""
+      "x-no-binding": "",
+      "oneOf": [
+        {
+          "const": "error",
+          "title": "错误"
+        },
+        {
+          "const": "warning",
+          "title": "警告"
+        }
+      ]
     },
     "placement": {
       "type": "string",
-      "enum": [
-        "bottomLeft",
-        "bottomRight",
-        "topLeft",
-        "topRight"
-      ],
       "title": "弹出位置",
       "x-group": "高级属性",
       "x-priority": 52,
-      "x-no-binding": ""
+      "x-no-binding": "",
+      "oneOf": [
+        {
+          "const": "bottomLeft",
+          "title": "左下"
+        },
+        {
+          "const": "bottomRight",
+          "title": "右下"
+        },
+        {
+          "const": "topLeft",
+          "title": "左上"
+        },
+        {
+          "const": "topRight",
+          "title": "右上"
+        }
+      ]
     },
     "maxTagCount": {
       "anyOf": [
@@ -369,14 +417,20 @@
     },
     "direction": {
       "type": "string",
-      "enum": [
-        "ltr",
-        "rtl"
-      ],
       "title": "文字方向",
       "x-group": "基础属性",
       "x-priority": 65,
-      "x-no-binding": ""
+      "x-no-binding": "",
+      "oneOf": [
+        {
+          "const": "ltr",
+          "title": "从左到右"
+        },
+        {
+          "const": "rtl",
+          "title": "从右到左"
+        }
+      ]
     },
     "showScrollBar": {
       "enum": [

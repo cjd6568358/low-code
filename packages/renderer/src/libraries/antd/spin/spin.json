@@ -10,14 +10,23 @@
     },
     "size": {
       "type": "string",
-      "enum": [
-        "large",
-        "medium",
-        "small"
-      ],
       "title": "尺寸",
       "x-group": "基础属性",
-      "x-priority": 11
+      "x-priority": 11,
+      "oneOf": [
+        {
+          "const": "large",
+          "title": "大"
+        },
+        {
+          "const": "medium",
+          "title": "中"
+        },
+        {
+          "const": "small",
+          "title": "小"
+        }
+      ]
     },
     "tip": {
       "type": "string",

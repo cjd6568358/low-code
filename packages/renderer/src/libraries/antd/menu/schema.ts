@@ -21,6 +21,7 @@ export interface MenuProps extends BaseProps {
    * @group 基础属性
    * @priority 11
    * @default 'vertical'
+   * @enumLabels vertical:垂直, horizontal:水平, inline:内联
    */
   mode?: 'vertical' | 'horizontal' | 'inline';
 
@@ -29,6 +30,7 @@ export interface MenuProps extends BaseProps {
    * @group 基础属性
    * @priority 12
    * @default "light"
+   * @enumLabels light:亮色, dark:暗色
    */
   theme?: 'light' | 'dark';
 
@@ -99,6 +101,7 @@ export interface MenuProps extends BaseProps {
    * 文字方向
    * @group 高级属性
    * @priority 30
+   * @enumLabels ltr:从左到右, rtl:从右到左
    */
   direction?: 'ltr' | 'rtl';
 
@@ -120,6 +123,7 @@ export interface MenuProps extends BaseProps {
    * 子菜单触发方式
    * @group 高级属性
    * @priority 33
+   * @enumLabels click:点击, hover:悬浮
    */
   triggerSubMenuAction?: 'click' | 'hover';
 

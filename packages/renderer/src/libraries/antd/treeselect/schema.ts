@@ -90,6 +90,7 @@ export interface TreeSelectProps extends BaseProps {
    * @group 基础属性
    * @priority 19
    * @no-binding
+   * @enumLabels small:小, middle:居中, large:大
    */
   size?: 'small' | 'middle' | 'large';
 
@@ -154,6 +155,7 @@ export interface TreeSelectProps extends BaseProps {
    * @group 基础属性
    * @priority 33
    * @no-binding
+   * @enumLabels SHOW_ALL:全部, SHOW_PARENT:父节点, SHOW_CHILD:子节点
    */
   showCheckedStrategy?: 'SHOW_ALL' | 'SHOW_PARENT' | 'SHOW_CHILD';
 
@@ -229,6 +231,7 @@ export interface TreeSelectProps extends BaseProps {
    * @group 高级属性
    * @priority 50
    * @no-binding
+   * @enumLabels outlined:描边, filled:填充, borderless:无边框, underlined:下划线
    */
   variant?: 'outlined' | 'filled' | 'borderless' | 'underlined';
 
@@ -237,6 +240,7 @@ export interface TreeSelectProps extends BaseProps {
    * @group 高级属性
    * @priority 51
    * @no-binding
+   * @enumLabels error:错误, warning:警告
    */
   status?: 'error' | 'warning';
 
@@ -245,6 +249,7 @@ export interface TreeSelectProps extends BaseProps {
    * @group 高级属性
    * @priority 52
    * @no-binding
+   * @enumLabels bottomLeft:左下, bottomRight:右下, topLeft:左上, topRight:右上
    */
   placement?: 'bottomLeft' | 'bottomRight' | 'topLeft' | 'topRight';
 
@@ -341,6 +346,7 @@ export interface TreeSelectProps extends BaseProps {
    * @group 基础属性
    * @priority 65
    * @no-binding
+   * @enumLabels ltr:从左到右, rtl:从右到左
    */
   direction?: 'ltr' | 'rtl';
 

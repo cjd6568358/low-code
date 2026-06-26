@@ -43,14 +43,20 @@
     },
     "size": {
       "type": "string",
-      "enum": [
-        "default",
-        "small"
-      ],
       "title": "尺寸",
       "x-group": "基础属性",
       "x-priority": 16,
-      "x-no-binding": ""
+      "x-no-binding": "",
+      "oneOf": [
+        {
+          "const": "default",
+          "title": "默认"
+        },
+        {
+          "const": "small",
+          "title": "小"
+        }
+      ]
     },
     "showSizeChanger": {
       "type": "boolean",
@@ -103,15 +109,24 @@
     },
     "align": {
       "type": "string",
-      "enum": [
-        "center",
-        "end",
-        "start"
-      ],
       "title": "对齐方式",
       "x-group": "基础属性",
       "x-priority": 28,
-      "x-no-binding": ""
+      "x-no-binding": "",
+      "oneOf": [
+        {
+          "const": "center",
+          "title": "居中"
+        },
+        {
+          "const": "end",
+          "title": "结束"
+        },
+        {
+          "const": "start",
+          "title": "起始"
+        }
+      ]
     },
     "simple": {
       "type": "boolean",

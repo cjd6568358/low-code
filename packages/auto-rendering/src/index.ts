@@ -10,6 +10,9 @@ export { MockDictionaryService, mockDictionaryService } from './core/DictionaryS
 export { AutoFormRenderer } from './core/AutoFormRenderer';
 export type { AutoFormRendererProps } from './core/AutoFormRenderer';
 
+export { PropValueField, detectValueMode, extractDisplayValue } from './core/PropValueField';
+export type { PropValueFieldProps, ValueMode } from './core/PropValueField';
+
 // Controls — 统一使用 antd 控件
 export {
   AntdAutoInput,

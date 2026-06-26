@@ -6,7 +6,8 @@ import type { WatermarkConfig, ComponentNode } from '@low-code/shared';
 import { AutoFormRenderer, controlRegistry, registerAntdControls } from '@low-code/auto-rendering';
 import { mockDictionaryService } from '@low-code/auto-rendering';
 import { EventActionChainEditor } from './EventActionChainEditor';
-import { VariablePicker } from './VariablePicker';
+import { VariableTreeSelector } from '../../components/VariableTreeSelector';
+import { ExpressionEditor } from '../../components/ExpressionEditor';
 import { StyleEditor } from './StyleEditor';
 import { DataSourcePanel } from './DataSourcePanel';
 import { ValidationRulesEditor } from './ValidationRulesEditor';
@@ -18,7 +19,7 @@ registerAntdControls(controlRegistry);
 
 /** 属性面板 — 右侧（严格按文档实现） */
 export function PropertyPanel({ registry }: { registry: any }) {
-  const { state, dispatch } = useDesigner();
+  const { state, dispatch, appId, tenantId } = useDesigner();
   const { selectedComponentId, schema } = state;
   const [activeTab, setActiveTab] = useState<ComponentSettingsTab>('props');
   const [bindingTarget, setBindingTarget] = useState<string | null>(null);
@@ -156,7 +157,13 @@ export function PropertyPanel({ registry }: { registry: any }) {
     });
   };
 
-  const hasEvents = true; // 事件编辑器始终可配置
+  // 事件 tab：仅当组件 schema 中有 x-group === '事件' 的属性时显示
+  const hasEvents = useMemo(() => {
+    if (!registration?.propsSchema?.properties) return false;
+    return Object.values(registration.propsSchema.properties).some(
+      (p: any) => p['x-group'] === '事件',
+    );
+  }, [registration]);
   const hasStyle = true;  // 样式编辑器始终可配置
 
   // 过滤出有内容的 tab
@@ -262,12 +269,23 @@ export function PropertyPanel({ registry }: { registry: any }) {
               ) : null;
             })()}
 
-            {/* VariablePicker 弹窗 */}
-            {bindingTarget && (
-              <VariablePicker
-                visible={!!bindingTarget}
+            {/* 变量/表达式选择弹窗 */}
+            {bindingTarget && bindingMode === 'variable' && (
+              <VariableTreeSelector
+                visible={true}
+                value={typeof selectedNode.props[bindingTarget] === 'object' ? selectedNode.props[bindingTarget]?.value : selectedNode.props[bindingTarget] || ''}
+                onChange={(val) => handlePropsChange({ [bindingTarget]: val })}
+                onClear={() => handlePropsChange({ [bindingTarget]: undefined })}
+                onClose={() => setBindingTarget(null)}
+                pageComponents={pageComponents}
+                pageDataSources={pageDataSources}
+                expectedType={expectedFieldType}
+              />
+            )}
+            {bindingTarget && bindingMode === 'expression' && (
+              <ExpressionEditor
+                visible={true}
                 value={selectedNode.props[bindingTarget] || ''}
-                mode={bindingMode}
                 onChange={(val) => handlePropsChange({ [bindingTarget]: val })}
                 onClear={() => handlePropsChange({ [bindingTarget]: undefined })}
                 onClose={() => setBindingTarget(null)}
@@ -313,12 +331,23 @@ export function PropertyPanel({ registry }: { registry: any }) {
               );
             })()}
 
-            {/* VariablePicker 弹窗 */}
-            {bindingTarget && (
-              <VariablePicker
-                visible={!!bindingTarget}
+            {/* 变量/表达式选择弹窗 */}
+            {bindingTarget && bindingMode === 'variable' && (
+              <VariableTreeSelector
+                visible={true}
+                value={typeof selectedNode.props[bindingTarget] === 'object' ? selectedNode.props[bindingTarget]?.value : selectedNode.props[bindingTarget] || ''}
+                onChange={(val) => handlePropsChange({ [bindingTarget]: val })}
+                onClear={() => handlePropsChange({ [bindingTarget]: undefined })}
+                onClose={() => setBindingTarget(null)}
+                pageComponents={pageComponents}
+                pageDataSources={pageDataSources}
+                expectedType={expectedFieldType}
+              />
+            )}
+            {bindingTarget && bindingMode === 'expression' && (
+              <ExpressionEditor
+                visible={true}
                 value={selectedNode.props[bindingTarget] || ''}
-                mode={bindingMode}
                 onChange={(val) => handlePropsChange({ [bindingTarget]: val })}
                 onClear={() => handlePropsChange({ [bindingTarget]: undefined })}
                 onClose={() => setBindingTarget(null)}
@@ -367,12 +396,23 @@ export function PropertyPanel({ registry }: { registry: any }) {
                 />
               </Section>
 
-              {/* VariablePicker 弹窗 */}
-              {bindingTarget && (
-                <VariablePicker
-                  visible={!!bindingTarget}
+              {/* 变量/表达式选择弹窗 */}
+              {bindingTarget && bindingMode === 'variable' && (
+                <VariableTreeSelector
+                  visible={true}
+                  value={typeof selectedNode.props[bindingTarget] === 'object' ? selectedNode.props[bindingTarget]?.value : selectedNode.props[bindingTarget] || ''}
+                  onChange={(val) => handlePropsChange({ [bindingTarget]: val })}
+                  onClear={() => handlePropsChange({ [bindingTarget]: undefined })}
+                  onClose={() => setBindingTarget(null)}
+                  pageComponents={pageComponents}
+                  pageDataSources={pageDataSources}
+                  expectedType={expectedFieldType}
+                />
+              )}
+              {bindingTarget && bindingMode === 'expression' && (
+                <ExpressionEditor
+                  visible={true}
                   value={selectedNode.props[bindingTarget] || ''}
-                  mode={bindingMode}
                   onChange={(val) => handlePropsChange({ [bindingTarget]: val })}
                   onClear={() => handlePropsChange({ [bindingTarget]: undefined })}
                   onClose={() => setBindingTarget(null)}
@@ -401,17 +441,13 @@ export function PropertyPanel({ registry }: { registry: any }) {
                   }));
               })()}
               availableMethods={[]}
-              availableFields={(() => {
-                // 提取页面中所有组件的可写属性（name 字段）
-                return schema.components
-                  .filter((c) => c.name && c.type !== 'form')
-                  .map((c) => c.name as string);
-              })()}
               formComponents={schema.components
                 .filter((c) => c.type === 'form')
                 .map((c) => ({ id: c.id, name: c.name || c.id }))}
               pageComponents={pageComponents}
               pageDataSources={pageDataSources}
+              appId={appId}
+              tenantId={tenantId}
             />
           </Section>
         )}
@@ -662,12 +698,30 @@ function PageSettingsPanel({
           <BindingsOverview components={schema.components} />
         )}
 
-        {/* VariablePicker 弹窗（仅水印使用） */}
-        {bindingTarget && (
-          <VariablePicker
-            visible={!!bindingTarget}
+        {/* 变量/表达式选择弹窗（仅水印使用） */}
+        {bindingTarget && bindingMode === 'variable' && (
+          <VariableTreeSelector
+            visible={true}
+            value={typeof (schema.watermark as any)?.[bindingTarget] === 'object' ? (schema.watermark as any)?.[bindingTarget]?.value : (schema.watermark as any)?.[bindingTarget] || ''}
+            onChange={(val) => {
+              handleWatermarkChange({ [`watermark.${bindingTarget}`]: val });
+              setBindingTarget(null);
+            }}
+            onClear={() => {
+              const next: Record<string, any> = { ...schema.watermark };
+              delete next[bindingTarget];
+              dispatch({ type: 'UPDATE_PAGE_WATERMARK', payload: next as WatermarkConfig });
+              setBindingTarget(null);
+            }}
+            onClose={() => setBindingTarget(null)}
+            pageComponents={pageComponents}
+            pageDataSources={pageDataSources}
+          />
+        )}
+        {bindingTarget && bindingMode === 'expression' && (
+          <ExpressionEditor
+            visible={true}
             value={(schema.watermark as any)?.[bindingTarget] || ''}
-            mode={bindingMode}
             onChange={(val) => {
               handleWatermarkChange({ [`watermark.${bindingTarget}`]: val });
               setBindingTarget(null);

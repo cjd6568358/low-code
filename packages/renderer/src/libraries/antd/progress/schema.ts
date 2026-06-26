@@ -22,6 +22,7 @@ export interface ProgressProps extends BaseProps {
    * @group 基础属性
    * @priority 11
    * @default "line"
+   * @enumLabels line:线条, circle:圆形, dashboard:dashboard
    */
   type?: 'line' | 'circle' | 'dashboard';
 
@@ -30,6 +31,7 @@ export interface ProgressProps extends BaseProps {
    * @group 基础属性
    * @priority 12
    * @default "normal"
+   * @enumLabels success:成功, exception:异常, normal:正常, active:激活
    */
   status?: 'success' | 'exception' | 'normal' | 'active';
 
@@ -81,6 +83,7 @@ export interface ProgressProps extends BaseProps {
    * 进度条端点形状
    * @group 高级属性
    * @priority 25
+   * @enumLabels butt:butt, square:方形, round:圆角
    */
   strokeLinecap?: 'butt' | 'square' | 'round';
 
@@ -107,6 +110,7 @@ export interface ProgressProps extends BaseProps {
    * 仪表盘进度条缺口位置
    * @group 高级属性
    * @priority 31
+   * @enumLabels top:顶部, bottom:底部, start:起始, end:结束
    */
   gapPlacement?: 'top' | 'bottom' | 'start' | 'end';
 

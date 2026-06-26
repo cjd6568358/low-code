@@ -34,6 +34,7 @@ export interface WatermarkFont {
    * 字体样式
    * @group 高级属性
    * @priority 23
+   * @enumLabels none:无, normal:正常, italic:斜体, oblique:倾斜
    */
   fontStyle?: 'none' | 'normal' | 'italic' | 'oblique';
 
@@ -48,6 +49,7 @@ export interface WatermarkFont {
    * 文本对齐方式
    * @group 高级属性
    * @priority 25
+   * @enumLabels start:起始, center:居中, end:结束, left:左, right:右
    */
   textAlign?: 'start' | 'center' | 'end' | 'left' | 'right';
 }

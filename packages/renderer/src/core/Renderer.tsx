@@ -104,6 +104,16 @@ export function PageRenderer(config: RendererConfig) {
   // 表单注册表（每个 PageRenderer 实例独立）
   const formRegistry = useMemo(() => new FormRegistry(), []);
 
+  // 组件属性覆盖（setValues 运行时写入）
+  const [componentOverrides, setComponentOverrides] = useState<Record<string, Record<string, any>>>({});
+
+  const setComponentProp = useCallback((componentId: string, propName: string, value: any) => {
+    setComponentOverrides((prev) => ({
+      ...prev,
+      [componentId]: { ...prev[componentId], [propName]: value },
+    }));
+  }, []);
+
   // 当前渲染路径中的 formId 栈（支持嵌套表单）
   const formIdStackRef = useRef<string[]>([]);
   const getActiveFormId = useCallback(() => {
@@ -296,6 +306,7 @@ export function PageRenderer(config: RendererConfig) {
       formRegistry,
       activeFormId: getActiveFormId(),
       setFormValue: onFormValueChange,
+      setComponentProp,
       navigate: (url, params) => adapter.navigate(url, params),
       apiRequest: (config) => adapter.api.request(config),
       showModal: (modalId: string, data?: any) => modalStack.open(modalId, data),
@@ -313,7 +324,7 @@ export function PageRenderer(config: RendererConfig) {
         return dependencyGraph.analyzeChangeImpact(changedPaths);
       },
     }),
-    [runtimeContext, formRegistry, getActiveFormId, adapter, onFormValueChange, modalStack, componentRefreshManager, dependencyGraph],
+    [runtimeContext, formRegistry, getActiveFormId, adapter, onFormValueChange, setComponentProp, modalStack, componentRefreshManager, dependencyGraph],
   );
 
   // 渲染单个组件节点
@@ -339,7 +350,7 @@ export function PageRenderer(config: RendererConfig) {
 
       const registration = registry.resolve(node.type);
       if (!registration && !isCard) {
-        console.warn(`Component type "${node.type}" not found in registry`);
+        console.warn(`[PageRenderer] "${node.type}" not in registry, available:`, registry.list().map(r => r.type).join(', '));
         return (
           <div key={node.id} className={`lc-did-${node.id}`}>
             <span style={{ color: '#999' }}>未找到组件: {node.type}</span>
@@ -367,7 +378,7 @@ export function PageRenderer(config: RendererConfig) {
         .filter(Boolean)
         .map((child) => renderNode(child!));
 
-      // Form 组件：子树内的 $form 绑定指向当前表单实例
+      // Form 组件：子树内的 $component.formId.$form 绑定指向当前表单实例
       const isFormComponent = node.type === 'form';
       if (isFormComponent && childElements.length > 0) {
         childElements = [
@@ -410,6 +421,12 @@ export function PageRenderer(config: RendererConfig) {
               resolvedProps.value = ruleResult.setValues[node.id];
             }
 
+            // 10.5. 合并 setValues 运行时覆盖
+            const overrides = componentOverrides[node.id];
+            if (overrides) {
+              resolvedProps = { ...resolvedProps, ...overrides };
+            }
+
             // 11. 构建平台能力 props
             const rawValue = node.props.value;
             let bindField: string | undefined;
@@ -417,12 +434,8 @@ export function PageRenderer(config: RendererConfig) {
             if (rawValue && typeof rawValue === 'object' && rawValue.type === 'variable') {
               const path = rawValue.value;
               if (typeof path === 'string') {
-                // $form.fieldName → 活跃表单
-                if (path.startsWith('$form.')) {
-                  bindField = path.slice(6);
-                }
                 // $component.formId.$form.fieldName → 指定表单
-                else if (path.startsWith('$component.') && path.includes('.$form.')) {
+                if (path.startsWith('$component.') && path.includes('.$form.')) {
                   const formIdx = path.indexOf('.$form.');
                   boundFormId = path.slice('$component.'.length, formIdx);
                   bindField = path.slice(formIdx + '.$form.'.length);
@@ -450,15 +463,18 @@ export function PageRenderer(config: RendererConfig) {
                   }
                 },
               },
+              // Form 组件注册
+              ...(isFormComponent ? { _formRegistry: formRegistry, _formId: node.id } : {}),
             };
 
-            // 12. 合并所有 props
+            // 12. 合并所有 props（node.id 注入为 Form.Item 字段名，保持与 form store key 一致）
+            // 注意：不单独 spread platformProps.events，withPlatform 内部已处理事件绑定
             const finalProps: Record<string, any> = {
               ...resolvedProps,
-              ...platformProps.events,
               ...platformProps,
               style: { ...resolvedProps.style, ...layoutStyle },
               disabled: ruleResult.disabled || resolvedProps.disabled,
+              name: node.id,
             };
 
             return React.createElement(
@@ -481,6 +497,7 @@ export function PageRenderer(config: RendererConfig) {
       registry,
       adapter,
       formRegistry,
+      componentOverrides,
     ],
   );
 

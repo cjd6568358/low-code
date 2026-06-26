@@ -49,6 +49,7 @@ export interface QRCodeProps extends BaseProps {
    * @group 基础属性
    * @priority 12
    * @default "active"
+   * @enumLabels active:激活, expired:已过期, loading:加载中, scanned:已扫描
    */
   status?: 'active' | 'expired' | 'loading' | 'scanned';
 
@@ -56,6 +57,7 @@ export interface QRCodeProps extends BaseProps {
    * 渲染类型
    * @group 基础属性
    * @priority 13
+   * @enumLabels canvas:Canvas, svg:SVG
    */
   type?: 'canvas' | 'svg';
 
@@ -63,6 +65,7 @@ export interface QRCodeProps extends BaseProps {
    * 纠错等级
    * @group 基础属性
    * @priority 14
+   * @enumLabels L:低, M:中, Q:较高, H:高
    */
   errorLevel?: 'L' | 'M' | 'Q' | 'H';
 

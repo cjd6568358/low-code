@@ -720,8 +720,8 @@ private buildDAG(rules: LinkageRule[]): void {
 | Action | 说明 | 参数 |
 |--------|------|------|
 | `apiCall` | 调用接口 | `{ url, method, data?, headers?, responseMapping? }` |
-| `navigate` | 页面跳转 | `{ url, target?: '_self' \| '_blank' }` |
-| `redirect` | 当前页跳转（替换历史） | `{ url }` |
+| `navigate` | 页面跳转 | `{ url, queryParams?: PropValue, target?: '_self' \| '_blank' }` |
+| `redirect` | 当前页跳转（替换历史） | `{ url, queryParams?: PropValue }` |
 
 #### UI 类
 

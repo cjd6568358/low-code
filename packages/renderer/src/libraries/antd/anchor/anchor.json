@@ -10,14 +10,20 @@
     },
     "direction": {
       "type": "string",
-      "enum": [
-        "horizontal",
-        "vertical"
-      ],
       "title": "方向",
       "x-group": "基础属性",
       "x-priority": 11,
-      "default": "vertical"
+      "default": "vertical",
+      "oneOf": [
+        {
+          "const": "horizontal",
+          "title": "水平"
+        },
+        {
+          "const": "vertical",
+          "title": "垂直"
+        }
+      ]
     },
     "affix": {
       "type": "boolean",

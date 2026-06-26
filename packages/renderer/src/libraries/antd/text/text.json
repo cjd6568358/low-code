@@ -10,15 +10,27 @@
     },
     "type": {
       "type": "string",
-      "enum": [
-        "danger",
-        "secondary",
-        "success",
-        "warning"
-      ],
       "title": "文本类型",
       "x-group": "基础属性",
-      "x-priority": 11
+      "x-priority": 11,
+      "oneOf": [
+        {
+          "const": "danger",
+          "title": "危险"
+        },
+        {
+          "const": "secondary",
+          "title": "secondary"
+        },
+        {
+          "const": "success",
+          "title": "成功"
+        },
+        {
+          "const": "warning",
+          "title": "警告"
+        }
+      ]
     },
     "code": {
       "type": "boolean",

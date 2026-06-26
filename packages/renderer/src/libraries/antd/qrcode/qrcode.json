@@ -17,38 +17,68 @@
     },
     "status": {
       "type": "string",
-      "enum": [
-        "active",
-        "expired",
-        "loading",
-        "scanned"
-      ],
       "title": "状态",
       "x-group": "基础属性",
       "x-priority": 12,
-      "default": "active"
+      "default": "active",
+      "oneOf": [
+        {
+          "const": "active",
+          "title": "激活"
+        },
+        {
+          "const": "expired",
+          "title": "已过期"
+        },
+        {
+          "const": "loading",
+          "title": "加载中"
+        },
+        {
+          "const": "scanned",
+          "title": "已扫描"
+        }
+      ]
     },
     "type": {
       "type": "string",
-      "enum": [
-        "canvas",
-        "svg"
-      ],
       "title": "渲染类型",
       "x-group": "基础属性",
-      "x-priority": 13
+      "x-priority": 13,
+      "oneOf": [
+        {
+          "const": "canvas",
+          "title": "Canvas"
+        },
+        {
+          "const": "svg",
+          "title": "SVG"
+        }
+      ]
     },
     "errorLevel": {
       "type": "string",
-      "enum": [
-        "H",
-        "L",
-        "M",
-        "Q"
-      ],
       "title": "纠错等级",
       "x-group": "基础属性",
-      "x-priority": 14
+      "x-priority": 14,
+      "oneOf": [
+        {
+          "const": "H",
+          "title": "高"
+        },
+        {
+          "const": "L",
+          "title": "低"
+        },
+        {
+          "const": "M",
+          "title": "中"
+        },
+        {
+          "const": "Q",
+          "title": "较高"
+        }
+      ]
     },
     "bordered": {
       "type": "boolean",

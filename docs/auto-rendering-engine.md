@@ -272,7 +272,7 @@ interface ControlProps {
 | 表单引擎 | `SubFormConfigurator` | 子表单配置器 |
 | 权限引擎 | `PermissionMatrix` | 权限矩阵编辑器 |
 | 权限引擎 | `DataScopeSelector` | 数据范围选择器 |
-| 内建 | `VariablePicker` | 变量/数据绑定选择器（自动渲染引擎内建，无需注册） |
+| 内建 | `VariableTreeSelector` | 组件变量树选择器（自动渲染引擎内建，无需注册） |
 | 内建 | `ExpressionEditor` | 表达式编辑器（自动渲染引擎内建，无需注册） |
 | 内建 | `CodeEditor` | 代码编辑器 Monaco（自动渲染引擎内建，无需注册） |
 
@@ -436,6 +436,25 @@ Schema 级 `x-layout-mode` 控制整个表单的分组展示方式：
 
 切换模式时会清除已有值。选中变量/表达式后，输入区域显示 Tag 样式的绑定标识（蓝色=变量，橙色=表达式），点击可重新打开变量选择器修改。
 
+#### PropValueField 公共组件
+
+值模式切换逻辑提取为 `PropValueField` 公共组件（`packages/auto-rendering/src/core/PropValueField.tsx`），供 AutoFormRenderer 和 EventActionChainEditor 复用：
+
+```typescript
+interface PropValueFieldProps {
+  mode: ValueMode;                    // 'constant' | 'variable' | 'expression'
+  onModeChange: (mode: ValueMode) => void;
+  value?: unknown;                    // 当前值（变量/表达式模式下显示绑定路径）
+  onOpenPicker?: () => void;          // 变量/表达式模式下点击打开选择器
+  disabled?: boolean;
+  children?: React.ReactNode;         // 常量模式下渲染的控件
+}
+```
+
+导出工具函数：
+- `detectValueMode(val)` — 从 PropValue 对象检测当前模式
+- `extractDisplayValue(val)` — 从值中提取字符串显示值
+
 ### 数据源配置
 
 ```jsonc
@@ -555,17 +574,17 @@ environmentRegistry.registerAvailableTables({
 });
 ```
 
-**VariablePicker 组件自动处理动态注册**：
+**VariableTreeSelector 组件自动处理动态注册**：
 
 ```typescript
-<VariablePicker
+<VariableTreeSelector
   visible={true}
   mode="variable"
   value="$component.input_01.value"
   onChange={handleChange}
   onClear={handleClear}
   onClose={handleClose}
-  // 传入页面组件列表，VariablePicker 打开时自动注册
+  // 传入页面组件列表，VariableTreeSelector 打开时自动注册
   pageComponents={{
     'input_01': { type: 'input', label: '客户名称' },
     'select_02': { type: 'select', label: '客户等级' },
@@ -594,7 +613,7 @@ $component.input_01.loading   — 是否加载中
 
 #### 表达式编辑器
 
-表达式模式下，VariablePicker 使用 Monaco Editor 提供代码编辑能力。
+表达式模式下，ExpressionEditor 使用 Monaco Editor 提供代码编辑能力。
 
 **编辑器结构**：
 - 环境变量说明和示例作为 JSDoc 注释显示在编辑器顶部
@@ -1136,7 +1155,7 @@ interface ExpressionEngine {
 应用加载 / 页面打开
   │
   ▼
-平台内建控件自动注册（VariablePicker、ExpressionEditor、CodeEditor 等）
+平台内建控件自动注册（VariableTreeSelector、ExpressionEditor、CodeEditor 等）
   │
   ▼
 渲染引擎注册组件属性控件（ComponentSelector、StyleEditor、EventActionChainEditor 等）

@@ -16,14 +16,20 @@
     },
     "type": {
       "type": "string",
-      "enum": [
-        "default",
-        "primary"
-      ],
       "title": "类型",
       "x-group": "基础属性",
       "x-priority": 12,
-      "default": "default"
+      "default": "default",
+      "oneOf": [
+        {
+          "const": "default",
+          "title": "默认"
+        },
+        {
+          "const": "primary",
+          "title": "主要"
+        }
+      ]
     },
     "mask": {
       "anyOf": [
@@ -134,23 +140,59 @@
     },
     "placement": {
       "type": "string",
-      "enum": [
-        "bottom",
-        "bottomLeft",
-        "bottomRight",
-        "left",
-        "leftBottom",
-        "leftTop",
-        "right",
-        "rightBottom",
-        "rightTop",
-        "top",
-        "topLeft",
-        "topRight"
-      ],
       "title": "弹出位置",
       "x-group": "高级属性",
-      "x-priority": 22
+      "x-priority": 22,
+      "oneOf": [
+        {
+          "const": "bottom",
+          "title": "底部"
+        },
+        {
+          "const": "bottomLeft",
+          "title": "左下"
+        },
+        {
+          "const": "bottomRight",
+          "title": "右下"
+        },
+        {
+          "const": "left",
+          "title": "左"
+        },
+        {
+          "const": "leftBottom",
+          "title": "左下"
+        },
+        {
+          "const": "leftTop",
+          "title": "左上"
+        },
+        {
+          "const": "right",
+          "title": "右"
+        },
+        {
+          "const": "rightBottom",
+          "title": "右下"
+        },
+        {
+          "const": "rightTop",
+          "title": "右上"
+        },
+        {
+          "const": "top",
+          "title": "顶部"
+        },
+        {
+          "const": "topLeft",
+          "title": "左上"
+        },
+        {
+          "const": "topRight",
+          "title": "右上"
+        }
+      ]
     },
     "scrollIntoViewOptions": {
       "anyOf": [

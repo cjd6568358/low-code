@@ -68,29 +68,47 @@
     },
     "variant": {
       "type": "string",
-      "enum": [
-        "borderless",
-        "filled",
-        "outlined"
-      ],
       "title": "变体",
       "x-group": "基础属性",
       "x-priority": 16,
       "x-no-binding": "",
-      "default": "'outlined'"
+      "default": "'outlined'",
+      "oneOf": [
+        {
+          "const": "borderless",
+          "title": "无边框"
+        },
+        {
+          "const": "filled",
+          "title": "填充"
+        },
+        {
+          "const": "outlined",
+          "title": "描边"
+        }
+      ]
     },
     "size": {
       "type": "string",
-      "enum": [
-        "large",
-        "middle",
-        "small"
-      ],
       "title": "输入框尺寸",
       "x-group": "基础属性",
       "x-priority": 17,
       "x-no-binding": "",
-      "default": "'middle'"
+      "default": "'middle'",
+      "oneOf": [
+        {
+          "const": "large",
+          "title": "大"
+        },
+        {
+          "const": "middle",
+          "title": "居中"
+        },
+        {
+          "const": "small",
+          "title": "小"
+        }
+      ]
     },
     "name": {
       "type": "string",

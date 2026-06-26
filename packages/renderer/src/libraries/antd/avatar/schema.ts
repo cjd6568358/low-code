@@ -31,6 +31,7 @@ export interface AvatarProps extends BaseProps {
    * @group 基础属性
    * @priority 12
    * @default "circle"
+   * @enumLabels circle:圆形, square:方形
    */
   shape?: 'circle' | 'square';
 
@@ -73,6 +74,7 @@ export interface AvatarProps extends BaseProps {
    * 图片 CORS 属性设置
    * @group 高级属性
    * @priority 20
+   * @enumLabels :无, anonymous:匿名, use-credentials:凭证
    */
   crossOrigin?: '' | 'anonymous' | 'use-credentials';
 }

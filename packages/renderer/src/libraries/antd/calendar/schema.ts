@@ -16,6 +16,7 @@ export interface CalendarProps extends BaseProps {
    * @group 基础属性
    * @priority 10
    * @default "month"
+   * @enumLabels month:月, year:年
    */
   mode?: 'month' | 'year';
 

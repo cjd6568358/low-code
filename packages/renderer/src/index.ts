@@ -89,7 +89,11 @@ export { PropertyPanel } from './designer/panels/PropertyPanel';
 export { ConditionBuilder } from './designer/panels/ConditionBuilder'; // 保留导出，供未来使用
 export { EventActionChainEditor } from './designer/panels/EventActionChainEditor';
 export { SaveCardDialog } from './designer/panels/SaveCardDialog';
-export { VariablePicker } from './designer/panels/VariablePicker';
+export { VariableTreeSelector } from './components/VariableTreeSelector';
+export type { VariableTreeSelectorProps, VariableTreeSelectorMultiValue } from './components/VariableTreeSelector';
+export { ExpressionEditor } from './components/ExpressionEditor';
+export type { ExpressionEditorProps } from './components/ExpressionEditor';
+export { TypeMismatchModal } from './components/TypeMismatchModal';
 export { StyleEditor } from './designer/panels/StyleEditor';
 export { DataSourcePanel } from './designer/panels/DataSourcePanel';
 

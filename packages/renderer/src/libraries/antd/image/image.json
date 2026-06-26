@@ -47,35 +47,59 @@
     },
     "crossOrigin": {
       "type": "string",
-      "enum": [
-        "",
-        "anonymous",
-        "use-credentials"
-      ],
       "title": "CORS 属性设置",
       "x-group": "基础属性",
-      "x-priority": 16
+      "x-priority": 16,
+      "oneOf": [
+        {
+          "const": "",
+          "title": "无"
+        },
+        {
+          "const": "anonymous",
+          "title": "匿名"
+        },
+        {
+          "const": "use-credentials",
+          "title": "凭证"
+        }
+      ]
     },
     "loading": {
       "type": "string",
-      "enum": [
-        "eager",
-        "lazy"
-      ],
       "title": "加载策略",
       "x-group": "基础属性",
-      "x-priority": 17
+      "x-priority": 17,
+      "oneOf": [
+        {
+          "const": "eager",
+          "title": "立即加载"
+        },
+        {
+          "const": "lazy",
+          "title": "懒加载"
+        }
+      ]
     },
     "decoding": {
       "type": "string",
-      "enum": [
-        "async",
-        "auto",
-        "sync"
-      ],
       "title": "图片解码方式",
       "x-group": "基础属性",
-      "x-priority": 18
+      "x-priority": 18,
+      "oneOf": [
+        {
+          "const": "async",
+          "title": "异步"
+        },
+        {
+          "const": "auto",
+          "title": "自动"
+        },
+        {
+          "const": "sync",
+          "title": "同步"
+        }
+      ]
     },
     "srcSet": {
       "type": "string",

@@ -38,6 +38,7 @@ export interface DescriptionsProps extends BaseProps {
    * @group 基础属性
    * @priority 13
    * @default "horizontal"
+   * @enumLabels horizontal:水平, vertical:垂直
    */
   layout?: 'horizontal' | 'vertical';
 
@@ -45,6 +46,7 @@ export interface DescriptionsProps extends BaseProps {
    * 尺寸
    * @group 基础属性
    * @priority 14
+   * @enumLabels small:小, middle:居中, large:大
    */
   size?: 'small' | 'middle' | 'large';
 

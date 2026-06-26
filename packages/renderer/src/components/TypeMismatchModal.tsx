@@ -8,7 +8,7 @@
 import React from 'react';
 
 /** 对话框属性 */
-interface TypeMismatchModalProps {
+export interface TypeMismatchModalProps {
   /** 是否显示 */
   visible: boolean;
   /** 属性期望类型 */
@@ -213,5 +213,3 @@ export function TypeMismatchModal(props: TypeMismatchModalProps) {
     </div>
   );
 }
-
-export type { TypeMismatchModalProps };

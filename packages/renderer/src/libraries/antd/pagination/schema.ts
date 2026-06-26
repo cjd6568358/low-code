@@ -61,6 +61,7 @@ export interface PaginationProps extends BaseProps {
    * @group 基础属性
    * @priority 16
    * @no-binding
+   * @enumLabels small:小, default:默认
    */
   size?: 'small' | 'default';
 
@@ -128,6 +129,7 @@ export interface PaginationProps extends BaseProps {
    * @group 基础属性
    * @priority 28
    * @no-binding
+   * @enumLabels start:起始, center:居中, end:结束
    */
   align?: 'start' | 'center' | 'end';
 

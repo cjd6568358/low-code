@@ -95,7 +95,7 @@ export interface TransferProps extends BaseProps {
    * 校验状态
    * @group 高级属性
    * @priority 23
-
+   * @enumLabels warning:警告, error:错误, :无, success:成功, validating:校验中
    */
   status?: 'warning' | 'error' | '' | 'success' | 'validating';
 }

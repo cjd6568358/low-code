@@ -23,6 +23,7 @@ export interface SplitterProps extends BaseProps {
    * @group 基础属性
    * @priority 11
    * @default "horizontal"
+   * @enumLabels horizontal:水平, vertical:垂直
    */
   orientation?: 'horizontal' | 'vertical';
 

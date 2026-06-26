@@ -24,6 +24,7 @@ export interface MessageProps extends BaseProps {
    * 消息类型
    * @group 基础属性
    * @priority 11
+   * @enumLabels info:信息, success:成功, error:错误, warning:警告, loading:加载中
    */
   type?: 'info' | 'success' | 'error' | 'warning' | 'loading';
 

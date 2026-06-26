@@ -72,36 +72,60 @@
     },
     "expandIconPlacement": {
       "type": "string",
-      "enum": [
-        "end",
-        "start"
-      ],
       "title": "图标位置",
       "x-group": "基础属性",
       "x-priority": 16,
-      "default": "start"
+      "default": "start",
+      "oneOf": [
+        {
+          "const": "end",
+          "title": "结束"
+        },
+        {
+          "const": "start",
+          "title": "起始"
+        }
+      ]
     },
     "collapsible": {
       "type": "string",
-      "enum": [
-        "disabled",
-        "header",
-        "icon"
-      ],
       "title": "可折叠触发区域",
       "x-group": "基础属性",
-      "x-priority": 17
+      "x-priority": 17,
+      "oneOf": [
+        {
+          "const": "disabled",
+          "title": "禁用"
+        },
+        {
+          "const": "header",
+          "title": "标题区域"
+        },
+        {
+          "const": "icon",
+          "title": "图标"
+        }
+      ]
     },
     "size": {
       "type": "string",
-      "enum": [
-        "large",
-        "middle",
-        "small"
-      ],
       "title": "尺寸",
       "x-group": "基础属性",
-      "x-priority": 18
+      "x-priority": 18,
+      "oneOf": [
+        {
+          "const": "large",
+          "title": "大"
+        },
+        {
+          "const": "middle",
+          "title": "居中"
+        },
+        {
+          "const": "small",
+          "title": "小"
+        }
+      ]
     },
     "destroyOnHidden": {
       "type": "boolean",

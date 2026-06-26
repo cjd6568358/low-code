@@ -17,6 +17,7 @@ export interface ResultProps extends BaseProps {
    * @group 基础属性
    * @priority 10
    * @default "info"
+   * @enumLabels success:成功, error:错误, info:信息, warning:警告, 404:404, 403:403, 500:500
    */
   status?: 'success' | 'error' | 'info' | 'warning' | '404' | '403' | '500';
 

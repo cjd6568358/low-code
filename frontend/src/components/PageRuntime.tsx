@@ -1,131 +1,77 @@
 /**
  * 页面运行时渲染器
  *
- * 支持：
+ * 基于 PageRenderer 完整渲染引擎，支持：
  * - 页面数据源（表达式求值，结果赋给 $data）
  * - PropValue 格式（字面量/变量引用/表达式）
- * - 响应式组件状态追踪（$component 绑定 + 精准更新）
+ * - 事件动作链（setValues/navigate/showMessage 等全部动作类型）
+ * - 条件规则、联动引擎、组件级数据源
  */
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Spin, App, Watermark } from 'antd';
-import type { PageSchema, ComponentNode, WatermarkConfig } from '@low-code/shared';
-import { antdComponents, ResolvedComponent, isVariableBinding, isExpressionBinding } from '@low-code/renderer';
-import { ReactiveEnvContext } from '@low-code/renderer';
+import type { PageSchema, RenderContext, WatermarkConfig } from '@low-code/shared';
+import { PageRenderer, componentRegistry, antdComponents, antdSchemas, WebAdapter } from '@low-code/renderer';
 import { expressionEngine } from '@low-code/computation';
+import { useNavigate } from 'react-router-dom';
 
 interface PageRuntimeProps {
   appId: string;
   pageId: string;
 }
 
-/** API 请求封装 */
-async function apiRequest(config: { url: string; method?: string; data?: any; params?: Record<string, any> }): Promise<any> {
-  const { url, method = 'GET', data, params } = config;
-  const urlObj = new URL(url, window.location.origin);
-  if (params) {
-    for (const [k, v] of Object.entries(params)) {
-      urlObj.searchParams.set(k, String(v));
-    }
-  }
-  const resp = await fetch(urlObj.toString(), {
-    method,
-    headers: { 'Content-Type': 'application/json' },
-    body: method !== 'GET' && data ? JSON.stringify(data) : undefined,
-  });
-  return resp.json();
-}
-
-/** 创建 $fetch 代理 */
-function createFetchProxy() {
-  return {
-    get: (url: string, config?: any) => apiRequest({ url, method: 'GET', ...config }),
-    post: (url: string, data?: any, config?: any) => apiRequest({ url, method: 'POST', data, ...config }),
-    put: (url: string, data?: any, config?: any) => apiRequest({ url, method: 'PUT', data, ...config }),
-    delete: (url: string, config?: any) => apiRequest({ url, method: 'DELETE', ...config }),
-  };
-}
-
-/** 初始化组件默认值 */
-function initComponentValues(components: ComponentNode[]): Record<string, any> {
-  const values: Record<string, any> = {};
+/** 初始化组件状态（$component 上下文） */
+function initComponentState(components: PageSchema['components']): Record<string, any> {
+  const state: Record<string, any> = {};
   for (const comp of components) {
-    values[comp.id] = {
+    state[comp.id] = {
       value: comp.props?.value ?? comp.props?.defaultValue ?? undefined,
       visible: comp.visible !== false,
       disabled: comp.props?.disabled ?? false,
       loading: false,
     };
   }
-  return values;
-}
-
-/** 从上下文中按路径取值（如 "$user.name" → context.$user.name） */
-function resolveVariablePath(path: string, context: Record<string, any>): any {
-  const segments = path.split('.');
-  let current: any = context;
-  for (const seg of segments) {
-    if (current == null) break;
-    current = current[seg];
-  }
-  return current;
-}
-
-/** 解析水印配置中的变量引用和表达式 */
-function resolveWatermarkProps(
-  config: WatermarkConfig | undefined,
-  context: Record<string, any>,
-): Record<string, any> | null {
-  if (!config) return null;
-  const resolved: Record<string, any> = {};
-  const ctxKeys = Object.keys(context);
-  const ctxValues = Object.values(context);
-
-  for (const [key, rawValue] of Object.entries(config)) {
-    if (key === 'enabled') continue;  // 跳过平台控制字段
-    if (rawValue === undefined || rawValue === null) continue;
-
-    if (isVariableBinding(rawValue)) {
-      // 变量引用：从上下文中按路径取值
-      resolved[key] = resolveVariablePath(rawValue.value, context);
-    } else if (isExpressionBinding(rawValue)) {
-      // 表达式：通过 Function 构造器执行，上下文变量通过参数注入
-      try {
-        const body = rawValue.value.trim();
-        const fn = new Function(...ctxKeys, `return (${body})()`);
-        resolved[key] = fn(...ctxValues);
-      } catch {
-        // 表达式执行失败时跳过
-      }
-    } else {
-      // 字面量
-      resolved[key] = rawValue;
-    }
-  }
-
-  return Object.keys(resolved).length > 0 ? resolved : null;
+  return state;
 }
 
 export default function PageRuntime({ appId, pageId }: PageRuntimeProps) {
   const { message } = App.useApp();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [schema, setSchema] = useState<PageSchema | null>(null);
   const [dataReady, setDataReady] = useState(false);
+  const [dataResult, setDataResult] = useState<any>(undefined);
 
-  // 创建响应式上下文（稳定引用，只创建一次）
-  const reactiveCtx = useMemo(() => new ReactiveEnvContext({
-    $user: {},
-    $platform: { web: true, mobile: false, miniApp: false },
-    $route: { params: {}, query: {}, path: window.location.pathname },
-    $component: {},
-    $data: {},
-    $table: {},
-    $computation: {},
-    $fetch: createFetchProxy(),
-    $workflow: undefined,
-  }), []);
+  // 注册 antd 组件到 componentRegistry（仅首次）
+  const registryReady = useRef(false);
+  useEffect(() => {
+    if (registryReady.current) return;
+    registryReady.current = true;
+    for (const [type, schemaObj] of Object.entries(antdSchemas)) {
+      const existing = componentRegistry.resolve(type);
+      if (!existing) {
+        componentRegistry.register({
+          type,
+          name: (schemaObj as any).title || type,
+          category: 'basic',
+          component: type,
+          propsSchema: schemaObj as any,
+          library: 'antd',
+        });
+      }
+    }
+  }, []);
 
-  // 解析后的水印配置
-  const [resolvedWatermark, setResolvedWatermark] = useState<Record<string, any> | null>(null);
+  // 创建 WebAdapter（稳定引用）
+  const adapter = useMemo(() => {
+    const a = new WebAdapter();
+    for (const [type, comp] of Object.entries(antdComponents)) {
+      a.registerComponent(type, comp as React.ComponentType<any>, 'antd');
+    }
+    return a;
+  }, []);
+
+  // 组件状态（运行时可变）
+  const componentStateRef = useRef<Record<string, any>>({});
 
   // 加载页面 schema + 执行数据源
   useEffect(() => {
@@ -141,27 +87,17 @@ export default function PageRuntime({ appId, pageId }: PageRuntimeProps) {
           setSchema(pageSchema);
 
           // 初始化组件状态
-          const componentValues = initComponentValues(pageSchema.components);
-          reactiveCtx.set('$component', componentValues);
+          componentStateRef.current = initComponentState(pageSchema.components);
 
           // 执行数据源表达式
           if (pageSchema.dataSource) {
             try {
-              const result = await expressionEngine.evaluateAsync(
-                pageSchema.dataSource,
-                reactiveCtx.getContext(),
-              );
-              console.log('[PageRuntime] $data =', result);
-              reactiveCtx.set('$data', result);
+              const ctx = buildContext(componentStateRef.current);
+              const result = await expressionEngine.evaluateAsync(pageSchema.dataSource, ctx);
+              setDataResult(result);
             } catch (e) {
               console.warn('[PageRuntime] 数据源表达式执行失败:', e);
             }
-          }
-
-          // 解析水印配置（数据源执行后，上下文已就绪）
-          if (pageSchema.watermark?.enabled) {
-            const wm = resolveWatermarkProps(pageSchema.watermark, reactiveCtx.getContext());
-            setResolvedWatermark(wm);
           }
 
           if (!cancelled) {
@@ -177,64 +113,50 @@ export default function PageRuntime({ appId, pageId }: PageRuntimeProps) {
       }
     })();
     return () => { cancelled = true; };
-  }, [appId, pageId, reactiveCtx]);
+  }, [appId, pageId]);
 
-  // 组件值变更回调
-  const handleComponentValueChange = useCallback((componentId: string, value: any) => {
-    const path = `$component.${componentId}`;
-    const current = reactiveCtx.get(path) ?? {};
-    reactiveCtx.set(path, { ...current, value });
-  }, [reactiveCtx]);
+  // 构建 RenderContext
+  const buildContext = useCallback((compState: Record<string, any>): RenderContext => ({
+    user: { id: '', name: '', roles: [], department: '', departmentName: '', position: '' },
+    platform: { web: true, mobile: false, miniApp: false },
+    route: {
+      params: { tenantId: '', appId, pageId },
+      query: Object.fromEntries(new URLSearchParams(window.location.search)),
+      path: window.location.pathname,
+    },
+    component: compState,
+    data: dataResult ?? {},
+    table: {} as any,
+    computation: { evaluate: async () => null },
+    fetch: {
+      get: (url: string, config?: any) => adapter.api.request({ url, method: 'GET', ...config }),
+      post: (url: string, data?: any, config?: any) => adapter.api.request({ url, method: 'POST', data, ...config }),
+      put: (url: string, data?: any, config?: any) => adapter.api.request({ url, method: 'PUT', data, ...config }),
+      delete: (url: string, config?: any) => adapter.api.request({ url, method: 'DELETE', ...config }),
+    },
+  }), [appId, pageId, dataResult, adapter]);
 
-  // 递归渲染组件树
-  const renderNode = (node: ComponentNode): React.ReactNode => {
-    const ComponentImpl = antdComponents[node.type];
-
-    if (!ComponentImpl) {
-      return (
-        <div key={node.id} style={{ padding: 8, color: '#999', fontSize: 12, border: '1px dashed #d9d9d9', borderRadius: 4, margin: 4 }}>
-          未知组件: {node.type}
-        </div>
-      );
+  // 表单值变更回调
+  const handleFormValueChange = useCallback((field: string, value: any) => {
+    // 更新组件状态
+    const parts = field.split('.');
+    if (parts.length >= 1) {
+      const compId = parts[0];
+      const current = componentStateRef.current[compId] || {};
+      componentStateRef.current[compId] = { ...current, value };
     }
+  }, []);
 
-    const childNodes = (node.children || [])
-      .map((id) => schema?.components.find((c) => c.id === id))
-      .filter(Boolean) as ComponentNode[];
+  // 事件回调
+  const handleEvent = useCallback((eventName: string, data: any) => {
+    console.log('[PageRuntime] event:', eventName, data);
+  }, []);
 
-    return (
-      <ResolvedComponent
-        key={node.id}
-        componentId={node.id}
-        rawProps={node.props}
-        context={reactiveCtx.getContext()}
-        reactiveContext={reactiveCtx}
-        expressionEngine={expressionEngine}
-      >
-        {(resolvedProps) => {
-          const enhancedProps = {
-            ...resolvedProps,
-            onChange: (valueOrEvent: any) => {
-              const newValue = valueOrEvent?.target
-                ? valueOrEvent.target.value ?? valueOrEvent.target.checked
-                : valueOrEvent;
-              handleComponentValueChange(node.id, newValue);
-              resolvedProps.onChange?.(valueOrEvent);
-            },
-          };
-
-          if (childNodes.length > 0) {
-            return (
-              <ComponentImpl {...enhancedProps}>
-                {childNodes.map((child) => renderNode(child))}
-              </ComponentImpl>
-            );
-          }
-          return <ComponentImpl {...enhancedProps} />;
-        }}
-      </ResolvedComponent>
-    );
-  };
+  // 组件属性更新回调
+  const handleComponentPropsUpdate = useCallback((componentId: string, props: Record<string, any>) => {
+    const current = componentStateRef.current[componentId] || {};
+    componentStateRef.current[componentId] = { ...current, ...props };
+  }, []);
 
   if (loading || (schema?.dataSource && !dataReady)) {
     return (
@@ -252,26 +174,45 @@ export default function PageRuntime({ appId, pageId }: PageRuntimeProps) {
     );
   }
 
-  const layoutStyle: React.CSSProperties = {
-    display: schema.layout.type === 'grid' ? 'grid' : 'flex',
-    flexDirection: schema.layout.type === 'flex' ? (schema.layout.vertical !== false ? 'column' : 'row') : undefined,
-    flexWrap: schema.layout.type === 'flex' ? (schema.layout.wrap ? 'wrap' : 'nowrap') : undefined,
-    justifyContent: schema.layout.type === 'flex' ? (schema.layout.justify || 'flex-start') : undefined,
-    alignItems: schema.layout.type === 'flex' ? (schema.layout.align || 'stretch') : undefined,
-    gridTemplateColumns: schema.layout.type === 'grid' ? `repeat(${schema.layout.columns || 24}, 1fr)` : undefined,
-    gap: schema.layout.gap ?? 16,
-    padding: 16,
-  };
+  const context = buildContext(componentStateRef.current);
 
-  const rootComponents = schema.components.filter((c) => !c.parentId);
+  // 解析水印配置
+  let resolvedWatermark: Record<string, any> | null = null;
+  if (schema.watermark?.enabled) {
+    resolvedWatermark = {};
+    for (const [key, rawValue] of Object.entries(schema.watermark)) {
+      if (key === 'enabled' || rawValue === undefined || rawValue === null) continue;
+      if (typeof rawValue === 'object' && 'type' in rawValue && 'value' in rawValue) {
+        const binding = rawValue as { type: string; value: string };
+        if (binding.type === 'variable') {
+          const segments = binding.value.split('.');
+          let current: any = context;
+          for (const seg of segments) {
+            if (current == null) break;
+            current = current[seg];
+          }
+          resolvedWatermark[key] = current;
+        } else {
+          resolvedWatermark[key] = binding.value;
+        }
+      } else {
+        resolvedWatermark[key] = rawValue;
+      }
+    }
+  }
 
   const layoutContent = (
-    <div style={layoutStyle}>
-      {rootComponents.map((node) => renderNode(node))}
-    </div>
+    <PageRenderer
+      schema={schema}
+      context={context}
+      adapter={adapter}
+      registry={componentRegistry}
+      onFormValueChange={handleFormValueChange}
+      onEvent={handleEvent}
+      onComponentPropsUpdate={handleComponentPropsUpdate}
+    />
   );
 
-  // 有水印配置时包裹 Watermark 组件
   if (resolvedWatermark) {
     return <Watermark {...resolvedWatermark}>{layoutContent}</Watermark>;
   }

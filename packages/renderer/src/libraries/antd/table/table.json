@@ -28,15 +28,24 @@
     },
     "size": {
       "type": "string",
-      "enum": [
-        "large",
-        "middle",
-        "small"
-      ],
       "title": "尺寸",
       "x-group": "基础属性",
       "x-priority": 14,
-      "default": "'large'"
+      "default": "'large'",
+      "oneOf": [
+        {
+          "const": "large",
+          "title": "大"
+        },
+        {
+          "const": "middle",
+          "title": "居中"
+        },
+        {
+          "const": "small",
+          "title": "小"
+        }
+      ]
     },
     "column": {
       "type": "object",

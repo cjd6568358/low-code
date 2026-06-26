@@ -178,8 +178,8 @@ function inferExpression(expr: string, warnings: AnyTypeWarning[] = []): BaseTyp
   if (/^JSON\.parse\s*\(/.test(expr)) return 'object';
   if (/^\[.*\]$/.test(expr)) return 'array';
 
-  // 3. 变量路径解析
-  if (expr.startsWith('$')) {
+  // 3. 变量路径解析（仅纯变量路径，如 $user.name，排除含运算符的表达式）
+  if (/^\$[a-zA-Z_][a-zA-Z0-9_.]*$/.test(expr)) {
     return inferVariablePathType(expr, warnings);
   }
 
@@ -438,8 +438,8 @@ export function isTypeCompatible(expected: string, actual: string): boolean {
   // 类型相同
   if (expected === actual) return true;
 
-  // null/undefined 兼容所有（可选属性）
-  if (actual === 'null' || actual === 'undefined') return true;
+  // null/undefined 不兼容具体类型（空函数体不应静默通过）
+  if (actual === 'null' || actual === 'undefined') return false;
 
   // number 和 string 可互转
   if ((expected === 'number' && actual === 'string') ||

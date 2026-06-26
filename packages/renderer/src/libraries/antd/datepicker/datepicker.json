@@ -4,18 +4,33 @@
   "properties": {
     "picker": {
       "type": "string",
-      "enum": [
-        "date",
-        "month",
-        "quarter",
-        "week",
-        "year"
-      ],
       "title": "选择器类型",
       "x-group": "基础属性",
       "x-priority": 10,
       "x-no-binding": "",
-      "default": "'date'"
+      "default": "'date'",
+      "oneOf": [
+        {
+          "const": "date",
+          "title": "日期"
+        },
+        {
+          "const": "month",
+          "title": "月"
+        },
+        {
+          "const": "quarter",
+          "title": "季度"
+        },
+        {
+          "const": "week",
+          "title": "周"
+        },
+        {
+          "const": "year",
+          "title": "年"
+        }
+      ]
     },
     "placeholder": {
       "type": "string",
@@ -44,15 +59,24 @@
     },
     "size": {
       "type": "string",
-      "enum": [
-        "large",
-        "middle",
-        "small"
-      ],
       "title": "尺寸",
       "x-group": "基础属性",
       "x-priority": 15,
-      "x-no-binding": ""
+      "x-no-binding": "",
+      "oneOf": [
+        {
+          "const": "large",
+          "title": "大"
+        },
+        {
+          "const": "middle",
+          "title": "居中"
+        },
+        {
+          "const": "small",
+          "title": "小"
+        }
+      ]
     },
     "defaultPickerValue": {
       "type": "string",
@@ -63,40 +87,70 @@
     },
     "variant": {
       "type": "string",
-      "enum": [
-        "borderless",
-        "filled",
-        "outlined",
-        "underlined"
-      ],
       "title": "形态变体",
       "x-group": "高级属性",
       "x-priority": 20,
-      "x-no-binding": ""
+      "x-no-binding": "",
+      "oneOf": [
+        {
+          "const": "borderless",
+          "title": "无边框"
+        },
+        {
+          "const": "filled",
+          "title": "填充"
+        },
+        {
+          "const": "outlined",
+          "title": "描边"
+        },
+        {
+          "const": "underlined",
+          "title": "下划线"
+        }
+      ]
     },
     "status": {
       "type": "string",
-      "enum": [
-        "error",
-        "warning"
-      ],
       "title": "校验状态",
       "x-group": "高级属性",
       "x-priority": 21,
-      "x-no-binding": ""
+      "x-no-binding": "",
+      "oneOf": [
+        {
+          "const": "error",
+          "title": "错误"
+        },
+        {
+          "const": "warning",
+          "title": "警告"
+        }
+      ]
     },
     "placement": {
       "type": "string",
-      "enum": [
-        "bottomLeft",
-        "bottomRight",
-        "topLeft",
-        "topRight"
-      ],
       "title": "弹出位置",
       "x-group": "高级属性",
       "x-priority": 22,
-      "x-no-binding": ""
+      "x-no-binding": "",
+      "oneOf": [
+        {
+          "const": "bottomLeft",
+          "title": "左下"
+        },
+        {
+          "const": "bottomRight",
+          "title": "右下"
+        },
+        {
+          "const": "topLeft",
+          "title": "左上"
+        },
+        {
+          "const": "topRight",
+          "title": "右上"
+        }
+      ]
     },
     "showTime": {
       "type": "boolean",

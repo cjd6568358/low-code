@@ -21,6 +21,7 @@ export interface DropdownProps extends BaseProps {
    * @group 基础属性
    * @priority 11
    * @default "bottomLeft"
+   * @enumLabels topLeft:左上, topCenter:顶部居中, topRight:右上, bottomLeft:左下, bottomCenter:底部居中, bottomRight:右下, top:顶部, bottom:底部
    */
   placement?: 'topLeft' | 'topCenter' | 'topRight' | 'bottomLeft' | 'bottomCenter' | 'bottomRight' | 'top' | 'bottom';
 

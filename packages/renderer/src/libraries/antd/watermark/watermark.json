@@ -60,15 +60,27 @@
         },
         "fontStyle": {
           "type": "string",
-          "enum": [
-            "italic",
-            "none",
-            "normal",
-            "oblique"
-          ],
           "title": "字体样式",
           "x-group": "高级属性",
-          "x-priority": 23
+          "x-priority": 23,
+          "oneOf": [
+            {
+              "const": "italic",
+              "title": "斜体"
+            },
+            {
+              "const": "none",
+              "title": "无"
+            },
+            {
+              "const": "normal",
+              "title": "正常"
+            },
+            {
+              "const": "oblique",
+              "title": "倾斜"
+            }
+          ]
         },
         "fontFamily": {
           "type": "string",
@@ -78,16 +90,31 @@
         },
         "textAlign": {
           "type": "string",
-          "enum": [
-            "center",
-            "end",
-            "left",
-            "right",
-            "start"
-          ],
           "title": "文本对齐方式",
           "x-group": "高级属性",
-          "x-priority": 25
+          "x-priority": 25,
+          "oneOf": [
+            {
+              "const": "center",
+              "title": "居中"
+            },
+            {
+              "const": "end",
+              "title": "结束"
+            },
+            {
+              "const": "left",
+              "title": "左"
+            },
+            {
+              "const": "right",
+              "title": "右"
+            },
+            {
+              "const": "start",
+              "title": "起始"
+            }
+          ]
         }
       }
     },

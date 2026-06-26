@@ -16,37 +16,85 @@
     },
     "placement": {
       "type": "string",
-      "enum": [
-        "bottom",
-        "bottomLeft",
-        "bottomRight",
-        "left",
-        "leftBottom",
-        "leftTop",
-        "right",
-        "rightBottom",
-        "rightTop",
-        "top",
-        "topLeft",
-        "topRight"
-      ],
       "title": "位置",
       "x-group": "基础属性",
       "x-priority": 12,
-      "default": "top"
+      "default": "top",
+      "oneOf": [
+        {
+          "const": "bottom",
+          "title": "底部"
+        },
+        {
+          "const": "bottomLeft",
+          "title": "左下"
+        },
+        {
+          "const": "bottomRight",
+          "title": "右下"
+        },
+        {
+          "const": "left",
+          "title": "左"
+        },
+        {
+          "const": "leftBottom",
+          "title": "左下"
+        },
+        {
+          "const": "leftTop",
+          "title": "左上"
+        },
+        {
+          "const": "right",
+          "title": "右"
+        },
+        {
+          "const": "rightBottom",
+          "title": "右下"
+        },
+        {
+          "const": "rightTop",
+          "title": "右上"
+        },
+        {
+          "const": "top",
+          "title": "顶部"
+        },
+        {
+          "const": "topLeft",
+          "title": "左上"
+        },
+        {
+          "const": "topRight",
+          "title": "右上"
+        }
+      ]
     },
     "trigger": {
       "type": "string",
-      "enum": [
-        "click",
-        "contextMenu",
-        "focus",
-        "hover"
-      ],
       "title": "触发方式",
       "x-group": "基础属性",
       "x-priority": 13,
-      "default": "'hover'"
+      "default": "'hover'",
+      "oneOf": [
+        {
+          "const": "click",
+          "title": "点击"
+        },
+        {
+          "const": "contextMenu",
+          "title": "右键菜单"
+        },
+        {
+          "const": "focus",
+          "title": "聚焦"
+        },
+        {
+          "const": "hover",
+          "title": "悬浮"
+        }
+      ]
     },
     "arrow": {
       "anyOf": [

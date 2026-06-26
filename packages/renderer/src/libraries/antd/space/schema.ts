@@ -17,6 +17,7 @@ export interface SpaceProps extends BaseProps {
    * @group 基础属性
    * @priority 9
    * @default "horizontal"
+   * @enumLabels horizontal:水平, vertical:垂直
    */
   orientation?: 'horizontal' | 'vertical';
 
@@ -54,6 +55,7 @@ export interface SpaceProps extends BaseProps {
    * @group 基础属性
    * @priority 13
    * @default "center"
+   * @enumLabels start:起始, end:结束, center:居中, baseline:基线
    */
   align?: 'start' | 'end' | 'center' | 'baseline';
 

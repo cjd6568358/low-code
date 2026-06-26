@@ -10,39 +10,66 @@
     },
     "mode": {
       "type": "string",
-      "enum": [
-        "alternate",
-        "end",
-        "left",
-        "right",
-        "start"
-      ],
       "title": "模式",
       "x-group": "基础属性",
       "x-priority": 11,
-      "default": "start"
+      "default": "start",
+      "oneOf": [
+        {
+          "const": "alternate",
+          "title": "交替"
+        },
+        {
+          "const": "end",
+          "title": "结束"
+        },
+        {
+          "const": "left",
+          "title": "左"
+        },
+        {
+          "const": "right",
+          "title": "右"
+        },
+        {
+          "const": "start",
+          "title": "起始"
+        }
+      ]
     },
     "orientation": {
       "type": "string",
-      "enum": [
-        "horizontal",
-        "vertical"
-      ],
       "title": "排列方向",
       "x-group": "基础属性",
       "x-priority": 12,
-      "default": "vertical"
+      "default": "vertical",
+      "oneOf": [
+        {
+          "const": "horizontal",
+          "title": "水平"
+        },
+        {
+          "const": "vertical",
+          "title": "垂直"
+        }
+      ]
     },
     "variant": {
       "type": "string",
-      "enum": [
-        "filled",
-        "outlined"
-      ],
       "title": "样式变体",
       "x-group": "基础属性",
       "x-priority": 13,
-      "default": "outlined"
+      "default": "outlined",
+      "oneOf": [
+        {
+          "const": "filled",
+          "title": "填充"
+        },
+        {
+          "const": "outlined",
+          "title": "描边"
+        }
+      ]
     },
     "titleSpan": {
       "type": [

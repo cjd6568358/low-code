@@ -56,6 +56,7 @@ export interface ImageProps extends BaseProps {
    * CORS 属性设置
    * @group 基础属性
    * @priority 16
+   * @enumLabels :无, anonymous:匿名, use-credentials:凭证
    */
   crossOrigin?: '' | 'anonymous' | 'use-credentials';
 
@@ -63,6 +64,7 @@ export interface ImageProps extends BaseProps {
    * 加载策略
    * @group 基础属性
    * @priority 17
+   * @enumLabels lazy:懒加载, eager:立即加载
    */
   loading?: 'lazy' | 'eager';
 
@@ -70,6 +72,7 @@ export interface ImageProps extends BaseProps {
    * 图片解码方式
    * @group 基础属性
    * @priority 18
+   * @enumLabels async:异步, sync:同步, auto:自动
    */
   decoding?: 'async' | 'sync' | 'auto';
 

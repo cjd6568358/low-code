@@ -68,7 +68,8 @@ const RESOURCE_TYPE_MAP = Object.fromEntries(RESOURCE_TYPES.map((r) => [r.key, r
 
 // ─── 资源设计器（按类型分发） ─────────────────────────────────
 
-function ResourceDesigner({ appId, resourceType, resourceId, onSaved }: {
+function ResourceDesigner({ tenantId, appId, resourceType, resourceId, onSaved }: {
+  tenantId: string;
   appId: string;
   resourceType: string;
   resourceId: string;
@@ -77,7 +78,7 @@ function ResourceDesigner({ appId, resourceType, resourceId, onSaved }: {
 }) {
   // 页面类型：使用 PageDesign 组件
   if (resourceType === 'pages') {
-    return <PageDesign appId={appId} pageId={resourceId} onSaved={onSaved} />;
+    return <PageDesign appId={appId} pageId={resourceId} tenantId={tenantId} onSaved={onSaved} />;
   }
 
   // 数据表类型：使用 TableDesign 组件
@@ -582,6 +583,7 @@ export default function AppDesignPage() {
           <Content style={{ background: '#f5f5f5', overflow: 'auto', position: 'relative', flex: 1 }}>
             {activeTab ? (
               <ResourceDesigner
+                tenantId={tid}
                 appId={appId}
                 resourceType={activeTab.resourceType}
                 resourceId={activeTab.resourceId}

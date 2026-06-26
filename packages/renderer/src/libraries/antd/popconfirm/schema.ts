@@ -65,6 +65,7 @@ export interface PopconfirmProps extends BaseProps {
    * @group 基础属性
    * @priority 15
    * @default "primary"
+   * @enumLabels primary:主要, default:默认, dashed:虚线, text:文字, link:链接
    */
   okType?: 'primary' | 'default' | 'dashed' | 'text' | 'link';
 
@@ -94,6 +95,7 @@ export interface PopconfirmProps extends BaseProps {
    * @group 基础属性
    * @priority 19
    * @default "click"
+   * @enumLabels hover:悬浮, focus:聚焦, click:点击, contextMenu:右键菜单
    */
   trigger?: 'hover' | 'focus' | 'click' | 'contextMenu';
 

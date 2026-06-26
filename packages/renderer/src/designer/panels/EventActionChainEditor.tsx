@@ -1,6 +1,40 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import ReactDOM from 'react-dom';
 import type { ActionChain, ActionStep } from '@low-code/shared';
-import { VariablePicker } from './VariablePicker';
+import { PropValueField, detectValueMode } from '@low-code/auto-rendering';
+import type { ValueMode } from '@low-code/auto-rendering';
+import { VariableTreeSelector } from '../../components/VariableTreeSelector';
+import { ExpressionEditor } from '../../components/ExpressionEditor';
+
+/** 应用页面信息（从 API 加载） */
+interface AppPageInfo {
+  id: string;
+  name: string;
+}
+
+/** 加载应用页面列表 */
+function useAppPages(appId?: string): { pages: AppPageInfo[]; loading: boolean } {
+  const [pages, setPages] = useState<AppPageInfo[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!appId) return;
+    let cancelled = false;
+    setLoading(true);
+    fetch(`/api/apps/${appId}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled && data.success) {
+          setPages(data.resources?.pages ?? []);
+        }
+      })
+      .catch(() => { /* ignore */ })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [appId]);
+
+  return { pages, loading };
+}
 
 /** 动作类型列表（设计器事件配置用） */
 const ACTION_TYPES = [
@@ -16,26 +50,21 @@ const ACTION_TYPES = [
   { value: 'showMessage', label: '消息提示' },
   { value: 'triggerWorkflow', label: '触发流程' },
   { value: 'invokeMethod', label: '调用组件方法' },
-  { value: 'copyToClipboard', label: '复制到剪贴板' },
   { value: 'refreshComponent', label: '刷新组件' },
   { value: 'condition', label: '条件分支' },
   { value: 'customScript', label: '自定义脚本' },
 ];
 
-/** 组件方法描述 */
+/** 组件方法描述（卡片实例暴露的方法） */
 export interface ComponentMethod {
   /** 组件实例 ID */
   componentId: string;
   /** 组件类型 */
   componentType: string;
-  /** 方法名（卡片级方法直接用方法名，插槽方法用 slotName.methodName） */
+  /** 方法名 */
   methodName: string;
   /** 显示标签 */
   label: string;
-  /** 是否为插槽方法 */
-  isSlot?: boolean;
-  /** 插槽名（仅插槽方法） */
-  slotName?: string;
   /** 方法描述 */
   description?: string;
 }
@@ -46,16 +75,19 @@ export interface EventActionChainEditorProps {
   onChange: (events: Record<string, ActionChain[]>) => void;
   /** 可选事件列表（从组件 schema 的 x-group: "事件" 属性获取） */
   availableEvents?: Array<{ name: string; title: string }>;
-  /** 页面中可被调用方法的组件列表（含插槽暴露方法） */
+  /** 页面中可被调用方法的组件列表（卡片实例暴露的方法） */
   availableMethods?: ComponentMethod[];
-  /** 页面中可设置值的字段列表 */
-  availableFields?: string[];
+  /** 组件名称列表（含类型和标签，用于 setValues 目标树） */
   /** 页面中的表单组件列表（用于 resetForm/submit/validate/clearValidate） */
   formComponents?: Array<{ id: string; name: string }>;
   /** 页面组件列表（用于 $component 代码提示） */
   pageComponents?: Record<string, { type: string; label?: string }>;
   /** 页面数据源列表（用于 $data 代码提示） */
   pageDataSources?: Record<string, { type: string; description?: string }>;
+  /** 当前应用 ID（用于加载页面列表） */
+  appId?: string;
+  /** 当前租户 ID（用于拼接路由） */
+  tenantId?: string;
 }
 
 /**
@@ -68,9 +100,12 @@ export interface EventActionChainEditorProps {
  * - 条件分支
  */
 export function EventActionChainEditor(props: EventActionChainEditorProps) {
-  const { events, onChange, availableEvents = [], availableMethods = [], availableFields = [], formComponents = [], pageComponents = {}, pageDataSources = {} } = props;
+  const { events, onChange, availableEvents = [], availableMethods = [], formComponents = [], pageComponents = {}, pageDataSources = {}, appId, tenantId } = props;
+  const { pages: appPages } = useAppPages(appId);
   const [editingEvent, setEditingEvent] = useState<string | null>(null);
   const [showEventSelector, setShowEventSelector] = useState(false);
+  const addEventBtnRef = useRef<HTMLButtonElement>(null);
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number; width: number }>({ top: 0, left: 0, width: 0 });
 
   // 过滤掉已配置的事件
   const configuredEvents = Object.keys(events);
@@ -93,7 +128,7 @@ export function EventActionChainEditor(props: EventActionChainEditorProps) {
     const chains = events[eventName] || [[]];
     const newChains = chains.map((chain, i) =>
       i === chainIndex
-        ? [...chain, { action: 'message', params: { type: 'info', content: '' } }]
+        ? [...chain, { action: 'showMessage', params: {} }]
         : chain,
     );
     onChange({ ...events, [eventName]: newChains });
@@ -114,27 +149,6 @@ export function EventActionChainEditor(props: EventActionChainEditorProps) {
     const newChains = chains.map((chain, ci) =>
       ci === chainIndex ? chain.filter((_, si) => si !== stepIndex) : chain,
     );
-    onChange({ ...events, [eventName]: newChains });
-  };
-
-  const handleAddCondition = (eventName: string, chainIndex: number, stepIndex: number) => {
-    const chains = events[eventName] || [[]];
-    const newChains = chains.map((chain, ci) => {
-      if (ci !== chainIndex) return chain;
-      return chain.map((step, si) => {
-        if (si !== stepIndex) return step;
-        return {
-          ...step,
-          action: 'condition',
-          params: {
-            ...step.params,
-            condition: step.params?.condition || '',
-            then: step.params?.then || [{ action: 'message', params: { type: 'info', content: '' } }],
-            else: step.params?.else || [],
-          },
-        };
-      });
-    });
     onChange({ ...events, [eventName]: newChains });
   };
 
@@ -169,12 +183,13 @@ export function EventActionChainEditor(props: EventActionChainEditorProps) {
                       index={stepIndex}
                       onUpdate={(updated) => handleUpdateAction(eventName, chainIndex, stepIndex, updated)}
                       onDelete={() => handleDeleteAction(eventName, chainIndex, stepIndex)}
-                      onAddCondition={() => handleAddCondition(eventName, chainIndex, stepIndex)}
                       availableMethods={availableMethods}
-                      availableFields={availableFields}
                       formComponents={formComponents}
                       pageComponents={pageComponents}
                       pageDataSources={pageDataSources}
+                      appId={appId}
+                      tenantId={tenantId}
+                      appPages={appPages}
                     />
                   ))}
                   <button onClick={() => handleAddAction(eventName, chainIndex)}
@@ -191,34 +206,48 @@ export function EventActionChainEditor(props: EventActionChainEditorProps) {
       {/* 添加事件按钮 */}
       {unconfiguredEvents.length > 0 && (
         <div style={{ position: 'relative' }}>
-          <button onClick={() => setShowEventSelector(!showEventSelector)}
+          <button
+            ref={addEventBtnRef}
+            onClick={() => {
+              if (!showEventSelector && addEventBtnRef.current) {
+                const rect = addEventBtnRef.current.getBoundingClientRect();
+                setDropdownPos({ top: rect.top - 4, left: rect.left, width: rect.width });
+              }
+              setShowEventSelector(!showEventSelector);
+            }}
             style={{ padding: '6px 12px', border: '1px dashed #1890ff', borderRadius: '4px', cursor: 'pointer', backgroundColor: '#e6f7ff', color: '#1890ff', width: '100%' }}>
             + 添加事件
           </button>
 
-          {/* 事件选择下拉框 */}
-          {showEventSelector && (
-            <div style={{
-              position: 'absolute', bottom: '100%', left: 0, right: 0, marginBottom: '4px',
-              backgroundColor: '#fff', border: '1px solid #d9d9d9', borderRadius: '4px',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.15)', zIndex: 10, maxHeight: '200px', overflow: 'auto',
-            }}>
-              {unconfiguredEvents.map((event) => (
-                <div
-                  key={event.name}
-                  onClick={() => handleAddEvent(event.name)}
-                  style={{
-                    padding: '8px 12px', cursor: 'pointer', fontSize: '12px',
-                    borderBottom: '1px solid #f0f0f0',
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f5f5f5')}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#fff')}
-                >
-                  <div style={{ fontWeight: 500 }}>{event.title}</div>
-                  <div style={{ fontSize: '11px', color: '#999' }}>{event.name}</div>
-                </div>
-              ))}
-            </div>
+          {/* 事件选择下拉框 — portal 到 body 避免被 overflow 容器裁剪 */}
+          {showEventSelector && ReactDOM.createPortal(
+            <>
+              <div onClick={() => setShowEventSelector(false)} style={{ position: 'fixed', inset: 0, zIndex: 9999 }} />
+              <div style={{
+                position: 'fixed',
+                top: dropdownPos.top - 4, left: dropdownPos.left, width: dropdownPos.width,
+                transform: 'translateY(-100%)',
+                backgroundColor: '#fff', border: '1px solid #d9d9d9', borderRadius: '4px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.15)', zIndex: 10000, maxHeight: '200px', overflow: 'auto',
+              }}>
+                {unconfiguredEvents.map((event) => (
+                  <div
+                    key={event.name}
+                    onClick={() => { handleAddEvent(event.name); setShowEventSelector(false); }}
+                    style={{
+                      padding: '8px 12px', cursor: 'pointer', fontSize: '12px',
+                      borderBottom: '1px solid #f0f0f0',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f5f5f5')}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#fff')}
+                  >
+                    <div style={{ fontWeight: 500 }}>{event.title}</div>
+                    <div style={{ fontSize: '11px', color: '#999' }}>{event.name}</div>
+                  </div>
+                ))}
+              </div>
+            </>,
+            document.body
           )}
         </div>
       )}
@@ -234,21 +263,26 @@ export function EventActionChainEditor(props: EventActionChainEditorProps) {
 
 /** 单个动作步骤编辑器 */
 function ActionStepEditor({
-  step, index, onUpdate, onDelete, onAddCondition, availableMethods, availableFields, formComponents,
+  step, index, onUpdate, onDelete, availableMethods, formComponents,
   pageComponents = {}, pageDataSources = {}, excludeActions = [],
+  appId, tenantId, appPages = [],
 }: {
   step: ActionStep;
   index: number;
   onUpdate: (step: ActionStep) => void;
   onDelete: () => void;
-  onAddCondition: () => void;
   availableMethods: ComponentMethod[];
-  availableFields: string[];
   formComponents: Array<{ id: string; name: string }>;
   pageComponents?: Record<string, { type: string; label?: string }>;
   pageDataSources?: Record<string, { type: string; description?: string }>;
   /** 需要排除的动作类型列表（如条件分支内禁止嵌套条件分支） */
   excludeActions?: string[];
+  /** 当前应用 ID（用于拼接路由） */
+  appId?: string;
+  /** 当前租户 ID（用于拼接路由） */
+  tenantId?: string;
+  /** 当前应用页面列表（用于页面选择） */
+  appPages?: AppPageInfo[];
 }) {
   // 过滤可用动作类型
   const filteredActionTypes = useMemo(
@@ -257,36 +291,43 @@ function ActionStepEditor({
   );
 
   return (
-    <div style={{ padding: '8px', border: '1px solid #e8e8e8', borderRadius: '4px', marginBottom: '8px', backgroundColor: '#fff' }}>
+    <div style={{ padding: '8px', border: '1px solid #e8e8e8', borderRadius: '4px', marginBottom: '8px', backgroundColor: '#fff', opacity: step.disabled ? 0.5 : 1 }}>
       <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px' }}>
         <span style={{ fontSize: '11px', color: '#999', minWidth: '20px' }}>#{index + 1}</span>
         <select value={step.action}
           onChange={(e) => {
             const newAction = e.target.value;
             // 切换动作类型时重置参数
-            const resetParams = newAction === 'invokeMethod' ? { target: '', method: '', params: {} } : {};
-            onUpdate({ ...step, action: newAction, params: resetParams });
+            const resetParamsMap: Record<string, Record<string, any>> = {
+              invokeMethod: { target: '', method: '', params: {} },
+              setValues: { values: {} },
+            };
+            onUpdate({ ...step, action: newAction, params: resetParamsMap[newAction] ?? {} });
           }}
           style={{ flex: 1, padding: '4px 8px', border: '1px solid #d9d9d9', borderRadius: '4px', fontSize: '12px' }}>
           {filteredActionTypes.map((opt) => (
             <option key={opt.value} value={opt.value}>{opt.label}</option>
           ))}
         </select>
-        <button onClick={onAddCondition}
-          style={{ padding: '2px 6px', border: '1px solid #faad14', borderRadius: '3px', color: '#faad14', cursor: 'pointer', backgroundColor: '#fff', fontSize: '11px' }}>条件</button>
+        <div
+          onClick={() => onUpdate({ ...step, disabled: !step.disabled })}
+          title={step.disabled ? '启用' : '禁用'}
+          style={{
+            width: 28, height: 16, borderRadius: 8, cursor: 'pointer', flexShrink: 0,
+            backgroundColor: step.disabled ? '#d9d9d9' : '#52c41a',
+            position: 'relative', transition: 'background-color 0.2s',
+          }}
+        >
+          <div style={{
+            width: 12, height: 12, borderRadius: '50%', backgroundColor: '#fff',
+            position: 'absolute', top: 2,
+            left: step.disabled ? 2 : 14, transition: 'left 0.2s',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
+          }} />
+        </div>
         <button onClick={onDelete}
           style={{ padding: '2px 6px', border: '1px solid #ff4d4f', borderRadius: '3px', color: '#ff4d4f', cursor: 'pointer', backgroundColor: '#fff', fontSize: '11px' }}>删除</button>
       </div>
-
-      {/* 条件表达式 */}
-      {step.condition && (
-        <div style={{ marginBottom: '8px' }}>
-          <label style={{ display: 'block', fontSize: '11px', color: '#999', marginBottom: '2px' }}>执行条件</label>
-          <input value={step.condition} onChange={(e) => onUpdate({ ...step, condition: e.target.value })}
-            placeholder="条件表达式（支持 $event、$result 等环境变量）"
-            style={{ width: '100%', padding: '4px 8px', border: '1px solid #d9d9d9', borderRadius: '4px', fontSize: '12px', boxSizing: 'border-box' }} />
-        </div>
-      )}
 
       {/* 参数编辑 */}
       {step.action === 'condition' ? (
@@ -294,10 +335,13 @@ function ActionStepEditor({
           params={step.params || {}}
           onChange={(params) => onUpdate({ ...step, params })}
           availableMethods={availableMethods}
-          availableFields={availableFields}
+
           formComponents={formComponents}
           pageComponents={pageComponents}
           pageDataSources={pageDataSources}
+          appId={appId}
+          tenantId={tenantId}
+          appPages={appPages}
         />
       ) : (
         <ParamsEditor
@@ -305,10 +349,13 @@ function ActionStepEditor({
           params={step.params || {}}
           onChange={(params) => onUpdate({ ...step, params })}
           availableMethods={availableMethods}
-          availableFields={availableFields}
+
           formComponents={formComponents}
           pageComponents={pageComponents}
           pageDataSources={pageDataSources}
+          appId={appId}
+          tenantId={tenantId}
+          appPages={appPages}
         />
       )}
     </div>
@@ -317,49 +364,98 @@ function ActionStepEditor({
 
 /** 参数编辑器 */
 function ParamsEditor({
-  action, params, onChange, availableMethods, availableFields, formComponents,
+  action, params, onChange, availableMethods, formComponents,
   pageComponents = {}, pageDataSources = {},
+  appId, tenantId, appPages = [],
 }: {
   action: string;
   params: Record<string, any>;
   onChange: (params: Record<string, any>) => void;
   availableMethods: ComponentMethod[];
-  availableFields: string[];
   formComponents: Array<{ id: string; name: string }>;
   pageComponents?: Record<string, { type: string; label?: string }>;
   pageDataSources?: Record<string, { type: string; description?: string }>;
+  /** 当前应用 ID（用于拼接路由） */
+  appId?: string;
+  /** 当前租户 ID（用于拼接路由） */
+  tenantId?: string;
+  /** 当前应用页面列表（用于页面选择） */
+  appPages?: AppPageInfo[];
 }) {
   switch (action) {
     case 'navigate':
+    case 'redirect': {
+      const linkType = params.linkType ?? 'internal';
       return (
         <div>
-          <ParamField label="URL">
-            <input value={params.url ?? ''} onChange={(e) => onChange({ ...params, url: e.target.value })}
-              style={inputStyle} placeholder="/detail/${id}" />
-          </ParamField>
-          <ParamField label="目标">
-            <select value={params.target ?? '_self'} onChange={(e) => onChange({ ...params, target: e.target.value })} style={inputStyle}>
-              <option value="_self">当前窗口</option>
-              <option value="_blank">新窗口</option>
+          <ParamField label="链接类型">
+            <select value={linkType} onChange={(e) => {
+              const next = e.target.value;
+              onChange({ ...params, linkType: next, url: '', pageId: undefined });
+            }} style={inputStyle}>
+              <option value="internal">平台内页面</option>
+              <option value="external">外部链接</option>
             </select>
           </ParamField>
+
+          {linkType === 'internal' ? (
+            <>
+              <ParamField label="目标页面">
+                <select value={params.pageId ?? ''} onChange={(e) => {
+                  const selectedPageId = e.target.value;
+                  if (!selectedPageId) {
+                    onChange({ ...params, pageId: undefined, url: '' });
+                  } else {
+                    const url = `/${tenantId ?? ''}/app/${appId ?? ''}/page/${selectedPageId}`;
+                    onChange({ ...params, pageId: selectedPageId, url });
+                  }
+                }} style={inputStyle}>
+                  <option value="">请选择页面</option>
+                  {appPages.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </ParamField>
+              <ParamField label="查询参数">
+                <QueryParamsPicker
+                  value={params.queryParams}
+                  onChange={(qp) => {
+                    if (!qp) {
+                      const { queryParams: _, ...rest } = params;
+                      onChange(rest);
+                    } else {
+                      onChange({ ...params, queryParams: qp });
+                    }
+                  }}
+                  pageComponents={pageComponents}
+                  pageDataSources={pageDataSources}
+                />
+              </ParamField>
+            </>
+          ) : (
+            <ParamField label="URL">
+              <input value={params.url ?? ''} onChange={(e) => onChange({ ...params, url: e.target.value })}
+                style={inputStyle} placeholder="https://example.com 或 /path/{{id}}" />
+            </ParamField>
+          )}
+
+          {action === 'navigate' && (
+            <ParamField label="目标">
+              <select value={params.target ?? '_self'} onChange={(e) => onChange({ ...params, target: e.target.value })} style={inputStyle}>
+                <option value="_self">当前窗口</option>
+                <option value="_blank">新窗口</option>
+              </select>
+            </ParamField>
+          )}
         </div>
       );
-
-    case 'redirect':
-      return (
-        <ParamField label="URL">
-          <input value={params.url ?? ''} onChange={(e) => onChange({ ...params, url: e.target.value })}
-            style={inputStyle} placeholder="/page/${id}" />
-        </ParamField>
-      );
+    }
 
     case 'setValues':
       return (
         <SetValuesEditor
           values={params.values || {}}
           onChange={(values) => onChange({ ...params, values })}
-          availableFields={availableFields}
           pageComponents={pageComponents}
           pageDataSources={pageDataSources}
         />
@@ -368,38 +464,38 @@ function ParamsEditor({
     case 'resetForm':
     case 'validate':
     case 'clearValidate':
-      return (
-        <ParamField label="表单">
-          <select value={params.formId ?? ''} onChange={(e) => onChange({ ...params, formId: e.target.value })} style={inputStyle}>
-            <option value="">请选择表单</option>
-            {formComponents.map((form) => (
-              <option key={form.id} value={form.id}>{form.name}</option>
-            ))}
-          </select>
-        </ParamField>
-      );
-
-    case 'submit':
+    case 'submit': {
+      const defaultFormId = formComponents.length === 1 ? formComponents[0].id : '';
+      const currentFormId = params.formId ?? defaultFormId;
+      // 唯一表单时自动选中（仅在未设置时）
+      if (formComponents.length === 1 && !params.formId) {
+        setTimeout(() => onChange({ ...params, formId: formComponents[0].id }), 0);
+      }
       return (
         <div>
           <ParamField label="表单">
-            <select value={params.formId ?? ''} onChange={(e) => onChange({ ...params, formId: e.target.value })} style={inputStyle}>
+            <select value={currentFormId} onChange={(e) => onChange({ ...params, formId: e.target.value })} style={inputStyle}>
               <option value="">请选择表单</option>
               {formComponents.map((form) => (
                 <option key={form.id} value={form.id}>{form.name}</option>
               ))}
             </select>
           </ParamField>
-          <ParamField label="提交 API">
-            <input value={params.api ?? ''} onChange={(e) => onChange({ ...params, api: e.target.value })}
-              style={inputStyle} placeholder="/api/submit" />
-          </ParamField>
-          <ParamField label="成功后跳转 (可选)">
-            <input value={params.redirectUrl ?? ''} onChange={(e) => onChange({ ...params, redirectUrl: e.target.value || undefined })}
-              style={inputStyle} placeholder="/success" />
-          </ParamField>
+          {action === 'submit' && (
+            <>
+              <ParamField label="提交 API">
+                <input value={params.api ?? ''} onChange={(e) => onChange({ ...params, api: e.target.value })}
+                  style={inputStyle} placeholder="/api/submit" />
+              </ParamField>
+              <ParamField label="成功后跳转 (可选)">
+                <input value={params.redirectUrl ?? ''} onChange={(e) => onChange({ ...params, redirectUrl: e.target.value || undefined })}
+                  style={inputStyle} placeholder="/success" />
+              </ParamField>
+            </>
+          )}
         </div>
       );
+    }
 
     case 'invokeMethod': {
       // 按组件分组的方法列表
@@ -434,26 +530,11 @@ function ParamsEditor({
                 onChange={(e) => onChange({ ...params, method: e.target.value })}
                 style={inputStyle}>
                 <option value="">请选择方法</option>
-                {/* 卡片级方法 */}
-                {targetMethods.filter((m) => !m.isSlot).length > 0 && (
-                  <optgroup label="卡片方法">
-                    {targetMethods.filter((m) => !m.isSlot).map((m) => (
-                      <option key={m.methodName} value={m.methodName}>
-                        {m.label} {m.description ? `— ${m.description}` : ''}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-                {/* 插槽暴露方法 */}
-                {targetMethods.filter((m) => m.isSlot).length > 0 && (
-                  <optgroup label="插槽方法">
-                    {targetMethods.filter((m) => m.isSlot).map((m) => (
-                      <option key={m.methodName} value={m.methodName}>
-                        📌 {m.label} {m.description ? `— ${m.description}` : ''}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
+                {targetMethods.map((m) => (
+                  <option key={m.methodName} value={m.methodName}>
+                    {m.label} {m.description ? `— ${m.description}` : ''}
+                  </option>
+                ))}
               </select>
             </ParamField>
           )}
@@ -541,14 +622,6 @@ function ParamsEditor({
         </div>
       );
 
-    case 'copyToClipboard':
-      return (
-        <ParamField label="文本">
-          <input value={params.text ?? ''} onChange={(e) => onChange({ ...params, text: e.target.value })}
-            style={inputStyle} />
-        </ParamField>
-      );
-
     case 'refreshComponent':
       return (
         <div>
@@ -569,7 +642,7 @@ function ParamsEditor({
           <textarea value={params.script ?? ''}
             onChange={(e) => onChange({ ...params, script: e.target.value })}
             rows={6} style={{ ...inputStyle, fontFamily: 'monospace', fontSize: '11px' }}
-            placeholder={`// 可用变量:\n// $event - 原生事件对象\n// $result - 上一个动作的返回值\n// $fetch - HTTP 请求函数\n// $form - 表单数据\n\nawait $fetch('/api/data', {\n  method: 'POST',\n  body: { key: 'value' }\n});`} />
+            placeholder={`// 可用变量:\n// $event - 原生事件对象\n// $result - 上一个动作的返回值\n// $fetch - HTTP 请求函数\n// $component.form_xxx.$form - 表单上下文\n\nawait $fetch('/api/data', {\n  method: 'POST',\n  body: { key: 'value' }\n});`} />
         </ParamField>
       );
 
@@ -584,43 +657,34 @@ function ParamsEditor({
   }
 }
 
-/** setValues 选择器编辑器 */
+/** setValues 选择器编辑器（VariableTreeSelector 选目标 + PropValueField 赋值卡片） */
 function SetValuesEditor({
-  values, onChange, availableFields,
+  values, onChange,
   pageComponents = {}, pageDataSources = {},
 }: {
   values: Record<string, any>;
   onChange: (values: Record<string, any>) => void;
-  availableFields: string[];
   pageComponents?: Record<string, { type: string; label?: string }>;
   pageDataSources?: Record<string, { type: string; description?: string }>;
 }) {
-  const [showFieldSelector, setShowFieldSelector] = useState(false);
-  const [pickerTarget, setPickerTarget] = useState<{ field: string; mode: 'variable' | 'expression' } | null>(null);
-  const entries = Object.entries(values);
+  /** pickerMode: null=关闭, 'target'=选择赋值目标, {field,mode}=编辑某字段的值 */
+  const [pickerMode, setPickerMode] = useState<'target' | { field: string; mode: 'variable' | 'expression' } | null>(null);
 
-  const handleAddField = (field: string) => {
-    onChange({ ...values, [field]: '' });
-    setShowFieldSelector(false);
-  };
+  const entries = Object.entries(values);
 
   const handleUpdateValue = (field: string, value: any) => {
     onChange({ ...values, [field]: value });
   };
 
-  const handleUpdateMode = (field: string, mode: 'constant' | 'variable' | 'expression') => {
-    const currentValue = values[field];
-    let newValue: any;
-
+  const handleModeChange = (field: string, mode: ValueMode) => {
+    const cur = values[field];
+    const curValue = cur && typeof cur === 'object' ? cur.value : cur;
     if (mode === 'constant') {
-      newValue = typeof currentValue === 'object' ? currentValue.value : currentValue;
-    } else if (mode === 'variable') {
-      newValue = { type: 'variable', value: typeof currentValue === 'object' ? currentValue.value : currentValue || '' };
+      handleUpdateValue(field, curValue ?? '');
     } else {
-      newValue = { type: 'expression', value: typeof currentValue === 'object' ? currentValue.value : currentValue || '' };
+      handleUpdateValue(field, { type: mode, value: curValue ?? '' });
+      setPickerMode({ field, mode: mode as 'variable' | 'expression' });
     }
-
-    onChange({ ...values, [field]: newValue });
   };
 
   const handleDeleteField = (field: string) => {
@@ -629,148 +693,164 @@ function SetValuesEditor({
     onChange(newValues);
   };
 
-  // 获取当前值的模式
-  const getValueMode = (value: any): 'constant' | 'variable' | 'expression' => {
-    if (value && typeof value === 'object' && value.type) {
-      return value.type;
-    }
-    return 'constant';
-  };
-
-  // 获取当前值的显示值
-  const getDisplayValue = (value: any): string => {
-    if (value && typeof value === 'object' && value.value !== undefined) {
-      return String(value.value);
-    }
-    return String(value ?? '');
-  };
-
-  // 过滤未选择的字段
-  const unselectedFields = availableFields.filter((f) => !entries.some(([key]) => key === f));
-
   return (
     <div style={{ fontSize: '12px' }}>
       <div style={{ fontWeight: 500, marginBottom: '8px', color: '#333' }}>批量设置值</div>
 
-      {/* 已配置的字段 */}
-      {entries.map(([field, value]) => {
-        const mode = getValueMode(value);
-        const displayValue = getDisplayValue(value);
+      {/* 已配置的赋值卡片 */}
+      {entries.map(([field, fieldValue]) => {
+        const mode = detectValueMode(fieldValue);
 
         return (
           <div key={field} style={{ marginBottom: '8px', padding: '8px', backgroundColor: '#f9f9f9', borderRadius: '4px', border: '1px solid #e8e8e8' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-              <span style={{ fontWeight: 500, color: '#1890ff' }}>{field}</span>
+              <span style={{ fontWeight: 500, color: '#1890ff', fontFamily: 'monospace', fontSize: '12px' }}>{field}</span>
               <button onClick={() => handleDeleteField(field)}
                 style={{ padding: '2px 6px', border: '1px solid #ff4d4f', borderRadius: '3px', color: '#ff4d4f', cursor: 'pointer', backgroundColor: '#fff', fontSize: '11px' }}>
                 删除
               </button>
             </div>
 
-            {/* 赋值模式选择 */}
-            <div style={{ display: 'flex', gap: '4px', marginBottom: '6px' }}>
-              {(['constant', 'variable', 'expression'] as const).map((m) => (
-                <button
-                  key={m}
-                  onClick={() => handleUpdateMode(field, m)}
-                  style={{
-                    padding: '2px 8px', border: `1px solid ${mode === m ? '#1890ff' : '#d9d9d9'}`,
-                    borderRadius: '3px', cursor: 'pointer', fontSize: '11px',
-                    backgroundColor: mode === m ? '#e6f7ff' : '#fff',
-                    color: mode === m ? '#1890ff' : '#666',
-                  }}
-                >
-                  {m === 'constant' ? '常量' : m === 'variable' ? '变量' : '表达式'}
-                </button>
-              ))}
-            </div>
-
-            {/* 值输入 + 选择变量按钮 */}
-            <div style={{ display: 'flex', gap: '4px' }}>
+            <PropValueField
+              mode={mode}
+              onModeChange={(m) => handleModeChange(field, m)}
+              value={fieldValue}
+              onOpenPicker={() => setPickerMode({ field, mode: mode as 'variable' | 'expression' })}
+            >
               <input
-                value={displayValue}
-                onChange={(e) => {
-                  if (mode === 'constant') {
-                    handleUpdateValue(field, e.target.value);
-                  } else {
-                    handleUpdateValue(field, { type: mode, value: e.target.value });
-                  }
-                }}
-                placeholder={mode === 'variable' ? '变量路径，如 $data.name' : mode === 'expression' ? '表达式，如 $event.value * 2' : '静态值'}
-                style={{ ...inputStyle, flex: 1 }}
+                value={typeof fieldValue === 'string' ? fieldValue : ''}
+                onChange={(e) => handleUpdateValue(field, e.target.value)}
+                placeholder="静态值"
+                style={{ ...inputStyle, width: '100%' }}
               />
-              {/* 变量/表达式模式下显示选择按钮 */}
-              {mode !== 'constant' && (
-                <button
-                  onClick={() => setPickerTarget({ field, mode })}
-                  style={{
-                    padding: '4px 8px', border: '1px solid #1890ff', borderRadius: '4px',
-                    cursor: 'pointer', backgroundColor: '#e6f7ff', color: '#1890ff', fontSize: '11px', whiteSpace: 'nowrap',
-                  }}
-                >
-                  选择{mode === 'variable' ? '变量' : '表达式'}
-                </button>
-              )}
-            </div>
+            </PropValueField>
           </div>
         );
       })}
 
-      {/* 添加字段按钮 */}
-      {unselectedFields.length > 0 && (
-        <div style={{ position: 'relative' }}>
-          <button onClick={() => setShowFieldSelector(!showFieldSelector)}
-            style={{ padding: '6px 12px', border: '1px dashed #1890ff', borderRadius: '4px', cursor: 'pointer', backgroundColor: '#e6f7ff', color: '#1890ff', width: '100%', fontSize: '12px' }}>
-            + 添加字段
-          </button>
+      {/* 添加赋值按钮 */}
+      <button
+        onClick={() => setPickerMode('target')}
+        style={{ padding: '6px 12px', border: '1px dashed #1890ff', borderRadius: '4px', cursor: 'pointer', backgroundColor: '#e6f7ff', color: '#1890ff', width: '100%', fontSize: '12px' }}
+      >
+        + 添加赋值
+      </button>
 
-          {/* 字段选择下拉框 */}
-          {showFieldSelector && (
-            <div style={{
-              position: 'absolute', bottom: '100%', left: 0, right: 0, marginBottom: '4px',
-              backgroundColor: '#fff', border: '1px solid #d9d9d9', borderRadius: '4px',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.15)', zIndex: 10, maxHeight: '200px', overflow: 'auto',
-            }}>
-              {unselectedFields.map((field) => (
-                <div
-                  key={field}
-                  onClick={() => handleAddField(field)}
-                  style={{
-                    padding: '8px 12px', cursor: 'pointer', fontSize: '12px',
-                    borderBottom: '1px solid #f0f0f0',
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f5f5f5')}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#fff')}
-                >
-                  {field}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {unselectedFields.length === 0 && availableFields.length > 0 && (
-        <div style={{ textAlign: 'center', color: '#999', padding: '12px', fontSize: '12px' }}>
-          所有可用字段已配置
-        </div>
-      )}
-
-      {/* VariablePicker 弹窗 */}
-      {pickerTarget && (
-        <VariablePicker
-          visible={!!pickerTarget}
-          value={values[pickerTarget.field]}
-          mode={pickerTarget.mode}
+      {/* 赋值目标多选 */}
+      {pickerMode === 'target' && (
+        <VariableTreeSelector
+          visible={true}
+          multiSelect
           onChange={(val) => {
-            handleUpdateValue(pickerTarget.field, val);
-            setPickerTarget(null);
+            const targets = val as Array<{ type: 'variable'; value: string }>;
+            const newValues = { ...values };
+            for (const item of targets) {
+              if (!newValues[item.value]) newValues[item.value] = '';
+            }
+            onChange(newValues);
+            setPickerMode(null);
+          }}
+          onClear={() => setPickerMode(null)}
+          onClose={() => setPickerMode(null)}
+          pageComponents={pageComponents}
+          pageDataSources={pageDataSources}
+        />
+      )}
+
+      {/* 单选变量 */}
+      {pickerMode && pickerMode !== 'target' && pickerMode.mode === 'variable' && (
+        <VariableTreeSelector
+          visible={true}
+          value={values[pickerMode.field]}
+          onChange={(val) => {
+            handleUpdateValue(pickerMode.field, val);
+            setPickerMode(null);
           }}
           onClear={() => {
-            handleUpdateValue(pickerTarget.field, '');
-            setPickerTarget(null);
+            handleUpdateValue(pickerMode.field, '');
+            setPickerMode(null);
           }}
-          onClose={() => setPickerTarget(null)}
+          onClose={() => setPickerMode(null)}
+          pageComponents={pageComponents}
+          pageDataSources={pageDataSources}
+        />
+      )}
+
+      {/* 表达式编辑 */}
+      {pickerMode && pickerMode !== 'target' && pickerMode.mode === 'expression' && (
+        <ExpressionEditor
+          visible={true}
+          value={values[pickerMode.field]}
+          onChange={(val) => {
+            handleUpdateValue(pickerMode.field, val);
+            setPickerMode(null);
+          }}
+          onClear={() => {
+            handleUpdateValue(pickerMode.field, '');
+            setPickerMode(null);
+          }}
+          onClose={() => setPickerMode(null)}
+          pageComponents={pageComponents}
+          pageDataSources={pageDataSources}
+        />
+      )}
+    </div>
+  );
+}
+
+/** 查询参数选择器 — 变量/表达式二选一 */
+function QueryParamsPicker({
+  value, onChange,
+  pageComponents = {}, pageDataSources = {},
+}: {
+  value: unknown;
+  onChange: (val: { type: 'variable' | 'expression'; value: string; async?: boolean } | undefined) => void;
+  pageComponents?: Record<string, { type: string; label?: string }>;
+  pageDataSources?: Record<string, { type: string; description?: string }>;
+}) {
+  const mode = detectValueMode(value);
+  const [pickerMode, setPickerMode] = useState<'variable' | 'expression' | null>(null);
+
+  return (
+    <div style={{ fontSize: 12 }}>
+      <PropValueField
+        modes={['variable', 'expression']}
+        mode={mode}
+        onModeChange={(m) => {
+          if (m === 'constant') return;
+          setPickerMode(m as 'variable' | 'expression');
+          // 首次切换时初始化空值
+          if (mode === 'constant') {
+            onChange({ type: m as 'variable' | 'expression', value: '' });
+          }
+        }}
+        value={value}
+        onOpenPicker={() => setPickerMode(mode as 'variable' | 'expression')}
+      />
+
+      {/* 变量选择器 */}
+      {pickerMode === 'variable' && (
+        <VariableTreeSelector
+          visible={true}
+          value={value as string}
+          onChange={(val) => { onChange(val as { type: 'variable'; value: string }); setPickerMode(null); }}
+          onClear={() => { onChange(undefined); setPickerMode(null); }}
+          onClose={() => setPickerMode(null)}
+          pageComponents={pageComponents}
+          pageDataSources={pageDataSources}
+        />
+      )}
+
+      {/* 表达式编辑器 */}
+      {pickerMode === 'expression' && (
+        <ExpressionEditor
+          visible={true}
+          value={value}
+          expectedType="object"
+          bodyOnly
+          onChange={(val) => { onChange({ type: 'expression', value: val.value, async: val.async }); setPickerMode(null); }}
+          onClear={() => { onChange(undefined); setPickerMode(null); }}
+          onClose={() => setPickerMode(null)}
           pageComponents={pageComponents}
           pageDataSources={pageDataSources}
         />
@@ -781,16 +861,22 @@ function SetValuesEditor({
 
 /** 条件分支编辑器 */
 function ConditionBranchEditor({
-  params, onChange, availableMethods, availableFields, formComponents,
+  params, onChange, availableMethods, formComponents,
   pageComponents = {}, pageDataSources = {},
+  appId, tenantId, appPages = [],
 }: {
   params: Record<string, any>;
   onChange: (params: Record<string, any>) => void;
   availableMethods: ComponentMethod[];
-  availableFields: string[];
   formComponents: Array<{ id: string; name: string }>;
   pageComponents?: Record<string, { type: string; label?: string }>;
   pageDataSources?: Record<string, { type: string; description?: string }>;
+  /** 当前应用 ID（用于拼接路由） */
+  appId?: string;
+  /** 当前租户 ID（用于拼接路由） */
+  tenantId?: string;
+  /** 当前应用页面列表（用于页面选择） */
+  appPages?: AppPageInfo[];
 }) {
   const condition = params.condition || '';
   const thenActions = params.then || [];
@@ -829,25 +915,21 @@ function ConditionBranchEditor({
     <div style={{ fontSize: '12px' }}>
       {/* 条件表达式 — 使用表达式编辑器 */}
       <ParamField label="条件表达式">
-        <div style={{ display: 'flex', gap: '4px' }}>
-          <input
-            value={condition}
-            onChange={(e) => onChange({ ...params, condition: e.target.value })}
-            placeholder="支持 $event、$result 等环境变量"
-            style={{ ...inputStyle, flex: 1 }}
-          />
+        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+          {condition ? (
+            <span style={{ flex: 1, fontFamily: 'monospace', fontSize: '12px', color: '#333', padding: '4px 0', wordBreak: 'break-all' }}>{condition}</span>
+          ) : (
+            <span style={{ flex: 1, color: '#999', fontSize: '12px' }}>未设置条件</span>
+          )}
           <button
             onClick={() => setShowExpressionPicker(true)}
             style={{
               padding: '4px 8px', border: '1px solid #1890ff', borderRadius: '4px',
-              cursor: 'pointer', backgroundColor: '#e6f7ff', color: '#1890ff', fontSize: '11px', whiteSpace: 'nowrap',
+              cursor: 'pointer', backgroundColor: '#e6f7ff', color: '#1890ff', fontSize: '11px', whiteSpace: 'nowrap', flexShrink: 0,
             }}
           >
-            编辑表达式
+            {condition ? '编辑' : '设置条件'}
           </button>
-        </div>
-        <div style={{ fontSize: '11px', color: '#999', marginTop: '4px' }}>
-          示例: $event.value {'>'} 10, $result.success === true
         </div>
       </ParamField>
 
@@ -863,12 +945,14 @@ function ConditionBranchEditor({
             index={index}
             onUpdate={(updated) => handleUpdateThenAction(index, updated)}
             onDelete={() => handleDeleteThenAction(index)}
-            onAddCondition={() => {}}
             availableMethods={availableMethods}
-            availableFields={availableFields}
+
             formComponents={formComponents}
             pageComponents={pageComponents}
             pageDataSources={pageDataSources}
+            appId={appId}
+            tenantId={tenantId}
+            appPages={appPages}
             excludeActions={['condition']}
           />
         ))}
@@ -890,12 +974,14 @@ function ConditionBranchEditor({
             index={index}
             onUpdate={(updated) => handleUpdateElseAction(index, updated)}
             onDelete={() => handleDeleteElseAction(index)}
-            onAddCondition={() => {}}
             availableMethods={availableMethods}
-            availableFields={availableFields}
+
             formComponents={formComponents}
             pageComponents={pageComponents}
             pageDataSources={pageDataSources}
+            appId={appId}
+            tenantId={tenantId}
+            appPages={appPages}
             excludeActions={['condition']}
           />
         ))}
@@ -907,10 +993,9 @@ function ConditionBranchEditor({
 
       {/* 表达式编辑器弹窗 */}
       {showExpressionPicker && (
-        <VariablePicker
+        <ExpressionEditor
           visible={showExpressionPicker}
-          value={{ type: 'expression', value: condition }}
-          mode="expression"
+          value={condition}
           onChange={(val) => {
             onChange({ ...params, condition: val.value });
             setShowExpressionPicker(false);

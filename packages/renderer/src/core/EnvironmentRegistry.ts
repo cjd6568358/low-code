@@ -180,22 +180,6 @@ class EnvironmentRegistryImpl {
         { name: 'error', type: 'string | null', description: '错误信息（如果失败）' },
       ],
     });
-
-    // $form — 表单数据（仅表达式，表单上下文）
-    this.register({
-      name: '$form',
-      description: '表单数据，仅在表单组件内的事件处理中有效，包含当前表单的所有字段值',
-      modes: ['expression'],
-      properties: [
-        { name: 'values', type: 'Record<string, any>', description: '表单所有字段的当前值' },
-        { name: 'initialValues', type: 'Record<string, any>', description: '表单初始值' },
-        { name: 'errors', type: 'Record<string, string>', description: '表单校验错误信息' },
-        { name: 'touched', type: 'Record<string, boolean>', description: '字段是否被触碰过' },
-        { name: 'dirty', type: 'boolean', description: '表单是否有修改' },
-        { name: 'valid', type: 'boolean', description: '表单是否校验通过' },
-        { name: 'submitting', type: 'boolean', description: '表单是否正在提交' },
-      ],
-    });
   }
 
   /**
@@ -284,13 +268,21 @@ class EnvironmentRegistryImpl {
         { name: 'loading', type: 'boolean', description: '是否加载中' },
       ];
 
-      // Form 组件额外暴露 $form 子属性（表单字段数据）
+      // Form 组件额外暴露 $form 子属性（表单上下文）
       if (info.type === 'form') {
         subProps.push({
           name: '$form',
-          type: 'Record<string, any>',
-          description: '表单字段数据（通过 $form.fieldName 访问字段值）',
-          properties: [], // 动态生成，取决于表单内的子组件
+          type: 'FormContext',
+          description: '表单上下文（通过 $component.formId.$form.values.fieldName 访问字段值，$component.formId.$form.errors 获取校验错误等）',
+          properties: [
+            { name: 'values', type: 'Record<string, any>', description: '表单所有字段的当前值' },
+            { name: 'initialValues', type: 'Record<string, any>', description: '表单初始值' },
+            { name: 'errors', type: 'Record<string, string>', description: '表单校验错误信息' },
+            { name: 'touched', type: 'Record<string, boolean>', description: '字段是否被触碰过' },
+            { name: 'dirty', type: 'boolean', description: '表单是否有修改' },
+            { name: 'valid', type: 'boolean', description: '表单是否校验通过' },
+            { name: 'submitting', type: 'boolean', description: '表单是否正在提交' },
+          ],
         });
       }
 

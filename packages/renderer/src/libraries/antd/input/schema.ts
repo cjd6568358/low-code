@@ -92,6 +92,7 @@ export interface InputProps extends BaseProps {
    * @priority 16
    * @no-binding
    * @default 'outlined'
+   * @enumLabels outlined:描边, borderless:无边框, filled:填充
    */
   variant?: 'outlined' | 'borderless' | 'filled';
 
@@ -101,6 +102,7 @@ export interface InputProps extends BaseProps {
    * @priority 17
    * @no-binding
    * @default 'middle'
+   * @enumLabels small:小, middle:居中, large:大
    */
   size?: 'small' | 'middle' | 'large';
 }

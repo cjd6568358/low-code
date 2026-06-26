@@ -34,13 +34,19 @@
     },
     "size": {
       "type": "string",
-      "enum": [
-        "default",
-        "small"
-      ],
       "title": "尺寸",
       "x-group": "基础属性",
-      "x-priority": 15
+      "x-priority": 15,
+      "oneOf": [
+        {
+          "const": "default",
+          "title": "默认"
+        },
+        {
+          "const": "small",
+          "title": "小"
+        }
+      ]
     },
     "type": {
       "type": "string",
@@ -92,13 +98,19 @@
     },
     "variant": {
       "type": "string",
-      "enum": [
-        "borderless",
-        "outlined"
-      ],
       "title": "卡片变体",
       "x-group": "基础属性",
-      "x-priority": 19
+      "x-priority": 19,
+      "oneOf": [
+        {
+          "const": "borderless",
+          "title": "无边框"
+        },
+        {
+          "const": "outlined",
+          "title": "描边"
+        }
+      ]
     },
     "name": {
       "type": "string",

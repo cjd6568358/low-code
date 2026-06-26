@@ -62,6 +62,7 @@ export interface SwitchProps extends BaseProps {
    * @group 基础属性
    * @priority 16
    * @no-binding
+   * @enumLabels small:小, middle:居中
    */
   size?: 'small' | 'middle';
 

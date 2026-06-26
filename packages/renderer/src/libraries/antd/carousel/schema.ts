@@ -37,6 +37,7 @@ export interface CarouselProps extends BaseProps {
    * 动效
    * @group 基础属性
    * @priority 13
+   * @enumLabels scrollx:水平滚动, fade:淡入淡出
    */
   effect?: 'scrollx' | 'fade';
 
@@ -45,6 +46,7 @@ export interface CarouselProps extends BaseProps {
    * @group 基础属性
    * @priority 14
    * @default "bottom"
+   * @enumLabels top:顶部, bottom:底部, start:起始, end:结束
    */
   dotPlacement?: 'top' | 'bottom' | 'start' | 'end';
 
@@ -277,6 +279,7 @@ export interface CarouselProps extends BaseProps {
    * 懒加载模式
    * @group 高级属性
    * @priority 49
+   * @enumLabels ondemand:按需加载, progressive:渐进加载, anticipated:预加载
    */
   lazyLoad?: 'ondemand' | 'progressive' | 'anticipated';
 

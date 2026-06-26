@@ -6,6 +6,29 @@ import type { ControlProps } from '../core/ControlRegistry';
 const { TextArea } = Input;
 
 /**
+ * 从 Schema 中提取选项列表
+ *
+ * 优先级：oneOf（带 title）> enum + optionLabels > enum
+ */
+function extractOptions(schema: ControlProps['schema']): Array<{ label: string; value: unknown }> {
+  // 优先读 oneOf（@enumLabels 生成）
+  if (schema.oneOf) {
+    return schema.oneOf.map((item: { const: unknown; title?: string }) => ({
+      label: item.title || String(item.const),
+      value: item.const,
+    }));
+  }
+  // fallback: enum + optionLabels
+  if (schema.enum) {
+    return schema.enum.map((v: unknown, i: number) => ({
+      label: schema['x-component-props']?.optionLabels?.[i] || String(v),
+      value: v,
+    }));
+  }
+  return [];
+}
+
+/**
  * 基于 antd 的自动渲染控件
  *
  * 设计原则：
@@ -77,11 +100,8 @@ export const AntdAutoSwitch: React.FC<ControlProps> = ({
 export const AntdAutoSelect: React.FC<ControlProps> = ({
   value, onChange, schema, disabled, placeholder, errors, dictionaryService,
 }) => {
-  const [options, setOptions] = useState<Array<{ label: string; value: any }>>(
-    schema.enum?.map((v, i) => ({
-      label: schema['x-component-props']?.optionLabels?.[i] || String(v),
-      value: v,
-    })) || [],
+  const [options, setOptions] = useState<Array<{ label: string; value: unknown }>>(
+    extractOptions(schema),
   );
 
   // 字典加载
@@ -146,10 +166,7 @@ export const AntdAutoTimePicker: React.FC<ControlProps> = ({
 export const AntdAutoCheckbox: React.FC<ControlProps> = ({
   value, onChange, schema, disabled,
 }) => {
-  const options = schema.enum?.map((v, i) => ({
-    label: schema['x-component-props']?.optionLabels?.[i] || String(v),
-    value: v,
-  })) || [];
+  const options = extractOptions(schema);
 
   return (
     <Checkbox.Group
@@ -165,10 +182,7 @@ export const AntdAutoCheckbox: React.FC<ControlProps> = ({
 export const AntdAutoRadio: React.FC<ControlProps> = ({
   value, onChange, schema, disabled,
 }) => {
-  const options = schema.enum?.map((v, i) => ({
-    label: schema['x-component-props']?.optionLabels?.[i] || String(v),
-    value: v,
-  })) || [];
+  const options = extractOptions(schema);
 
   return (
     <Radio.Group

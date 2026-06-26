@@ -49,17 +49,32 @@
     },
     "okType": {
       "type": "string",
-      "enum": [
-        "dashed",
-        "default",
-        "link",
-        "primary",
-        "text"
-      ],
       "title": "确认类型",
       "x-group": "基础属性",
       "x-priority": 15,
-      "default": "primary"
+      "default": "primary",
+      "oneOf": [
+        {
+          "const": "dashed",
+          "title": "虚线"
+        },
+        {
+          "const": "default",
+          "title": "默认"
+        },
+        {
+          "const": "link",
+          "title": "链接"
+        },
+        {
+          "const": "primary",
+          "title": "主要"
+        },
+        {
+          "const": "text",
+          "title": "文字"
+        }
+      ]
     },
     "disabled": {
       "type": "boolean",
@@ -81,16 +96,28 @@
     },
     "trigger": {
       "type": "string",
-      "enum": [
-        "click",
-        "contextMenu",
-        "focus",
-        "hover"
-      ],
       "title": "触发方式",
       "x-group": "基础属性",
       "x-priority": 19,
-      "default": "click"
+      "default": "click",
+      "oneOf": [
+        {
+          "const": "click",
+          "title": "点击"
+        },
+        {
+          "const": "contextMenu",
+          "title": "右键菜单"
+        },
+        {
+          "const": "focus",
+          "title": "聚焦"
+        },
+        {
+          "const": "hover",
+          "title": "悬浮"
+        }
+      ]
     },
     "defaultOpen": {
       "type": "boolean",

@@ -65,6 +65,7 @@ export interface TimePickerProps extends BaseProps {
    * @group 基础属性
    * @priority 17
    * @no-binding
+   * @enumLabels small:小, middle:居中, large:大
    */
   size?: 'small' | 'middle' | 'large';
 
@@ -183,6 +184,7 @@ export interface TimePickerProps extends BaseProps {
    * @group 高级属性
    * @priority 40
    * @no-binding
+   * @enumLabels outlined:描边, filled:填充, borderless:无边框, underlined:下划线
    */
   variant?: 'outlined' | 'filled' | 'borderless' | 'underlined';
 
@@ -191,6 +193,7 @@ export interface TimePickerProps extends BaseProps {
    * @group 高级属性
    * @priority 41
    * @no-binding
+   * @enumLabels error:错误, warning:警告
    */
   status?: 'error' | 'warning';
 
@@ -199,6 +202,7 @@ export interface TimePickerProps extends BaseProps {
    * @group 高级属性
    * @priority 42
    * @no-binding
+   * @enumLabels bottomLeft:左下, bottomRight:右下, topLeft:左上, topRight:右上
    */
   placement?: 'bottomLeft' | 'bottomRight' | 'topLeft' | 'topRight';
 
@@ -245,6 +249,7 @@ export interface TimePickerProps extends BaseProps {
    * @group 高级属性
    * @priority 48
    * @no-binding
+   * @enumLabels ltr:从左到右, rtl:从右到左
    */
   direction?: 'ltr' | 'rtl';
 

@@ -50,6 +50,7 @@ export interface TableProps extends BaseProps {
    * @priority 14
    * @default 'large'
 
+   * @enumLabels small:小, middle:居中, large:大
    */
   size?: 'small' | 'middle' | 'large';
 

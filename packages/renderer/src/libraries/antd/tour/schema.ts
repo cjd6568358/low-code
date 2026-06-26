@@ -31,6 +31,7 @@ export interface TourProps extends BaseProps {
    * @group 基础属性
    * @priority 12
    * @default "default"
+   * @enumLabels default:默认, primary:主要
    */
   type?: 'default' | 'primary';
 
@@ -111,6 +112,7 @@ export interface TourProps extends BaseProps {
    * 弹出位置
    * @group 高级属性
    * @priority 22
+   * @enumLabels top:顶部, left:左, right:右, bottom:底部, topLeft:左上, topRight:右上, bottomLeft:左下, bottomRight:右下, leftTop:左上, leftBottom:左下, rightTop:右上, rightBottom:右下
    */
   placement?: 'top' | 'left' | 'right' | 'bottom' | 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight' | 'leftTop' | 'leftBottom' | 'rightTop' | 'rightBottom';
 

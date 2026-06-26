@@ -17,6 +17,7 @@ export interface FormProps extends BaseProps {
    * @priority 10
    * @no-binding
    * @default "horizontal"
+   * @enumLabels horizontal:水平, vertical:垂直, inline:内联
    */
   layout?: 'horizontal' | 'vertical' | 'inline';
 
@@ -26,6 +27,7 @@ export interface FormProps extends BaseProps {
    * @priority 11
    * @no-binding
    * @default 'right'
+   * @enumLabels left:左, right:右
    */
   labelAlign?: 'left' | 'right';
 
@@ -104,6 +106,7 @@ export interface FormProps extends BaseProps {
    * @group 基础属性
    * @priority 31
    * @no-binding
+   * @enumLabels small:小, middle:居中, large:大
    */
   size?: 'small' | 'middle' | 'large';
 
@@ -112,6 +115,7 @@ export interface FormProps extends BaseProps {
    * @group 基础属性
    * @priority 32
    * @no-binding
+   * @enumLabels outlined:描边, borderless:无边框, filled:填充
    */
   variant?: 'outlined' | 'borderless' | 'filled';
 

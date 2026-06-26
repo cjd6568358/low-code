@@ -22,27 +22,45 @@
     },
     "type": {
       "type": "string",
-      "enum": [
-        "error",
-        "info",
-        "success",
-        "warning"
-      ],
       "title": "类型",
       "x-group": "基础属性",
       "x-priority": 13,
-      "default": "info"
+      "default": "info",
+      "oneOf": [
+        {
+          "const": "error",
+          "title": "错误"
+        },
+        {
+          "const": "info",
+          "title": "信息"
+        },
+        {
+          "const": "success",
+          "title": "成功"
+        },
+        {
+          "const": "warning",
+          "title": "警告"
+        }
+      ]
     },
     "variant": {
       "type": "string",
-      "enum": [
-        "filled",
-        "outlined"
-      ],
       "title": "变体风格",
       "x-group": "基础属性",
       "x-priority": 14,
-      "default": "outlined"
+      "default": "outlined",
+      "oneOf": [
+        {
+          "const": "filled",
+          "title": "填充"
+        },
+        {
+          "const": "outlined",
+          "title": "描边"
+        }
+      ]
     },
     "showIcon": {
       "type": "boolean",

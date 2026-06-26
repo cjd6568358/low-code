@@ -363,7 +363,8 @@ CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);
 - [ ] shared/types/schema.ts — 类型定义
 - [ ] renderer/core/DataBindingResolver.ts — 类型判断
 - [ ] renderer/hooks/useExpressionValue.ts — 类型判断
-- [ ] renderer/designer/panels/VariablePicker.tsx — 保存逻辑
+- [ ] renderer/components/VariableTreeSelector.tsx — 保存逻辑
+- [ ] renderer/components/ExpressionEditor.tsx — 保存逻辑
 - [ ] renderer/designer/panels/DataSourcePanel.tsx — 保存逻辑
 - [ ] docs/render-engine.md — 文档
 - [ ] docs/auto-rendering-engine.md — 文档

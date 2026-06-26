@@ -37,6 +37,7 @@ export interface StepsProps extends BaseProps {
    * @group 基础属性
    * @priority 13
    * @default "horizontal"
+   * @enumLabels horizontal:水平, vertical:垂直
    */
   orientation?: 'horizontal' | 'vertical';
 
@@ -44,6 +45,7 @@ export interface StepsProps extends BaseProps {
    * 尺寸
    * @group 基础属性
    * @priority 14
+   * @enumLabels small:小, default:默认, medium:中
    */
   size?: 'small' | 'default' | 'medium';
 
@@ -51,6 +53,7 @@ export interface StepsProps extends BaseProps {
    * 类型
    * @group 基础属性
    * @priority 15
+   * @enumLabels default:默认, navigation:导航, inline:内联, panel:面板, dot:点状
    */
   type?: 'default' | 'navigation' | 'inline' | 'panel' | 'dot';
 
@@ -58,6 +61,7 @@ export interface StepsProps extends BaseProps {
    * 标题放置位置
    * @group 基础属性
    * @priority 16
+   * @enumLabels horizontal:水平, vertical:垂直
    */
   titlePlacement?: 'horizontal' | 'vertical';
 
@@ -65,6 +69,7 @@ export interface StepsProps extends BaseProps {
    * 状态
    * @group 基础属性
    * @priority 17
+   * @enumLabels wait:等待, process:进行中, finish:完成, error:错误
    */
   status?: 'wait' | 'process' | 'finish' | 'error';
 
@@ -80,6 +85,7 @@ export interface StepsProps extends BaseProps {
    * @group 高级属性
    * @priority 20
    * @default "filled"
+   * @enumLabels filled:填充, outlined:描边
    */
   variant?: 'filled' | 'outlined';
 

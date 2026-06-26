@@ -4,14 +4,20 @@
   "properties": {
     "orientation": {
       "type": "string",
-      "enum": [
-        "horizontal",
-        "vertical"
-      ],
       "title": "布局方向（替代 layout）",
       "x-group": "基础属性",
       "x-priority": 11,
-      "default": "horizontal"
+      "default": "horizontal",
+      "oneOf": [
+        {
+          "const": "horizontal",
+          "title": "水平"
+        },
+        {
+          "const": "vertical",
+          "title": "垂直"
+        }
+      ]
     },
     "vertical": {
       "type": "boolean",

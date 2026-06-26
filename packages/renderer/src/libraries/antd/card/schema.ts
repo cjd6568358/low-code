@@ -51,6 +51,7 @@ export interface CardProps extends BaseProps {
    * 尺寸
    * @group 基础属性
    * @priority 15
+   * @enumLabels default:默认, small:小
    */
   size?: 'default' | 'small';
 
@@ -114,6 +115,7 @@ export interface CardProps extends BaseProps {
    * 卡片变体
    * @group 基础属性
    * @priority 19
+   * @enumLabels borderless:无边框, outlined:描边
    */
   variant?: 'borderless' | 'outlined';
 }

@@ -36,7 +36,7 @@ const X_PREFIX_TAGS = new Set([
   'group', 'priority', 'component', 'visible', 'disabled',
   'dictionary', 'dataSource', 'validator', 'validator-message',
   'placeholder', 'layout', 'layout-mode', 'decorator',
-  'no-binding', 'value-type',
+  'no-binding', 'value-type', 'enumLabels',
 ]);
 
 /** typescript-json-schema 需识别的额外关键字（不带 x- 前缀） */
@@ -230,6 +230,44 @@ export class SchemaCompiler {
       if (key in prop && prop[key] !== undefined) {
         result[key] = prop[key];
       }
+    }
+
+    // @enumLabels → oneOf 生成（必须在 x-* 映射之后）
+    // 支持两种格式：
+    //   @enumLabels 水平, 垂直           → 按 enum 索引一一对应（要求顺序一致）
+    //   @enumLabels horizontal:水平, vertical:垂直  → 按 key 匹配（不受排序影响）
+    if (result.enum && result['x-enumLabels']) {
+      const enumValues = result.enum as unknown[];
+      const rawLabels = String(result['x-enumLabels']).split(/\s*,\s*/);
+
+      // 判断是否为 key:value 格式
+      const isKeyValue = rawLabels.some(l => l.includes(':'));
+
+      if (isKeyValue) {
+        // key:value 格式 → 按 key 匹配
+        const labelMap = new Map<string, string>();
+        for (const item of rawLabels) {
+          const colonIdx = item.indexOf(':');
+          if (colonIdx >= 0) {
+            labelMap.set(item.substring(0, colonIdx), item.substring(colonIdx + 1));
+          }
+        }
+        result.oneOf = enumValues.map(val => ({
+          const: val,
+          title: labelMap.get(String(val)) || String(val),
+        }));
+      } else if (rawLabels.length === enumValues.length) {
+        // 索引格式 → 按位置一一对应
+        result.oneOf = enumValues.map((val, i) => ({
+          const: val,
+          title: rawLabels[i],
+        }));
+      }
+
+      if (result.oneOf) {
+        delete result.enum;
+      }
+      delete result['x-enumLabels'];
     }
 
     // 没有 x-group 的属性默认归入"基础属性"

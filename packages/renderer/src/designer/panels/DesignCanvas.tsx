@@ -463,16 +463,11 @@ export function DesignCanvas({ registry }: DesignCanvasProps) {
 
       // 容器组件
       if (isContainer) {
-        // Form 组件使用 antd 自身布局（layout/labelCol/wrapperCol），不强制注入 flex 样式
         const isForm = node.type === 'form';
-        const containerStyle = isForm ? {} : (node.type === 'flex' || node.type === 'grid') ? {
-          display: 'flex',
-          flexDirection: node.props.vertical !== false ? 'column' : 'row',
-          flexWrap: node.props.wrap ? 'wrap' : 'nowrap',
-          justifyContent: node.props.justify || 'flex-start',
-          alignItems: node.props.align || 'stretch',
-          gap: node.props.gap ?? 8,
-        } : { display: 'flex', flexDirection: 'column', gap: 8 };
+        const isFlexGrid = node.type === 'flex' || node.type === 'grid';
+        // 仅通用容器（非 Form/Flex/Grid）添加默认 flex 布局
+        // Flex/Grid 容器的布局属性由 antd 组件自身处理（通过 node.props 传入）
+        const defaultContainerStyle = (isForm || isFlexGrid) ? {} : { display: 'flex', flexDirection: 'column' as const, gap: 8 };
 
         return (
           <React.Fragment key={node.id}>
@@ -483,13 +478,14 @@ export function DesignCanvas({ registry }: DesignCanvasProps) {
                 name={node.name}
                 {...designProps}
                 style={{
+                  // 设计态 overlay 样式
                   border: '1px dashed #c8c8c8',
                   borderRadius: 6,
                   padding: 8,
-                  // 底部留出空间给拖入区域
                   paddingBottom: childNodes.length > 0 ? 28 : 44,
                   minHeight: 60,
-                  ...containerStyle,
+                  // 非 Form 容器的默认 flex 布局
+                  ...defaultContainerStyle,
                   ...node.props.style,
                 }}
               >
@@ -497,6 +493,10 @@ export function DesignCanvas({ registry }: DesignCanvasProps) {
               </ComponentImpl>
               {/* 拖入区域：absolute 贴底，不受容器布局影响 */}
               <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleSelect(node.id);
+                }}
                 onDragOver={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -530,6 +530,7 @@ export function DesignCanvas({ registry }: DesignCanvasProps) {
                   color: '#bbb', fontSize: 12,
                   border: '1px dashed #d9d9d9',
                   borderRadius: 4,
+                  cursor: 'pointer',
                 }}
               >
                 {childNodes.length > 0 ? '+ 拖入更多' : '拖入组件'}

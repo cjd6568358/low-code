@@ -24,6 +24,7 @@ export interface TextProps extends BaseProps {
    * 文本类型
    * @group 基础属性
    * @priority 11
+   * @enumLabels secondary:secondary, success:成功, warning:警告, danger:危险
    */
   type?: 'secondary' | 'success' | 'warning' | 'danger';
 

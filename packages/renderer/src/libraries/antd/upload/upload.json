@@ -18,14 +18,20 @@
     },
     "type": {
       "type": "string",
-      "enum": [
-        "drag",
-        "select"
-      ],
       "title": "上传类型",
       "x-group": "基础属性",
       "x-priority": 11,
-      "x-no-binding": ""
+      "x-no-binding": "",
+      "oneOf": [
+        {
+          "const": "drag",
+          "title": "拖拽"
+        },
+        {
+          "const": "select",
+          "title": "选择"
+        }
+      ]
     },
     "accept": {
       "type": "string",
@@ -47,17 +53,29 @@
     },
     "listType": {
       "type": "string",
-      "enum": [
-        "picture",
-        "picture-card",
-        "picture-circle",
-        "text"
-      ],
       "title": "列表类型",
       "x-group": "基础属性",
       "x-priority": 15,
       "x-no-binding": "",
-      "default": "text"
+      "default": "text",
+      "oneOf": [
+        {
+          "const": "picture",
+          "title": "picture"
+        },
+        {
+          "const": "picture-card",
+          "title": "picture-card"
+        },
+        {
+          "const": "picture-circle",
+          "title": "picture-circle"
+        },
+        {
+          "const": "text",
+          "title": "文字"
+        }
+      ]
     },
     "disabled": {
       "type": "boolean",
@@ -81,18 +99,36 @@
     },
     "method": {
       "type": "string",
-      "enum": [
-        "PATCH",
-        "POST",
-        "PUT",
-        "patch",
-        "post",
-        "put"
-      ],
       "title": "上传请求方式",
       "x-group": "基础属性",
       "x-priority": 20,
-      "x-no-binding": ""
+      "x-no-binding": "",
+      "oneOf": [
+        {
+          "const": "PATCH",
+          "title": "PATCH"
+        },
+        {
+          "const": "POST",
+          "title": "POST"
+        },
+        {
+          "const": "PUT",
+          "title": "PUT"
+        },
+        {
+          "const": "patch",
+          "title": "PATCH"
+        },
+        {
+          "const": "post",
+          "title": "POST"
+        },
+        {
+          "const": "put",
+          "title": "PUT"
+        }
+      ]
     },
     "headers": {
       "type": "object",
@@ -117,14 +153,20 @@
     },
     "capture": {
       "type": "string",
-      "enum": [
-        "environment",
-        "user"
-      ],
       "title": "文件选择器 capture 属性",
       "x-group": "基础属性",
       "x-priority": 24,
-      "x-no-binding": ""
+      "x-no-binding": "",
+      "oneOf": [
+        {
+          "const": "environment",
+          "title": "环境"
+        },
+        {
+          "const": "user",
+          "title": "用户"
+        }
+      ]
     },
     "showUploadList": {
       "anyOf": [

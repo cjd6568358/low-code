@@ -24,6 +24,7 @@ export interface TagProps extends BaseProps {
    * 变体风格
    * @group 基础属性
    * @priority 11
+   * @enumLabels filled:填充, solid:实心, outlined:描边
    */
   variant?: 'filled' | 'solid' | 'outlined';
 
@@ -71,6 +72,7 @@ export interface TagProps extends BaseProps {
    * 链接打开方式
    * @group 高级属性
    * @priority 21
+   * @enumLabels _self:当前窗口, _blank:新窗口, _parent:父窗口, _top:顶层窗口
    */
   target?: '_self' | '_blank' | '_parent' | '_top';
 

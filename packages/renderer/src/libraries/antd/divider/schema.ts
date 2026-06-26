@@ -57,6 +57,7 @@ export interface DividerProps extends BaseProps {
    * @group 基础属性
    * @priority 15
    * @default "center"
+   * @enumLabels left:左, right:右, center:居中, start:起始, end:结束
    */
   titlePlacement?: 'left' | 'right' | 'center' | 'start' | 'end';
 
@@ -72,6 +73,7 @@ export interface DividerProps extends BaseProps {
    * @group 基础属性
    * @priority 17
    * @default "solid"
+   * @enumLabels dashed:虚线, dotted:点线, solid:实心
    */
   variant?: 'dashed' | 'dotted' | 'solid';
 
@@ -79,6 +81,7 @@ export interface DividerProps extends BaseProps {
    * 大小
    * @group 基础属性
    * @priority 18
+   * @enumLabels small:小, middle:居中, large:大
    */
   size?: 'small' | 'middle' | 'large';
 }

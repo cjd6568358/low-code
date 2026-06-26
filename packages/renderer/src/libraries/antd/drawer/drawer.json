@@ -16,16 +16,28 @@
     },
     "placement": {
       "type": "string",
-      "enum": [
-        "bottom",
-        "left",
-        "right",
-        "top"
-      ],
       "title": "位置",
       "x-group": "基础属性",
       "x-priority": 12,
-      "default": "right"
+      "default": "right",
+      "oneOf": [
+        {
+          "const": "bottom",
+          "title": "底部"
+        },
+        {
+          "const": "left",
+          "title": "左"
+        },
+        {
+          "const": "right",
+          "title": "右"
+        },
+        {
+          "const": "top",
+          "title": "顶部"
+        }
+      ]
     },
     "width": {
       "type": [

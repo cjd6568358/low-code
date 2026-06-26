@@ -90,16 +90,31 @@
     },
     "status": {
       "type": "string",
-      "enum": [
-        "",
-        "error",
-        "success",
-        "validating",
-        "warning"
-      ],
       "title": "校验状态",
       "x-group": "高级属性",
-      "x-priority": 23
+      "x-priority": 23,
+      "oneOf": [
+        {
+          "const": "",
+          "title": "无"
+        },
+        {
+          "const": "error",
+          "title": "错误"
+        },
+        {
+          "const": "success",
+          "title": "成功"
+        },
+        {
+          "const": "validating",
+          "title": "校验中"
+        },
+        {
+          "const": "warning",
+          "title": "警告"
+        }
+      ]
     },
     "name": {
       "type": "string",

@@ -72,6 +72,7 @@ export interface SiderProps extends BaseProps {
    * @group 基础属性
    * @priority 31
    * @default "dark"
+   * @enumLabels light:亮色, dark:暗色
    */
   theme?: 'light' | 'dark';
 
@@ -79,6 +80,7 @@ export interface SiderProps extends BaseProps {
    * 触发响应式布局的断点
    * @group 高级属性
    * @priority 40
+   * @enumLabels xs:xs, sm:sm, md:md, lg:lg, xl:xl, xxl:xxl
    */
   breakpoint?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'xxl';
 

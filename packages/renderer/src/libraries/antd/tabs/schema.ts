@@ -21,6 +21,7 @@ export interface TabsProps extends BaseProps {
    * @group 基础属性
    * @priority 11
    * @default 'line'
+   * @enumLabels line:线条, card:卡片, editable-card:可编辑卡片
    */
   type?: 'line' | 'card' | 'editable-card';
 
@@ -52,6 +53,7 @@ export interface TabsProps extends BaseProps {
    * @group 基础属性
    * @priority 15
    * @default "top"
+   * @enumLabels top:顶部, end:结束, bottom:底部, start:起始
    */
   tabPlacement?: 'top' | 'end' | 'bottom' | 'start';
 
@@ -59,6 +61,7 @@ export interface TabsProps extends BaseProps {
    * 尺寸
    * @group 基础属性
    * @priority 16
+   * @enumLabels small:小, middle:居中, large:大
    */
   size?: 'small' | 'middle' | 'large';
 
@@ -94,6 +97,7 @@ export interface TabsProps extends BaseProps {
    * 方向
    * @group 高级属性
    * @priority 22
+   * @enumLabels ltr:从左到右, rtl:从右到左
    */
   direction?: 'ltr' | 'rtl';
 

@@ -42,7 +42,17 @@ export interface MonacoEditorProps {
   height?: number;
   language?: string;
   completionItems?: CompletionItem[];
+  /** 悬浮提示项（鼠标悬浮在变量名上时显示说明） */
+  hoverItems?: HoverItem[];
   theme?: 'light' | 'dark';
+}
+
+/** 悬浮提示项 */
+export interface HoverItem {
+  /** 变量名（如 $user、$platform） */
+  label: string;
+  /** 悬浮说明 */
+  documentation: string;
 }
 
 /** 自动补全项 */
@@ -66,6 +76,7 @@ export const MonacoEditor = forwardRef<MonacoEditorRef, MonacoEditorProps>((prop
     height = 200,
     language = 'javascript',
     completionItems = [],
+    hoverItems = [],
     theme = 'light',
   } = props;
 
@@ -73,9 +84,11 @@ export const MonacoEditor = forwardRef<MonacoEditorRef, MonacoEditorProps>((prop
   const containerRef = useRef<HTMLDivElement>(null);
   const disposablesRef = useRef<monaco.IDisposable[]>([]);
   const completionItemsRef = useRef<CompletionItem[]>(completionItems);
+  const hoverItemsRef = useRef<HoverItem[]>(hoverItems);
 
-  // 保持 completionItems 引用最新
+  // 保持引用最新
   completionItemsRef.current = completionItems;
+  hoverItemsRef.current = hoverItems;
 
   // 暴露方法给父组件
   useImperativeHandle(ref, () => ({
@@ -255,6 +268,29 @@ export const MonacoEditor = forwardRef<MonacoEditorRef, MonacoEditorProps>((prop
     });
 
     disposablesRef.current.push(completionProvider);
+
+    // 注册悬浮提示提供器
+    const hoverProvider = monaco.languages.registerHoverProvider(language, {
+      provideHover: (model, position) => {
+        const currentHoverItems = hoverItemsRef.current;
+        if (currentHoverItems.length === 0) return null;
+
+        const word = model.getWordAtPosition(position);
+        if (!word) return null;
+
+        const matched = currentHoverItems.find((h) => h.label === word.word);
+        if (!matched) return null;
+
+        return {
+          range: new monaco.Range(
+            position.lineNumber, word.startColumn,
+            position.lineNumber, word.endColumn,
+          ),
+          contents: [{ value: `**${matched.label}** — ${matched.documentation}` }],
+        };
+      },
+    });
+    disposablesRef.current.push(hoverProvider);
 
     return cleanup;
   }, [language, theme, disabled, placeholder]);

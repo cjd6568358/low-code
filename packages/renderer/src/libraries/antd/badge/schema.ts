@@ -56,6 +56,7 @@ export interface BadgeProps extends BaseProps {
    * 状态
    * @group 基础属性
    * @priority 15
+   * @enumLabels success:成功, processing:处理中, default:默认, error:错误, warning:警告
    */
   status?: 'success' | 'processing' | 'default' | 'error' | 'warning';
 
@@ -71,6 +72,7 @@ export interface BadgeProps extends BaseProps {
    * 大小
    * @group 基础属性
    * @priority 17
+   * @enumLabels small:小, default:默认, medium:中
    */
   size?: 'small' | 'default' | 'medium';
 

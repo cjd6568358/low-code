@@ -21,6 +21,7 @@ export interface RowProps extends BaseProps {
    * @group 基础属性
    * @priority 11
    * @default 'start'
+   * @enumLabels start:起始, end:结束, center:居中, space-around:环绕对齐, space-between:两端对齐, space-evenly:均分对齐
    */
   justify?: 'start' | 'end' | 'center' | 'space-around' | 'space-between' | 'space-evenly';
 
@@ -29,6 +30,7 @@ export interface RowProps extends BaseProps {
    * @group 基础属性
    * @priority 12
    * @default 'top'
+   * @enumLabels top:顶部, middle:居中, bottom:底部, stretch:拉伸
    */
   align?: 'top' | 'middle' | 'bottom' | 'stretch';
 

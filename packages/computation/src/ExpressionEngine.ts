@@ -203,10 +203,13 @@ export class DefaultExpressionEngine implements IExpressionEngine {
     const contextKeys = Object.keys(context);
     const contextValues = contextKeys.map((k) => context[k]);
 
-    const sandboxCode = `
-      "use strict";
-      return (${expression});
-    `;
+    const trimmed = expression.trim();
+    const isFunctionDef = /^(async\s+)?(\(.*?\)|[\w]+)\s*=>/.test(trimmed)
+      || /^(async\s+)?function\s/.test(trimmed);
+
+    const sandboxCode = isFunctionDef
+      ? `"use strict"; return (${expression})({${contextKeys.join(',')}});`
+      : `"use strict"; return (${expression});`;
 
     try {
       const fn = new Function(...contextKeys, sandboxCode);
@@ -237,19 +240,13 @@ export class DefaultExpressionEngine implements IExpressionEngine {
     const trimmed = expression.trim();
 
     // 检测是否是函数定义（箭头函数或 function 关键字）
-    // 如果是，自动调用它而不是返回函数引用
+    // 如果是，传入上下文对象作为参数（支持解构），而不是在作用域内直接注入变量
     const isFunctionDef = /^(async\s+)?(\(.*?\)|[\w]+)\s*=>/.test(trimmed)
       || /^(async\s+)?function\s/.test(trimmed);
 
     const sandboxCode = isFunctionDef
-      ? `
-        "use strict";
-        return (async () => { return (${expression})(); })();
-      `
-      : `
-        "use strict";
-        return (async () => { return (${expression}); })();
-      `;
+      ? `"use strict"; return (async () => { return (${expression})({${contextKeys.join(',')}}); })();`
+      : `"use strict"; return (async () => { return (${expression}); })();`;
 
     try {
       const fn = new Function(...contextKeys, sandboxCode);

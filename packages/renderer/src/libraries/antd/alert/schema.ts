@@ -38,6 +38,7 @@ export interface AlertProps extends BaseProps {
    * @group 基础属性
    * @priority 13
    * @default "info"
+   * @enumLabels success:成功, info:信息, warning:警告, error:错误
    */
   type?: 'success' | 'info' | 'warning' | 'error';
 
@@ -46,6 +47,7 @@ export interface AlertProps extends BaseProps {
    * @group 基础属性
    * @priority 14
    * @default "outlined"
+   * @enumLabels outlined:描边, filled:填充
    */
   variant?: 'outlined' | 'filled';
 

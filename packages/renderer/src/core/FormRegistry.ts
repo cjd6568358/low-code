@@ -8,6 +8,7 @@
  */
 
 import type { FormDataContextManager } from './FormDataContext';
+import type { FormInstance } from 'antd';
 
 /** 注册的表单实例信息 */
 export interface FormRegistryEntry {
@@ -26,6 +27,10 @@ export interface FormRegistryEntry {
 export class FormRegistry {
   /** 已注册的表单实例 */
   private forms = new Map<string, FormDataContextManager>();
+  /** antd 表单实例（用于 setFieldsValue 等 API） */
+  private antdForms = new Map<string, FormInstance>();
+  /** 表单重置处理器（Form 组件注册，resetForm 动作调用） */
+  private resetHandlers = new Map<string, (values: Record<string, any>) => void>();
   /** 表单 ID 栈（支持嵌套，栈顶为活跃表单） */
   private formIdStack: string[] = [];
 
@@ -47,9 +52,72 @@ export class FormRegistry {
    */
   unregister(formId: string): void {
     this.forms.delete(formId);
+    this.antdForms.delete(formId);
+    this.resetHandlers.delete(formId);
     const idx = this.formIdStack.lastIndexOf(formId);
     if (idx !== -1) {
       this.formIdStack.splice(idx, 1);
+    }
+  }
+
+  /**
+   * 注册 antd 表单实例
+   *
+   * @param formId - 表单组件节点 ID
+   * @param formInstance - antd Form.useForm() 返回的实例
+   */
+  registerAntdForm(formId: string, formInstance: FormInstance): void {
+    this.antdForms.set(formId, formInstance);
+  }
+
+  /**
+   * 注册表单重置处理器
+   *
+   * Form 组件 mount 时注册，提供直接操作 antd Form 的重置能力。
+   * resetForm 动作通过此方法重置表单，确保 antd Form store 和渲染上下文同步更新。
+   *
+   * @param formId - 表单组件节点 ID
+   * @param handler - 重置处理器，接收要重置到的目标值
+   */
+  registerResetHandler(formId: string, handler: (values: Record<string, any>) => void): void {
+    this.resetHandlers.set(formId, handler);
+  }
+
+  /**
+   * 执行表单重置
+   *
+   * 调用 Form 组件注册的重置处理器，直接操作 antd Form store。
+   * 如果没有注册处理器，回退到 antdForm.setFieldsValue。
+   *
+   * @param formId - 表单 ID
+   * @param values - 要重置到的目标值
+   */
+  resetForm(formId: string, values: Record<string, any>): void {
+    const handler = this.resetHandlers.get(formId);
+    if (handler) {
+      handler(values);
+    } else {
+      // 回退：直接更新 antd Form store
+      const formInstance = this.antdForms.get(formId);
+      if (formInstance) {
+        formInstance.setFieldsValue(values);
+      }
+    }
+  }
+
+  /**
+   * 设置指定表单的字段值
+   *
+   * @param fieldName - 字段名（如 "input_01"）
+   * @param value - 字段值
+   * @param formId - 指定表单 ID，不传则使用活跃表单
+   */
+  setFieldValue(fieldName: string, value: any, formId?: string): void {
+    const targetFormId = formId ?? this.getActiveFormId();
+    if (!targetFormId) return;
+    const formInstance = this.antdForms.get(targetFormId);
+    if (formInstance) {
+      formInstance.setFieldsValue({ [fieldName]: value });
     }
   }
 
@@ -109,6 +177,8 @@ export class FormRegistry {
    */
   clear(): void {
     this.forms.clear();
+    this.antdForms.clear();
+    this.resetHandlers.clear();
     this.formIdStack.length = 0;
   }
 }

@@ -56,6 +56,7 @@ export interface CollapseProps extends BaseProps {
    * @group 基础属性
    * @priority 16
    * @default "start"
+   * @enumLabels start:起始, end:结束
    */
   expandIconPlacement?: 'start' | 'end';
 
@@ -63,6 +64,7 @@ export interface CollapseProps extends BaseProps {
    * 可折叠触发区域
    * @group 基础属性
    * @priority 17
+   * @enumLabels header:标题区域, icon:图标, disabled:禁用
    */
   collapsible?: 'header' | 'icon' | 'disabled';
 
@@ -70,6 +72,7 @@ export interface CollapseProps extends BaseProps {
    * 尺寸
    * @group 基础属性
    * @priority 18
+   * @enumLabels small:小, middle:居中, large:大
    */
   size?: 'small' | 'middle' | 'large';
 

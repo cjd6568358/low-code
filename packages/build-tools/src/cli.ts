@@ -34,6 +34,7 @@ JSDoc 注解映射:
   @dataSource xxx   → x-dataSource: "xxx"  数据源
   @validator xxx    → x-validator: "xxx"   校验规则
   @value-type xxx   → x-value-type: "xxx"  值类型（从 antd 类型定义提取）
+  @enumLabels a, b  → oneOf[{const,title}]  枚举选项中文标签（逗号分隔，与 enum 一一对应）
 `);
 }
 

@@ -4,28 +4,43 @@
   "properties": {
     "layout": {
       "type": "string",
-      "enum": [
-        "horizontal",
-        "inline",
-        "vertical"
-      ],
       "title": "布局方式",
       "x-group": "基础属性",
       "x-priority": 10,
       "x-no-binding": "",
-      "default": "horizontal"
+      "default": "horizontal",
+      "oneOf": [
+        {
+          "const": "horizontal",
+          "title": "水平"
+        },
+        {
+          "const": "inline",
+          "title": "内联"
+        },
+        {
+          "const": "vertical",
+          "title": "垂直"
+        }
+      ]
     },
     "labelAlign": {
       "type": "string",
-      "enum": [
-        "left",
-        "right"
-      ],
       "title": "标签对齐",
       "x-group": "基础属性",
       "x-priority": 11,
       "x-no-binding": "",
-      "default": "'right'"
+      "default": "'right'",
+      "oneOf": [
+        {
+          "const": "left",
+          "title": "左"
+        },
+        {
+          "const": "right",
+          "title": "右"
+        }
+      ]
     },
     "labelCol": {
       "type": "object",
@@ -94,27 +109,45 @@
     },
     "size": {
       "type": "string",
-      "enum": [
-        "large",
-        "middle",
-        "small"
-      ],
       "title": "尺寸",
       "x-group": "基础属性",
       "x-priority": 31,
-      "x-no-binding": ""
+      "x-no-binding": "",
+      "oneOf": [
+        {
+          "const": "large",
+          "title": "大"
+        },
+        {
+          "const": "middle",
+          "title": "居中"
+        },
+        {
+          "const": "small",
+          "title": "小"
+        }
+      ]
     },
     "variant": {
       "type": "string",
-      "enum": [
-        "borderless",
-        "filled",
-        "outlined"
-      ],
       "title": "变体",
       "x-group": "基础属性",
       "x-priority": 32,
-      "x-no-binding": ""
+      "x-no-binding": "",
+      "oneOf": [
+        {
+          "const": "borderless",
+          "title": "无边框"
+        },
+        {
+          "const": "filled",
+          "title": "填充"
+        },
+        {
+          "const": "outlined",
+          "title": "描边"
+        }
+      ]
     },
     "scrollToFirstError": {
       "type": "boolean",

@@ -6,10 +6,14 @@
  *
  * 表单组件作为容器，通过 FormContext 向子组件注入表单能力。
  */
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Form } from 'antd';
 import { withPlatform } from '../../../components/platform';
 import { FormContext } from '../../../components/platform/FormContext';
+import type { FormRegistry } from '../../../core/FormRegistry';
+import { FormDataContextManager } from '../../../core/FormDataContext';
+import { expressionEngine } from '@low-code/computation';
+import { LinkageEngine } from '../../../core/LinkageEngine';
 
 /**
  * 归一化 Col 配置
@@ -64,8 +68,50 @@ function FormWithProvider(props: React.PropsWithChildren<any>) {
     requiredMark,
     disabled,
     size,
+    _formRegistry,
+    _formId,
     ...rest
   } = props;
+
+  // 获取 antd 表单实例（用于 setFieldsValue 等 API）
+  const [formInstance] = Form.useForm();
+
+  // 注册到 FormRegistry（支持 resetForm/validate 等动作）
+  const managerRef = useRef<FormDataContextManager | null>(null);
+  const initialValuesCaptured = useRef(false);
+  useEffect(() => {
+    if (!_formRegistry || !_formId) return;
+    const registry = _formRegistry as FormRegistry;
+    const linkageEngine = new LinkageEngine(expressionEngine);
+    const manager = new FormDataContextManager(expressionEngine, linkageEngine);
+    manager.init({ formId: _formId });
+    managerRef.current = manager;
+    initialValuesCaptured.current = false;
+    registry.register(_formId, manager);
+    registry.registerAntdForm(_formId, formInstance);
+    // 注册重置处理器：直接操作 antd Form store，确保 UI 同步更新
+    registry.registerResetHandler(_formId, (values: Record<string, any>) => {
+      formInstance.setFieldsValue(values);
+    });
+    return () => {
+      registry.unregister(_formId);
+      managerRef.current = null;
+    };
+  }, [_formRegistry, _formId, formInstance]);
+
+  // 监听表单值变化，同步到 FormDataContextManager
+  // 首次收到非空值时，将其捕获为初始值（用于 resetForm 恢复）
+  const handleValuesChange = (_changedValues: any, allValues: any) => {
+    if (managerRef.current) {
+      // 首次捕获：将子组件挂载后的表单值作为初始值
+      if (!initialValuesCaptured.current && Object.keys(allValues).length > 0) {
+        initialValuesCaptured.current = true;
+        managerRef.current.init({ formId: _formId, schemaDefaults: allValues });
+      }
+      managerRef.current.setValues(allValues);
+    }
+    (rest as any).onValuesChange?.(_changedValues, allValues);
+  };
 
   const normalizedLabelCol = normalizeColProp(labelCol);
   const normalizedWrapperCol = normalizeColProp(wrapperCol);
@@ -90,6 +136,7 @@ function FormWithProvider(props: React.PropsWithChildren<any>) {
   return (
     <FormContext.Provider value={contextValue}>
       <Form
+        form={formInstance}
         layout={layout}
         labelCol={normalizedLabelCol}
         wrapperCol={normalizedWrapperCol}
@@ -98,6 +145,7 @@ function FormWithProvider(props: React.PropsWithChildren<any>) {
         requiredMark={requiredMark}
         disabled={disabled}
         size={size}
+        onValuesChange={handleValuesChange}
         {...rest}
       >
         {children}

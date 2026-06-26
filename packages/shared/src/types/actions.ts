@@ -6,6 +6,8 @@ export interface ActionStep {
   action: string;
   params?: Record<string, any>;
   condition?: string;
+  /** 是否禁用（跳过执行） */
+  disabled?: boolean;
   then?: ActionStep[];
   else?: ActionStep[];
   continueOnError?: boolean;
@@ -25,6 +27,10 @@ export interface FormRegistryLike {
   get(formId: string): { getValues(): Record<string, any>; getInitialValues(): Record<string, any> } | undefined;
   getActiveFormId(): string | undefined;
   getFormData(formId?: string): Record<string, any>;
+  /** 设置指定表单的字段值（同步 antd Form store） */
+  setFieldValue?(fieldName: string, value: any, formId?: string): void;
+  /** 执行表单重置（调用 Form 组件注册的重置处理器） */
+  resetForm?(formId: string, values: Record<string, any>): void;
 }
 
 /** 动作执行上下文 */
@@ -38,6 +44,8 @@ export interface ActionContext {
   activeFormId?: string;
   /** 设置表单字段值（写入回调，由宿主应用提供） */
   setFormValue?: (field: string, value: any) => void;
+  /** 设置组件属性值（写入回调，由宿主应用提供） */
+  setComponentProp?: (componentId: string, propName: string, value: any) => void;
   navigate?: (url: string, params?: Record<string, string>) => void;
   showMessage?: (type: string, content: string, duration?: number) => void;
   showModal?: (modalId: string, data?: any) => Promise<any>;

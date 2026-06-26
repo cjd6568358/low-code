@@ -23,6 +23,10 @@ export interface DesignerProps {
    * 当前仅支持 'antd'
    */
   library?: string;
+  /** 当前应用 ID（用于加载页面列表等跨资源引用） */
+  appId?: string;
+  /** 当前租户 ID（用于拼接路由） */
+  tenantId?: string;
   /** Schema 变更回调 */
   onChange?: (schema: PageSchema) => void;
   /** 保存回调（由 PageDesign 传入，画布顶部保存按钮和 Ctrl+S 触发） */
@@ -61,7 +65,7 @@ const LIBRARY_REGISTRY: Record<string, {
  * 所有页面/卡片搭建共用同一套组件库。
  */
 export function Designer(props: DesignerProps) {
-  const { schema: initialSchema, components: extraComponents, library = 'antd', onChange, onSave, saving } = props;
+  const { schema: initialSchema, components: extraComponents, library = 'antd', appId, tenantId, onChange, onSave, saving } = props;
 
   // 初始化状态
   const [state, dispatch] = useReducer(
@@ -91,7 +95,7 @@ export function Designer(props: DesignerProps) {
   }, [state.schema, onChange]);
 
   return (
-    <DesignerContext.Provider value={{ state, dispatch, library, onSave, saving }}>
+    <DesignerContext.Provider value={{ state, dispatch, library, appId, tenantId, onSave, saving }}>
       <div
         style={{
           display: 'flex',

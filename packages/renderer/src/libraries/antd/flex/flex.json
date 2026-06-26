@@ -2,21 +2,22 @@
   "description": "弹性布局 组件属性",
   "type": "object",
   "properties": {
-    "vertical": {
-      "type": "boolean",
-      "title": "垂直排列",
-      "x-group": "基础属性",
-      "x-priority": 10
-    },
     "orientation": {
       "type": "string",
-      "enum": [
-        "horizontal",
-        "vertical"
-      ],
-      "title": "排列方向（水平/垂直）",
+      "title": "排列方向",
       "x-group": "基础属性",
-      "x-priority": 11
+      "x-priority": 11,
+      "default": "horizontal",
+      "oneOf": [
+        {
+          "const": "horizontal",
+          "title": "水平"
+        },
+        {
+          "const": "vertical",
+          "title": "垂直"
+        }
+      ]
     },
     "wrap": {
       "enum": [
@@ -28,34 +29,70 @@
       ],
       "title": "换行",
       "x-group": "基础属性",
-      "x-priority": 12
+      "x-priority": 12,
+      "default": "nowrap"
     },
     "justify": {
       "type": "string",
-      "enum": [
-        "center",
-        "flex-end",
-        "flex-start",
-        "space-around",
-        "space-between",
-        "space-evenly"
-      ],
       "title": "主轴对齐",
       "x-group": "基础属性",
-      "x-priority": 13
+      "x-priority": 13,
+      "default": "flex-start",
+      "oneOf": [
+        {
+          "const": "center",
+          "title": "居中"
+        },
+        {
+          "const": "flex-end",
+          "title": "末尾对齐"
+        },
+        {
+          "const": "flex-start",
+          "title": "起始对齐"
+        },
+        {
+          "const": "space-around",
+          "title": "环绕对齐"
+        },
+        {
+          "const": "space-between",
+          "title": "两端对齐"
+        },
+        {
+          "const": "space-evenly",
+          "title": "均分对齐"
+        }
+      ]
     },
     "align": {
       "type": "string",
-      "enum": [
-        "baseline",
-        "center",
-        "flex-end",
-        "flex-start",
-        "stretch"
-      ],
       "title": "交叉轴对齐",
       "x-group": "基础属性",
-      "x-priority": 14
+      "x-priority": 14,
+      "default": "stretch",
+      "oneOf": [
+        {
+          "const": "baseline",
+          "title": "基线"
+        },
+        {
+          "const": "center",
+          "title": "居中"
+        },
+        {
+          "const": "flex-end",
+          "title": "末尾对齐"
+        },
+        {
+          "const": "flex-start",
+          "title": "起始对齐"
+        },
+        {
+          "const": "stretch",
+          "title": "拉伸"
+        }
+      ]
     },
     "flex": {
       "type": [
@@ -73,7 +110,8 @@
       ],
       "title": "间距，支持预设尺寸或具体数值",
       "x-group": "基础属性",
-      "x-priority": 16
+      "x-priority": 16,
+      "default": 8
     },
     "name": {
       "type": "string",

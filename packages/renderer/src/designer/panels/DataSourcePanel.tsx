@@ -12,7 +12,7 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { environmentRegistry } from '../../core/EnvironmentRegistry';
-import { VariablePicker } from './VariablePicker';
+import { ExpressionEditor } from '../../components/ExpressionEditor';
 
 /** 数据源配置面板属性 */
 export interface DataSourcePanelProps {
@@ -83,10 +83,9 @@ export function DataSourcePanel({
       </div>
 
       {/* 表达式选择器弹窗 */}
-      <VariablePicker
+      <ExpressionEditor
         visible={pickerOpen}
         value={expression || ''}
-        mode="expression"
         onChange={handleChange}
         onClear={handleClear}
         onClose={() => setPickerOpen(false)}

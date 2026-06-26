@@ -44,6 +44,7 @@ export interface SegmentedProps extends BaseProps {
    * 尺寸
    * @group 基础属性
    * @priority 14
+   * @enumLabels small:小, middle:居中, large:大
    */
   size?: 'small' | 'middle' | 'large';
 
@@ -65,6 +66,7 @@ export interface SegmentedProps extends BaseProps {
    * 形状
    * @group 基础属性
    * @priority 17
+   * @enumLabels default:默认, round:圆角
    */
   shape?: 'default' | 'round';
 
@@ -72,6 +74,7 @@ export interface SegmentedProps extends BaseProps {
    * 排列方向
    * @group 基础属性
    * @priority 18
+   * @enumLabels ltr:从左到右, rtl:从右到左
    */
   direction?: 'ltr' | 'rtl';
 

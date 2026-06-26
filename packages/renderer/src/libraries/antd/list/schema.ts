@@ -44,6 +44,7 @@ export interface ListProps extends BaseProps {
    * 尺寸
    * @group 基础属性
    * @priority 14
+   * @enumLabels small:小, default:默认, large:大
    */
   size?: 'small' | 'default' | 'large';
 
@@ -51,6 +52,7 @@ export interface ListProps extends BaseProps {
    * 列表项布局
    * @group 基础属性
    * @priority 15
+   * @enumLabels horizontal:水平, vertical:垂直
    */
   itemLayout?: 'horizontal' | 'vertical';
 

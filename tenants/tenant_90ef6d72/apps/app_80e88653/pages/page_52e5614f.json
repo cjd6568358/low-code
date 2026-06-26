@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "version": 10,
+  "version": 26,
   "name": "弹性页面",
   "createdAt": 1782187054006,
-  "updatedAt": 1782281307226,
+  "updatedAt": 1782466521617,
   "references": {},
   "pageId": "52e5614f",
   "layout": {
@@ -32,7 +32,10 @@
       "id": "flex_01",
       "type": "flex",
       "name": "弹性布局_01",
-      "props": {},
+      "props": {
+        "orientation": "vertical",
+        "align": "stretch"
+      },
       "children": [
         "datepicker_01"
       ]
@@ -71,6 +74,45 @@
         "type": "primary",
         "variant": "outlined",
         "children": "666"
+      },
+      "events": {
+        "onClick": [
+          [
+            {
+              "action": "setValues",
+              "params": {
+                "values": {
+                  "$component.input_01.value": {
+                    "type": "variable",
+                    "value": "$route.path"
+                  },
+                  "$component.input_01.disabled": {
+                    "type": "expression",
+                    "value": "async () => {\n  return $platform.mobile\n}"
+                  }
+                }
+              },
+              "disabled": true
+            },
+            {
+              "action": "resetForm",
+              "params": {
+                "formId": "form_01"
+              },
+              "disabled": false
+            },
+            {
+              "action": "navigate",
+              "params": {
+                "pageId": "52e5614f",
+                "url": "/90ef6d72/app/80e88653/page/52e5614f",
+                "target": "_blank",
+                "queryParams": "async ({ $user, $platform, $route, $component, $data, $table, $computation, $fetch, $workflow, $event, $result }) => {\n  return { a: 1, b: 2 }\n}"
+              },
+              "disabled": false
+            }
+          ]
+        ]
       }
     }
   ]

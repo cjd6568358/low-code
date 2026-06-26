@@ -16,4 +16,5 @@ export { DesignCanvas } from './panels/DesignCanvas';
 export { PropertyPanel } from './panels/PropertyPanel';
 export { SaveCardDialog } from './panels/SaveCardDialog';
 export { EventActionChainEditor } from './panels/EventActionChainEditor';
-export { VariablePicker } from './panels/VariablePicker';
+export { VariableTreeSelector } from '../components/VariableTreeSelector';
+export { ExpressionEditor } from '../components/ExpressionEditor';

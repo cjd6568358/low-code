@@ -105,9 +105,6 @@ export function useBindings(
         context as any,
       );
     }
-    if (variableBindings.length > 0) {
-      console.log(`[useBindings] syncResolved 重算 (varVersion=${varVersion}):`, resolved);
-    }
     return resolved;
     // varVersion 变化时重新解析
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -185,7 +182,7 @@ export function useBindings(
       }
     });
 
-    console.log(`[useBindings] ${componentId} 注册依赖:`, bindingKeys, '依赖路径:', dependencies);
+    // console.log(`[useBindings] ${componentId} 注册依赖:`, bindingKeys, '依赖路径:', dependencies);
 
     // 初始执行所有表达式
     if (expressionBindings.length > 0) {

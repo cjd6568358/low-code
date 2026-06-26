@@ -31,6 +31,7 @@ export interface PopoverProps extends BaseProps {
    * @group 基础属性
    * @priority 12
    * @default "top"
+   * @enumLabels top:顶部, left:左, right:右, bottom:底部, topLeft:左上, topRight:右上, bottomLeft:左下, bottomRight:右下, leftTop:左上, leftBottom:左下, rightTop:右上, rightBottom:右下
    */
   placement?: 'top' | 'left' | 'right' | 'bottom' | 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight' | 'leftTop' | 'leftBottom' | 'rightTop' | 'rightBottom';
 
@@ -39,6 +40,7 @@ export interface PopoverProps extends BaseProps {
    * @group 基础属性
    * @priority 13
    * @default 'hover'
+   * @enumLabels hover:悬浮, focus:聚焦, click:点击, contextMenu:右键菜单
    */
   trigger?: 'hover' | 'focus' | 'click' | 'contextMenu';
 

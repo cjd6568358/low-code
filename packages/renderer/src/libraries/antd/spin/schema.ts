@@ -23,6 +23,7 @@ export interface SpinProps extends BaseProps {
    * 尺寸
    * @group 基础属性
    * @priority 11
+   * @enumLabels small:小, medium:中, large:大
    */
   size?: 'small' | 'medium' | 'large';
 

@@ -29,13 +29,24 @@ export class ActionRegistryImpl {
 /** 页面跳转 */
 const navigateExecutor: ActionExecutor = {
   async execute(params, context) {
-    const { url, params: routeParams, target } = params;
+    const { url, params: routeParams, target, queryParams } = params;
+
+    // 拼接查询参数到 URL（queryParams 已由 EventCompiler 求值为对象）
+    let finalUrl = url ?? '';
+    if (queryParams && typeof queryParams === 'object') {
+      const entries = Object.entries(queryParams).filter(([, v]) => v != null);
+      if (entries.length > 0) {
+        const qs = entries.map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`).join('&');
+        finalUrl += (finalUrl.includes('?') ? '&' : '?') + qs;
+      }
+    }
+
     if (target === '_blank' || target === 'openPage') {
-      window.open(url, '_blank');
+      window.open(finalUrl, '_blank');
     } else if (context.navigate) {
-      context.navigate(url, routeParams);
+      context.navigate(finalUrl, routeParams);
     } else {
-      window.location.href = url;
+      window.location.href = finalUrl;
     }
   },
 };
@@ -68,13 +79,55 @@ const setValueExecutor: ActionExecutor = {
 const setValuesExecutor: ActionExecutor = {
   async execute(params, context) {
     const { values } = params;
-    if (context.setFormValue && values) {
-      for (const [field, value] of Object.entries(values)) {
-        context.setFormValue(field, value);
+    if (!values) return;
+
+    for (const [field, rawValue] of Object.entries(values)) {
+      // 解析值（支持 { type: 'variable'|'expression', value: '...' } 格式）
+      let resolvedValue = rawValue;
+      if (rawValue && typeof rawValue === 'object' && 'type' in rawValue && 'value' in rawValue) {
+        const typed = rawValue as { type: string; value: string };
+        if (typed.type === 'variable') {
+          // 变量引用：从 renderContext 按路径取值
+          resolvedValue = resolveVariablePath(typed.value, context.renderContext);
+        } else if (typed.type === 'expression') {
+          // 表达式：暂不支持运行时求值，保留原值
+          resolvedValue = typed.value;
+        }
+      }
+
+      // $component.xxx.prop → 设置组件属性
+      if (field.startsWith('$component.')) {
+        const parts = field.slice('$component.'.length).split('.');
+        if (parts.length >= 2 && context.setComponentProp) {
+          const componentId = parts[0];
+          const propName = parts.slice(1).join('.');
+          context.setComponentProp(componentId, propName, resolvedValue);
+          // 同步更新 antd Form store（Form.Item 的 name prop 使用组件 ID，与 form store key 一致）
+          if (propName === 'value' && context.formRegistry?.setFieldValue) {
+            context.formRegistry.setFieldValue(componentId, resolvedValue);
+          }
+        }
+        continue;
+      }
+
+      // 其他 → 表单字段
+      if (context.setFormValue) {
+        context.setFormValue(field, resolvedValue);
       }
     }
   },
 };
+
+/** 从 renderContext 按变量路径取值（如 $platform.mobile → true） */
+function resolveVariablePath(path: string, renderContext: Record<string, any>): any {
+  const parts = path.split('.');
+  let current: any = renderContext;
+  for (const part of parts) {
+    if (current == null) return undefined;
+    current = current[part];
+  }
+  return current;
+}
 
 /** 重置值 */
 const resetValueExecutor: ActionExecutor = {
@@ -96,11 +149,11 @@ const resetFormExecutor: ActionExecutor = {
     const activeId = formId ?? context.formRegistry?.getActiveFormId();
     if (!activeId) return;
     const manager = context.formRegistry?.get(activeId);
-    if (manager && context.setFormValue) {
+    if (manager) {
       const initialValues = manager.getInitialValues();
-      for (const [field, value] of Object.entries(initialValues)) {
-        context.setFormValue(field, value);
-      }
+      // 通过 FormRegistry 调用 Form 组件注册的重置处理器
+      // 直接操作 antd Form store，Form.Item 的 cloneElement 会将新值注入子组件
+      context.formRegistry?.resetForm(activeId, initialValues);
     }
   },
 };
@@ -218,24 +271,6 @@ const hideLoadingExecutor: ActionExecutor = {
   },
 };
 
-/** 复制到剪贴板 */
-const copyToClipboardExecutor: ActionExecutor = {
-  async execute(params) {
-    const { text } = params;
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {
-      // Fallback
-      const textarea = document.createElement('textarea');
-      textarea.value = text;
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textarea);
-    }
-  },
-};
-
 /** 提交表单 */
 const submitExecutor: ActionExecutor = {
   async execute(params, context) {
@@ -275,15 +310,13 @@ const triggerWorkflowExecutor: ActionExecutor = {
 /** 执行脚本 */
 const executeScriptExecutor: ActionExecutor = {
   async execute(params, context) {
-    const { script, formId } = params;
+    const { script } = params;
     if (!script) return;
     try {
-      const formData = context.formRegistry?.getFormData(formId) ?? {};
-      // 在沙箱中执行脚本
-      const fn = new Function('$context', '$form', '$result', script);
+      // 在沙箱中执行脚本，通过 $component.form_xxx.$form 访问表单数据
+      const fn = new Function('$context', '$result', script);
       return fn(
         context.renderContext?.$context,
-        formData,
         context.$result,
       );
     } catch (e) {
@@ -333,7 +366,6 @@ export function createDefaultActionRegistry(): ActionRegistryImpl {
   registry.register('refreshComponent', refreshComponentExecutor);
   registry.register('showLoading', showLoadingExecutor);
   registry.register('hideLoading', hideLoadingExecutor);
-  registry.register('copyToClipboard', copyToClipboardExecutor);
 
   // Workflow
   registry.register('triggerWorkflow', triggerWorkflowExecutor);

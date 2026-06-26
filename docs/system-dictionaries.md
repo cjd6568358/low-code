@@ -652,12 +652,13 @@
 
 | code | name | category | 适用引擎 | 参数 | 说明 |
 |------|------|----------|---------|------|------|
-| navigate | 页面跳转 | navigation | 渲染/表单 | `url`, `params`, `target` | 跳转到指定页面 |
+| navigate | 打开页面 | navigation | 渲染/表单 | `linkType`, `url`, `pageId`, `queryParams`, `target` | 跳转到指定页面（支持平台内页面选择和外部链接） |
+| redirect | 页面跳转 | navigation | 渲染/表单 | `linkType`, `url`, `pageId`, `queryParams` | 当前窗口跳转（同 navigate，无 target 参数） |
 | openPage | 打开新页面 | navigation | 渲染/表单 | `url`, `params` | 新窗口/Tab 打开 |
 | goBack | 返回上一页 | navigation | 渲染/表单 | 无 | 浏览器后退 |
 | refresh | 刷新页面 | navigation | 渲染/表单 | 无 | 刷新当前页面 |
 | setValue | 设置值 | data | 渲染/表单/自动化 | `target`, `value` | 设置组件/字段值 |
-| setValues | 批量设值 | data | 渲染/表单/自动化 | `values: Record<string, any>` | 批量设置多个值 |
+| setValues | 批量设值 | data | 渲染/表单/自动化 | `values: Record<string, any>` | 批量设置多个值。key 为字段名（表单字段）或 `$component.xxx.prop`（组件属性），值支持字面量/变量引用/表达式 |
 | resetValue | 重置值 | data | 表单 | `target` | 重置为默认值 |
 | submit | 提交表单 | data | 表单 | `api`, `redirectUrl` | 提交并跳转 |
 | apiCall | 调用 API | data | 渲染/表单/自动化/流程 | `api`, `method`, `data`, `headers` | 调用后端 API |
@@ -669,7 +670,6 @@
 | refreshComponent | 刷新组件 | ui | 渲染/表单 | `target` | 重新加载组件数据 |
 | showLoading | 显示加载 | ui | 渲染/表单 | `target`, `text` | 显示加载状态 |
 | hideLoading | 隐藏加载 | ui | 渲染/表单 | `target` | 隐藏加载状态 |
-| copyToClipboard | 复制到剪贴板 | utility | 渲染/表单 | `text` | 复制文本到系统剪贴板 |
 | triggerWorkflow | 触发流程 | workflow | 自动化/流程 | `workflowId`, `inputData` | 启动流程实例 |
 | sendNotification | 发送通知 | notification | 自动化/流程 | `channels`, `templateId`, `recipients` | 多渠道消息推送 |
 | executeScript | 执行脚本 | script | 自动化/流程 | `script`, `language` | 执行自定义脚本 |

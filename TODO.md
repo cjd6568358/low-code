@@ -90,13 +90,15 @@
 
 #### 4.2 动作类型调整
 - **移除**：setValue、setVisible、setDisabled、setLoading
-- **保留**：setValues、resetForm、submit、validate、clearValidate、navigate、redirect、showModal、closeModal、showMessage、triggerWorkflow、customScript、invokeMethod、copyToClipboard、refreshComponent、condition
+- **保留**：setValues、resetForm、submit、validate、clearValidate、navigate、redirect、showModal、closeModal、showMessage、triggerWorkflow、customScript、invokeMethod、refreshComponent、condition
 
-#### 4.3 setValues 选择器 UI
-- 弹出选择器，左侧展示组件变量树（页面中所有组件的可写属性）
-- 支持多选组件属性
-- 选中后右侧出现变量赋值配置（常量/变量/表达式三种模式）
-- 表达式模式支持 `$event` 环境变量
+#### 4.3 setValues 选择器 UI ✅
+- ✅ 弹出选择器，左侧展示组件变量树（页面中所有组件的可写属性）
+- ✅ 支持多选组件属性
+- ✅ 选中后右侧出现变量赋值配置（常量/变量/表达式三种模式），使用 PropValueField 公共组件
+- ✅ 表达式模式支持 `$event` 环境变量
+- ✅ setValues 支持 `$component.xxx.prop` 路径设置组件属性（通过 setComponentProp + componentOverrides）
+- ✅ 值格式支持 `{ type: 'variable', value: '$platform.mobile' }` 运行时自动解析
 
 #### 4.4 条件分支完整实现
 - 条件表达式输入框（支持 $event、$result 等环境变量）
@@ -104,10 +106,11 @@
 - else 动作链编辑区（可添加完整动作）
 - 仅支持一层条件分支（不嵌套）
 
-#### 4.5 表单相关动作配置
-- resetForm/submit/validate/clearValidate 需要 formId 参数
-- 下拉框选择页面中的表单组件（type === 'form'）
-- 如果页面只有一个表单，默认选中
+#### 4.5 表单相关动作配置 ✅
+- ✅ resetForm/submit/validate/clearValidate 需要 formId 参数
+- ✅ 下拉框选择页面中的表单组件（type === 'form'）
+- ✅ 如果页面只有一个表单，默认选中
+- ✅ Form 组件挂载时自动注册到 FormRegistry，支持 resetForm 重置到初始值
 
 #### 4.6 customScript 增强
 - 支持 `$fetch` 环境变量进行 HTTP 请求
@@ -411,7 +414,7 @@ _system.db 获取 tenant_id 列表
 | P12 | 联动-选项联动（数据引擎查询） | form-engine.md-联动类型 | 基础选项联动 | 数据引擎查询+模板变量替换 |
 | P13 | 联动-显隐联动（x-reactions） | form-engine.md-联动类型 | 条件表达式求值 | x-reactions 完整集成 |
 | P14 | 异步校验 UI 反馈 | form-engine.md-校验 Level 2 | ValidatorRegistry 支持异步 | loading 状态等 UI 反馈 |
-| P15 | 标准动作类型 | form-runtime-architecture.md | 17 种已实现 | 缺 8 种（condition/executeScript/refreshComponent/showLoading/hideLoading/copyToClipboard 等） |
+| P15 | 标准动作类型 | form-runtime-architecture.md | 17 种已实现 | 缺 8 种（condition/executeScript/refreshComponent/showLoading/hideLoading 等） |
 | P16 | onChange 完整串联 | form-runtime-architecture.md | 更新值+联动触发 | 校验+用户自定义事件串联 |
 | P17 | AutoFormRenderer 布局模式 | auto-rendering-engine.md | groups 布局 | tabs/steps/sections 三种模式 |
 | P18 | 判别联合渲染 (oneOf/anyOf) | auto-rendering-engine.md | x-discriminator 解析 | 动态切换子表单 UI |
@@ -437,7 +440,7 @@ _system.db 获取 tenant_id 列表
 | D6 | WebAdapter 完整 API (resolveComponent/applyTheme/navigate/storage/api/upload) | core/WebAdapter.ts | 文档仅简要提及 |
 | D7 | 18 个内建组件完整清单 | components/builtin.tsx | 文档未列出 |
 | D8 | 18 个组件 propsSchema (JSONSchema7+x-group/x-priority) | schemas/component-schemas.ts | 文档未描述 |
-| D9 | 5 个设计器面板组件 (ConditionBuilder/EventActionChainEditor/SaveCardDialog/VariablePicker/SlotEditor) | designer/panels/ | 文档仅简要提及 |
+| D9 | 5 个设计器面板组件 (ConditionBuilder/EventActionChainEditor/SaveCardDialog/VariableTreeSelector/ExpressionEditor/SlotEditor) | designer/panels/ + components/ | 文档仅简要提及 |
 | D10 | AuthContext+ProtectedRoute 前端认证体系 | auth/ | CLAUDE.md 描述了登录流程，未描述组件架构 |
 | D11 | PermissionGuard 组件 | components/PermissionGuard.tsx | 文档未描述 |
 | D12 | AppDesignPage 资源管理框架 (7 种类型菜单+多 Tab+右键菜单) | pages/AppDesignPage.tsx | 文档未描述 |

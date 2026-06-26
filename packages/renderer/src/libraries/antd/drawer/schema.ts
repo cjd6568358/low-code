@@ -33,6 +33,7 @@ export interface DrawerProps extends BaseProps {
    * @group 基础属性
    * @priority 12
    * @default "right"
+   * @enumLabels top:顶部, right:右, bottom:底部, left:左
    */
   placement?: 'top' | 'right' | 'bottom' | 'left';
 

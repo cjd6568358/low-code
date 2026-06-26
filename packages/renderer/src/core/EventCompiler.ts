@@ -1,6 +1,7 @@
 import type { ActionChain, ActionStep, ActionContext } from '@low-code/shared';
 import type { ActionRegistryImpl } from './ActionRegistry';
 import type { DefaultExpressionEngine } from '@low-code/computation';
+import { environmentRegistry } from './EnvironmentRegistry';
 
 /** 编译后的事件处理器 */
 export type CompiledEventHandler = (
@@ -104,6 +105,9 @@ export class EventCompiler {
     context: ActionContext,
     $result: any,
   ): Promise<any> {
+    // 0. 跳过禁用的动作
+    if (step.disabled) return $result;
+
     // 1. 条件判断
     if (step.condition) {
       const conditionResult = this.expressionEngine.safeEvaluate(
@@ -135,7 +139,26 @@ export class EventCompiler {
     }
 
     // 3. 解析模板变量
-    const resolvedParams = this.resolveParams(step.params || {}, {
+    const paramsToResolve = { ...step.params };
+
+    // navigate/redirect 的 queryParams 解析（PropValue 格式）
+    if ((step.action === 'navigate' || step.action === 'redirect') && paramsToResolve.queryParams) {
+      const qp = paramsToResolve.queryParams;
+      const evalCtx = { ...context.renderContext, $result, $event: context.event };
+      if (typeof qp === 'object' && 'type' in qp && 'value' in qp) {
+        if (qp.type === 'variable') {
+          paramsToResolve.queryParams = resolveVariablePath(qp.value, evalCtx);
+        } else if (qp.type === 'expression') {
+          // value 只存函数体，运行时根据 async 标志动态包裹外壳
+          const params = environmentRegistry.getAllDefinitions('expression').map((d) => d.name).join(', ');
+          const prefix = qp.async !== false ? 'async' : '';
+          const fullExpr = `${prefix} ({${params}}) => { ${qp.value} }`;
+          paramsToResolve.queryParams = this.expressionEngine.safeEvaluate(fullExpr, evalCtx);
+        }
+      }
+    }
+
+    const resolvedParams = this.resolveParams(paramsToResolve, {
       ...context.renderContext,
       $result,
       $event: context.event,
@@ -179,4 +202,15 @@ export class EventCompiler {
   ): Record<string, any> {
     return this.expressionEngine.resolveTemplateParams(params, context);
   }
+}
+
+/** 从 renderContext 按变量路径取值（如 $platform.mobile → true） */
+function resolveVariablePath(path: string, renderContext: Record<string, any>): any {
+  const parts = path.split('.');
+  let current: any = renderContext;
+  for (const part of parts) {
+    if (current == null) return undefined;
+    current = current[part];
+  }
+  return current;
 }

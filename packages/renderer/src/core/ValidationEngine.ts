@@ -232,9 +232,11 @@ export class ValidationEngine {
       if (error) return error;
     }
 
-    // enum
-    if (fieldSchema.enum) {
-      const error = await check('enum', { options: fieldSchema.enum });
+    // enum（支持 oneOf 和 enum 两种格式）
+    const enumValues = fieldSchema.enum
+      || (fieldSchema.oneOf?.map((item: { const: unknown }) => item.const));
+    if (enumValues) {
+      const error = await check('enum', { options: enumValues });
       if (error) return error;
     }
 

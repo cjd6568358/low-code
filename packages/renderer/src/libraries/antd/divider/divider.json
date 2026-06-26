@@ -23,17 +23,32 @@
     },
     "titlePlacement": {
       "type": "string",
-      "enum": [
-        "center",
-        "end",
-        "left",
-        "right",
-        "start"
-      ],
       "title": "标题位置",
       "x-group": "基础属性",
       "x-priority": 15,
-      "default": "center"
+      "default": "center",
+      "oneOf": [
+        {
+          "const": "center",
+          "title": "居中"
+        },
+        {
+          "const": "end",
+          "title": "结束"
+        },
+        {
+          "const": "left",
+          "title": "左"
+        },
+        {
+          "const": "right",
+          "title": "右"
+        },
+        {
+          "const": "start",
+          "title": "起始"
+        }
+      ]
     },
     "children": {
       "type": "string",
@@ -43,26 +58,44 @@
     },
     "variant": {
       "type": "string",
-      "enum": [
-        "dashed",
-        "dotted",
-        "solid"
-      ],
       "title": "线条变体",
       "x-group": "基础属性",
       "x-priority": 17,
-      "default": "solid"
+      "default": "solid",
+      "oneOf": [
+        {
+          "const": "dashed",
+          "title": "虚线"
+        },
+        {
+          "const": "dotted",
+          "title": "点线"
+        },
+        {
+          "const": "solid",
+          "title": "实心"
+        }
+      ]
     },
     "size": {
       "type": "string",
-      "enum": [
-        "large",
-        "middle",
-        "small"
-      ],
       "title": "大小",
       "x-group": "基础属性",
-      "x-priority": 18
+      "x-priority": 18,
+      "oneOf": [
+        {
+          "const": "large",
+          "title": "大"
+        },
+        {
+          "const": "middle",
+          "title": "居中"
+        },
+        {
+          "const": "small",
+          "title": "小"
+        }
+      ]
     },
     "name": {
       "type": "string",

@@ -22,25 +22,40 @@
     },
     "layout": {
       "type": "string",
-      "enum": [
-        "horizontal",
-        "vertical"
-      ],
       "title": "布局",
       "x-group": "基础属性",
       "x-priority": 13,
-      "default": "horizontal"
+      "default": "horizontal",
+      "oneOf": [
+        {
+          "const": "horizontal",
+          "title": "水平"
+        },
+        {
+          "const": "vertical",
+          "title": "垂直"
+        }
+      ]
     },
     "size": {
       "type": "string",
-      "enum": [
-        "large",
-        "middle",
-        "small"
-      ],
       "title": "尺寸",
       "x-group": "基础属性",
-      "x-priority": 14
+      "x-priority": 14,
+      "oneOf": [
+        {
+          "const": "large",
+          "title": "大"
+        },
+        {
+          "const": "middle",
+          "title": "居中"
+        },
+        {
+          "const": "small",
+          "title": "小"
+        }
+      ]
     },
     "title": {
       "type": "string",

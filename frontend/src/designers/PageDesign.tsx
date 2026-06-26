@@ -19,13 +19,15 @@ import type { PageSchema } from '@low-code/shared';
 interface PageDesignProps {
   appId: string;
   pageId: string;
+  /** 当前租户 ID（透传至设计器，用于拼接路由） */
+  tenantId?: string;
   schema?: PageSchema;
   onChange?: (schema: PageSchema) => void;
   /** 保存成功后的回调（用于更新 tab 名称和刷新资源列表） */
   onSaved?: (name: string) => void;
 }
 
-export default function PageDesign({ appId, pageId, schema, onChange, onSaved }: PageDesignProps) {
+export default function PageDesign({ appId, pageId, tenantId, schema, onChange, onSaved }: PageDesignProps) {
   const { message } = App.useApp();
   const [currentSchema, setCurrentSchema] = useState<PageSchema | undefined>(schema);
   const [saving, setSaving] = useState(false);
@@ -91,7 +93,7 @@ export default function PageDesign({ appId, pageId, schema, onChange, onSaved }:
             <Spin />
           </div>
         ) : (
-          <Designer schema={currentSchema} onChange={handleChange} onSave={handleSave} saving={saving} />
+          <Designer schema={currentSchema} appId={appId} tenantId={tenantId} onChange={handleChange} onSave={handleSave} saving={saving} />
         )}
       </div>
     </div>

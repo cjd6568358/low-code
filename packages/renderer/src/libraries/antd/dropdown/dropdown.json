@@ -10,20 +10,44 @@
     },
     "placement": {
       "type": "string",
-      "enum": [
-        "bottom",
-        "bottomCenter",
-        "bottomLeft",
-        "bottomRight",
-        "top",
-        "topCenter",
-        "topLeft",
-        "topRight"
-      ],
       "title": "弹出位置",
       "x-group": "基础属性",
       "x-priority": 11,
-      "default": "bottomLeft"
+      "default": "bottomLeft",
+      "oneOf": [
+        {
+          "const": "bottom",
+          "title": "底部"
+        },
+        {
+          "const": "bottomCenter",
+          "title": "底部居中"
+        },
+        {
+          "const": "bottomLeft",
+          "title": "左下"
+        },
+        {
+          "const": "bottomRight",
+          "title": "右下"
+        },
+        {
+          "const": "top",
+          "title": "顶部"
+        },
+        {
+          "const": "topCenter",
+          "title": "顶部居中"
+        },
+        {
+          "const": "topLeft",
+          "title": "左上"
+        },
+        {
+          "const": "topRight",
+          "title": "右上"
+        }
+      ]
     },
     "trigger": {
       "type": "array",

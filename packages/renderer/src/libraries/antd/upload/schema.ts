@@ -41,6 +41,7 @@ export interface UploadProps extends BaseProps {
    * @group 基础属性
    * @priority 11
    * @no-binding
+   * @enumLabels drag:拖拽, select:选择
    */
   type?: 'drag' | 'select';
 
@@ -71,6 +72,7 @@ export interface UploadProps extends BaseProps {
    * @priority 15
    * @no-binding
    * @default "text"
+   * @enumLabels text:文字, picture:picture, picture-card:picture-card, picture-circle:picture-circle
    */
   listType?: 'text' | 'picture' | 'picture-card' | 'picture-circle';
 
@@ -104,6 +106,7 @@ export interface UploadProps extends BaseProps {
    * @group 基础属性
    * @priority 20
    * @no-binding
+   * @enumLabels POST:POST, PUT:PUT, PATCH:PATCH, post:POST, put:PUT, patch:PATCH
    */
   method?: 'POST' | 'PUT' | 'PATCH' | 'post' | 'put' | 'patch';
 
@@ -136,6 +139,7 @@ export interface UploadProps extends BaseProps {
    * @group 基础属性
    * @priority 24
    * @no-binding
+   * @enumLabels user:用户, environment:环境
    */
   capture?: 'user' | 'environment';
 

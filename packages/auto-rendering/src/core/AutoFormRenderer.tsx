@@ -3,9 +3,8 @@ import type { JSONSchema7 } from '@low-code/shared';
 import { controlRegistry, type ControlProps } from './ControlRegistry';
 import type { DictionaryService } from '@low-code/shared';
 import type { ExpressionEngine } from '@low-code/shared';
-
-/** 值模式：常量 / 变量引用 / 表达式 */
-type ValueMode = 'constant' | 'variable' | 'expression';
+import { PropValueField, detectValueMode } from './PropValueField';
+import type { ValueMode } from './PropValueField';
 
 /** AutoForm 渲染器属性 */
 export interface AutoFormRendererProps {
@@ -61,18 +60,6 @@ export function AutoFormRenderer(props: AutoFormRendererProps) {
 
   // 每个字段的值模式状态
   const [valueModes, setValueModes] = useState<Record<string, ValueMode>>({});
-
-  // 检测值的模式（支持新的 PropValue 对象格式）
-  const detectValueMode = useCallback((val: unknown): ValueMode => {
-    // 新格式：对象 { type: 'variable', value: '...' } 或 { type: 'expression', value: '...' }
-    if (val != null && typeof val === 'object' && 'type' in val && 'value' in val) {
-      const obj = val as { type: string; value: string };
-      if (obj.type === 'variable') return 'variable';
-      if (obj.type === 'expression') return 'expression';
-    }
-
-    return 'constant';
-  }, []);
 
   // 初始化 valueModes（仅在 value 首次加载或字段变化时）
   useEffect(() => {
@@ -155,8 +142,9 @@ export function AutoFormRenderer(props: AutoFormRendererProps) {
       // 解析控件
       const xComponent = (fieldSchema as any)['x-component'];
       const componentProps = (fieldSchema as any)['x-component-props'] || {};
-      // enum 字段优先用 Select 控件；type 可能是数组（如 ["string","number"]），取第一个非 integer 类型
-      const rawType = fieldSchema.enum ? 'enum' : Array.isArray(fieldSchema.type)
+      // enum/oneOf 字段优先用 Select 控件；type 可能是数组（如 ["string","number"]），取第一个非 integer 类型
+      const hasEnum = fieldSchema.enum || fieldSchema.oneOf;
+      const rawType = hasEnum ? 'enum' : Array.isArray(fieldSchema.type)
         ? (fieldSchema.type.find((t: string) => t !== 'integer') || fieldSchema.type[0] || 'string')
         : (fieldSchema.type as string || 'string');
       const resolvedType = rawType;
@@ -199,91 +187,6 @@ export function AutoFormRenderer(props: AutoFormRendererProps) {
         }
       };
 
-      // 渲染 button group（如果设置了 x-no-binding，则不显示）
-      const renderModeSelector = () => {
-        if (noBinding) return null;
-        return (
-          <div style={{ display: 'flex', marginLeft: 'auto' }}>
-            {(['constant', 'variable', 'expression'] as const).map((mode) => (
-              <button
-                key={mode}
-                onClick={() => handleModeChange(mode)}
-                style={{
-                  padding: '2px 8px',
-                  fontSize: '12px',
-                  border: 'none',
-                  borderRadius: '2px',
-                  backgroundColor: currentMode === mode ? '#e6f7ff' : '#fff',
-                  color: currentMode === mode ? '#1890ff' : '#666',
-                  cursor: 'pointer',
-                }}
-              >
-                {mode === 'constant' ? '常量' : mode === 'variable' ? '变量' : '表达式'}
-              </button>
-            ))}
-          </div>
-        );
-      };
-
-      // 根据模式渲染内容区域
-      const renderContent = () => {
-        if (currentMode === 'constant') {
-          return (
-            <ControlComponent
-              value={fieldValue}
-              onChange={(v: any) => handleFieldChange(key, v)}
-              schema={fieldSchema}
-              disabled={isDisabled}
-              placeholder={placeholder}
-              errors={fieldErrors}
-              dictionaryService={dictionaryService}
-              expressionEngine={expressionEngine}
-              {...componentProps}
-            />
-          );
-        }
-
-        // 变量/表达式模式：显示 Tag 样式
-        return (
-          <div
-            onClick={() => onVariablePickerOpen?.(key, currentMode)}
-            style={{
-              padding: '6px 12px',
-              border: '1px solid #d9d9d9',
-              borderRadius: '4px',
-              backgroundColor: '#f5f5f5',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              minHeight: '32px',
-            }}
-          >
-            <span
-              style={{
-                padding: '2px 8px',
-                backgroundColor: currentMode === 'variable' ? '#e6f7ff' : '#fff7e6',
-                border: '1px solid',
-                borderColor: currentMode === 'variable' ? '#91d5ff' : '#ffd591',
-                borderRadius: '2px',
-                fontSize: '12px',
-                color: currentMode === 'variable' ? '#1890ff' : '#fa8c16',
-                flexShrink: 0,
-              }}
-            >
-              {currentMode === 'variable' ? '变量' : '表达式'}
-            </span>
-            {currentMode === 'variable' && (
-              <span style={{ fontSize: '13px', color: '#333', fontFamily: 'monospace' }}>
-                {typeof fieldValue === 'object' && fieldValue !== null
-                  ? (fieldValue.value || '点击选择...')
-                  : (fieldValue || '点击选择...')}
-              </span>
-            )}
-          </div>
-        );
-      };
-
       return (
         <div key={key} style={{ marginBottom: '16px' }}>
           <div style={{ display: 'flex', gap: '5px', alignItems: 'center', marginBottom: '4px' }}>
@@ -300,14 +203,53 @@ export function AutoFormRenderer(props: AutoFormRendererProps) {
                 <span style={{ color: '#ff4d4f', marginLeft: '4px' }}>*</span>
               )}
             </label>
-            {renderModeSelector()}
+            {!noBinding && (
+              <div style={{ display: 'flex', marginLeft: 'auto' }}>
+                {(['constant', 'variable', 'expression'] as const).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => handleModeChange(m)}
+                    style={{
+                      padding: '2px 8px',
+                      fontSize: '12px',
+                      border: 'none',
+                      borderRadius: '2px',
+                      backgroundColor: currentMode === m ? '#e6f7ff' : '#fff',
+                      color: currentMode === m ? '#1890ff' : '#666',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {m === 'constant' ? '常量' : m === 'variable' ? '变量' : '表达式'}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           {fieldSchema.description && (
             <div style={{ color: '#999', fontSize: '12px', marginBottom: '4px' }}>
               {fieldSchema.description}
             </div>
           )}
-          {renderContent()}
+          {currentMode === 'constant' ? (
+            <ControlComponent
+              value={fieldValue}
+              onChange={(v: any) => handleFieldChange(key, v)}
+              schema={fieldSchema}
+              disabled={isDisabled}
+              placeholder={placeholder}
+              errors={fieldErrors}
+              dictionaryService={dictionaryService}
+              expressionEngine={expressionEngine}
+              {...componentProps}
+            />
+          ) : (
+            <PropValueField
+              mode={currentMode}
+              onModeChange={handleModeChange}
+              value={fieldValue}
+              onOpenPicker={() => onVariablePickerOpen?.(key, currentMode)}
+            />
+          )}
           {fieldErrors && fieldErrors.length > 0 && (
             <div style={{ color: '#ff4d4f', fontSize: '12px', marginTop: '4px' }}>
               {fieldErrors[0]}

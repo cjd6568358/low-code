@@ -38,6 +38,7 @@ export interface FloatButtonProps extends BaseProps {
    * @group 基础属性
    * @priority 13
    * @default "default"
+   * @enumLabels default:默认, primary:主要
    */
   type?: 'default' | 'primary';
 
@@ -46,6 +47,7 @@ export interface FloatButtonProps extends BaseProps {
    * @group 基础属性
    * @priority 14
    * @default "circle"
+   * @enumLabels circle:圆形, square:方形
    */
   shape?: 'circle' | 'square';
 
@@ -60,6 +62,7 @@ export interface FloatButtonProps extends BaseProps {
    * HTML 按钮类型
    * @group 基础属性
    * @priority 16
+   * @enumLabels submit:提交, reset:重置, button:按钮
    */
   htmlType?: 'submit' | 'reset' | 'button';
 
@@ -74,6 +77,7 @@ export interface FloatButtonProps extends BaseProps {
    * 链接打开方式
    * @group 高级属性
    * @priority 21
+   * @enumLabels _self:当前窗口, _blank:新窗口, _parent:父窗口, _top:顶层窗口
    */
   target?: '_self' | '_blank' | '_parent' | '_top';
 

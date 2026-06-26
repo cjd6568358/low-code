@@ -4,14 +4,20 @@
   "properties": {
     "mode": {
       "type": "string",
-      "enum": [
-        "month",
-        "year"
-      ],
       "title": "模式",
       "x-group": "基础属性",
       "x-priority": 10,
-      "default": "month"
+      "default": "month",
+      "oneOf": [
+        {
+          "const": "month",
+          "title": "月"
+        },
+        {
+          "const": "year",
+          "title": "年"
+        }
+      ]
     },
     "fullscreen": {
       "type": "boolean",

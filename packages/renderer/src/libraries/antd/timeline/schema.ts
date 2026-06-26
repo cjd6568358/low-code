@@ -24,6 +24,7 @@ export interface TimelineProps extends BaseProps {
    * @group 基础属性
    * @priority 11
    * @default "start"
+   * @enumLabels start:起始, alternate:交替, end:结束, left:左, right:右
    */
   mode?: 'start' | 'alternate' | 'end' | 'left' | 'right';
 
@@ -32,6 +33,7 @@ export interface TimelineProps extends BaseProps {
    * @group 基础属性
    * @priority 12
    * @default "vertical"
+   * @enumLabels horizontal:水平, vertical:垂直
    */
   orientation?: 'horizontal' | 'vertical';
 
@@ -40,6 +42,7 @@ export interface TimelineProps extends BaseProps {
    * @group 基础属性
    * @priority 13
    * @default "outlined"
+   * @enumLabels filled:填充, outlined:描边
    */
   variant?: 'filled' | 'outlined';
 

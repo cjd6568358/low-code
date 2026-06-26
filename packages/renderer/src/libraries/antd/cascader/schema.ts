@@ -96,6 +96,7 @@ export interface CascaderProps extends BaseProps {
    * @group 基础属性
    * @priority 21
    * @no-binding
+   * @enumLabels click:点击, hover:悬浮
    */
   expandTrigger?: 'click' | 'hover';
 
@@ -136,6 +137,7 @@ export interface CascaderProps extends BaseProps {
    * @group 基础属性
    * @priority 26
    * @no-binding
+   * @enumLabels SHOW_PARENT:父节点, SHOW_CHILD:子节点
    */
   showCheckedStrategy?: 'SHOW_PARENT' | 'SHOW_CHILD';
 
@@ -146,6 +148,7 @@ export interface CascaderProps extends BaseProps {
    * @group 基础属性
    * @priority 30
    * @no-binding
+   * @enumLabels small:小, middle:居中, large:大
    */
   size?: 'small' | 'middle' | 'large';
 
@@ -154,6 +157,7 @@ export interface CascaderProps extends BaseProps {
    * @group 基础属性
    * @priority 31
    * @no-binding
+   * @enumLabels outlined:描边, filled:填充, borderless:无边框, underlined:下划线
    */
   variant?: 'outlined' | 'filled' | 'borderless' | 'underlined';
 
@@ -162,6 +166,7 @@ export interface CascaderProps extends BaseProps {
    * @group 基础属性
    * @priority 32
    * @no-binding
+   * @enumLabels error:错误, warning:警告
    */
   status?: 'error' | 'warning';
 
@@ -170,6 +175,7 @@ export interface CascaderProps extends BaseProps {
    * @group 基础属性
    * @priority 33
    * @no-binding
+   * @enumLabels ltr:从左到右, rtl:从右到左
    */
   direction?: 'ltr' | 'rtl';
 
@@ -225,6 +231,7 @@ export interface CascaderProps extends BaseProps {
    * @group 基础属性
    * @priority 52
    * @no-binding
+   * @enumLabels bottomLeft:左下, bottomRight:右下, topLeft:左上, topRight:右上
    */
   placement?: 'bottomLeft' | 'bottomRight' | 'topLeft' | 'topRight';
 

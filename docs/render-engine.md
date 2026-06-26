@@ -328,8 +328,9 @@ DesignOverlay（Portal，position: fixed）
 - 通过 `DESIGN_KEYS` 过滤 `_` 前缀设计态 props，不泄露到 DOM
 - 通过 `PLATFORM_KEYS` 过滤平台能力 props（`node`/`field`/`events`/`linkage`/`designMode`/`visible`）
 - `visible` 为 `false` 时运行时不渲染组件；设计态跳过此检查，确保所有组件在设计器中可见
-- `enhanceValueOnChange()` 自动关联 `value` ↔ `onChange` ↔ 联动规则
+- `enhanceValueOnChange()` 将编译后的事件处理器直接注入为组件 props（onClick → onClick，onBlur → onBlur 等），`onChange` 单独处理（自动关联 value ↔ onChange ↔ 联动规则）
 - 运行时注入平台能力（`field`/`events`/`linkage`）
+- Form 组件注册 props（`_formRegistry`/`_formId`）被 `PLATFORM_KEYS` 过滤后显式转发给 `FormWithProvider`
 
 **DesignOverlay Portal**：
 - 通过 `document.querySelector('.lc-did-{id}')` 定位组件 DOM 元素
@@ -362,6 +363,15 @@ DesignOverlay（Portal，position: fixed）
 - 拖入区域移到 `ComponentImpl` 外部，用 `position: relative` 包裹层 + `position: absolute; bottom` 贴底
 - 容器 `paddingBottom` 预留空间，内容不遮挡拖入区域
 - 视觉上在容器虚线边框内，但不受容器布局（inline/flex/grid）影响
+
+##### 8. "+ 拖入更多" 点击选中父容器
+
+**交互行为**：点击容器内的"+ 拖入更多"按钮时，自动选中该父容器，方便用户快速定位和操作容器组件。
+
+**实现**：
+- 拖入区域 div 添加 `onClick` 事件处理器，调用 `handleSelect(node.id)` 选中父容器
+- 添加 `cursor: 'pointer'` 样式，鼠标悬停时显示手型指针，提示可点击
+- `onClick` 中调用 `e.stopPropagation()` 阻止事件冒泡到画布根 div（避免触发 `handleSelect(null)` 取消选中）
 
 ##### 8. 表单容器 FormContext 传递
 
@@ -481,9 +491,8 @@ interface InputProps extends BaseProps {
 | `ComponentSelector` | 组件选择器（从组件注册表中选择） |
 | `StyleEditor` | CSS 样式编辑器 |
 | `EventActionChainEditor` | 事件动作链编排器（支持条件分支表达式编辑器、批量赋值变量树选择器、嵌套条件分支过滤） |
-| `SlotSelector` | 插槽选择器 |
 
-> `VariablePicker` 和 `ExpressionEditor` 由自动渲染引擎内建提供，无需各引擎重复注册。
+> `VariableTreeSelector`（组件变量树选择器）和 `ExpressionEditor`（表达式编辑器） 由自动渲染引擎内建提供，无需各引擎重复注册。
 
 ### 属性定义体系
 
@@ -613,12 +622,13 @@ name?: string;
 
 - `packages/renderer/src/core/expression-type-infer.ts` — 表达式类型推断工具
 - `packages/renderer/src/components/MonacoEditor.tsx` — Monaco 编辑器包装（暴露格式化/诊断方法）
-- `packages/renderer/src/designer/panels/VariablePicker.tsx` — 变量选择器（集成类型校验）
-- `packages/renderer/src/designer/panels/TypeMismatchModal.tsx` — 类型不匹配确认对话框
+- `packages/renderer/src/components/VariableTreeSelector.tsx` — 组件变量树选择器（单选/多选，弹窗覆盖层）
+- `packages/renderer/src/components/ExpressionEditor.tsx` — 表达式编辑器（Monaco-based，同步/异步模式，弹窗覆盖层）
+- `packages/renderer/src/components/TypeMismatchModal.tsx` — 类型不匹配确认对话框
 
 ## 自定义卡片规范
 
-自定义卡片是由基础组件组合而成的**最小化业务组件**，支持保存为模板复用，卡片内部可递归嵌套其他卡片。卡片对外暴露可控的属性（Props）、事件（Events）、插槽（Slots）接口，对内封装内部实现，行为等同于用户自定义的原生组件。
+自定义卡片是由基础组件组合而成的**最小化业务组件**，支持保存为模板复用，卡片内部可递归嵌套其他卡片。卡片对外暴露可控的属性（Props）、事件（Events）、方法（Methods）接口，对内封装内部实现，行为等同于用户自定义的原生组件。
 
 ### 设计原则
 
@@ -663,7 +673,6 @@ interface CustomCardDefinition {
 interface CardInterface {
   props: ExposedProp[];                // 暴露的属性列表
   methods?: MethodDefinition[];       // 暴露的方法列表
-  slots?: SlotDefinition[];           // 插槽定义
   events?: EventDefinition[];         // 可触发的事件
 }
 
@@ -706,16 +715,6 @@ interface MethodParam {
   enum?: Array<{ label: string; value: any }>;
 }
 
-/** 插槽定义 */
-interface SlotDefinition {
-  name: string;                        // 插槽名，如 "header", "footer", "actions"
-  title: string;                       // 显示标题
-  description?: string;
-  accept?: string[];                   // 允许放入的组件类型，空=不限
-  maxItems?: number;                   // 最大子项数，空=不限
-  defaultContent?: ComponentNode[];    // 默认内容
-}
-
 /** 事件定义 */
 interface EventDefinition {
   name: string;                        // 事件名，如 "onCustomerClick"
@@ -724,285 +723,6 @@ interface EventDefinition {
   payload?: Record<string, string>;    // 事件携带的数据结构描述
 }
 ```
-
-### 插槽组件 — SlotComponent
-
-插槽是卡片中的**特殊组件**，用于暴露变量/方法/事件给调用方。卡片作者在设计器中将插槽组件拖入卡片模板，配置名称、标题、约束条件和暴露接口；消费方使用卡片时，可向插槽填充自定义内容，并通过 `$slot.xxx` 引用插槽暴露的变量。
-
-#### 设计器中的插槽配置
-
-插槽组件在左侧面板的「自定义」分类下展示。拖入卡片模板后，右侧属性面板显示插槽专属配置，分为两个 Tab：
-
-**基础配置 Tab：**
-
-```
-┌─────────────────────────────────────────┐
-│  📌 插槽                    [基础配置] [暴露接口] │
-├─────────────────────────────────────────┤
-│  插槽名称 *                              │
-│  ┌──────────────────────────┐           │
-│  │ header                   │           │
-│  └──────────────────────────┘           │
-│  唯一标识，用于消费方传入 slots 内容       │
-│                                          │
-│  显示标题 *                              │
-│  ┌──────────────────────────┐           │
-│  │ 扩展区域                  │           │
-│  └──────────────────────────┘           │
-│                                          │
-│  接受的组件类型                            │
-│  ┌──────────────────────────┐           │
-│  │ [button] [text] ×        │           │
-│  └──────────────────────────┘           │
-│  ☑ button  ☑ text  ☐ table              │
-│                                          │
-│  最大子项数                               │
-│  ┌──────────────────────────┐           │
-│  │ 3                        │           │
-│  └──────────────────────────┘           │
-└─────────────────────────────────────────┘
-```
-
-**暴露接口 Tab：**
-
-配置通过此插槽暴露给消费方的变量、方法和事件。消费方在插槽内容中可通过 `$slot.xxx` 引用暴露的变量。
-
-```
-┌─────────────────────────────────────────┐
-│  暴露变量 (2)                [+ 添加]    │
-│  ┌──────┬─────────────────────────────┐ │
-│  │ name │ $context.currentRecord.name │ │
-│  │ level│ $props.customerLevel        │ │
-│  └──────┴─────────────────────────────┘ │
-│                                          │
-│  暴露方法 (1)                [+ 添加]    │
-│  ┌──────┬──────┬────────────┐           │
-│  │ 校验  │ 校验  │ form_01    │           │
-│  └──────┴──────┴────────────┘           │
-│                                          │
-│  暴露事件 (1)                [+ 添加]    │
-│  ┌──────────┬──────────┬──────────────┐ │
-│  │ onSubmit │ 提交成功  │ btn_01.onClick│ │
-│  └──────────┴──────────┴──────────────┘ │
-└─────────────────────────────────────────┘
-```
-
-#### SlotDefinition 类型定义
-
-```typescript
-interface SlotDefinition {
-  name: string;                        // 插槽名，如 "header", "footer", "actions"
-  title: string;                       // 显示标题
-  description?: string;
-  accept?: string[];                   // 允许放入的组件类型，空=不限
-  maxItems?: number;                   // 最大子项数，空=不限
-  defaultContent?: ComponentNode[];    // 默认内容
-  expose?: SlotExpose;                 // 暴露给消费方的接口
-}
-
-interface SlotExpose {
-  variables?: Record<string, string>;  // 暴露变量：变量名 → 表达式
-  methods?: SlotExposedMethod[];       // 暴露的方法
-  events?: SlotExposedEvent[];         // 暴露的事件
-}
-
-interface SlotExposedMethod {
-  name: string;
-  title: string;
-  description?: string;
-  target: string;                      // 映射到内部组件的方法，如 "form_01.validate"
-  params?: MethodParam[];
-  returnType?: string;
-}
-
-interface SlotExposedEvent {
-  name: string;
-  title: string;
-  source: string;                      // 内部触发源，如 "btn_01.onClick"
-  payload?: Record<string, string>;
-}
-```
-
-#### 保存为卡片时的自动收集
-
-保存为卡片时，模板中的所有 `type="slot"` 节点自动收集为 `SlotDefinition[]`，写入 `CardInterface.slots`。插槽的暴露接口（variables/methods/events）一并收集。
-
-#### 运行时渲染流程
-
-```
-消费方使用卡片:
-  slots={{
-    header: [<Button onClick={() => $slot.submit()}>提交</Button>]
-  }}
-        │
-        ▼
-渲染器遇到 template 中 type="slot" 的节点
-        │
-        ▼
-收集插槽暴露变量 → 注入到 $slot 作用域
-        │
-        ▼
-查找 slots[slot.props.name]
-        │
-        ├─ 有内容 → 替换为消费方传入的内容（$slot 可用）
-        └─ 无内容 → 渲染默认占位区域（📌 标题 + 描述）
-```
-
-#### 消费方引用示例
-
-**场景：消费方在插槽内容中引用暴露变量、调用暴露方法、监听暴露事件**
-
-```tsx
-// 使用卡片，向 header 插槽传入内容
-<CardInstance
-  props={{ customerName: '张三', customerLevel: 'vip' }}
-  slots={{
-    header: [
-      // 引用暴露变量
-      <Text>{$slot.header.customerName}</Text>,
-      // 调用暴露方法（返回值可通过 $result 获取）
-      <Button onClick={() => $slot.header.validate({ strict: true })}>校验</Button>,
-    ],
-  }}
-/>
-```
-
-#### invokeMethod + 插槽打通
-
-`invokeMethod` 动作支持两种路由：
-
-| methodName 格式 | 路由目标 | 说明 |
-|----------------|---------|------|
-| `"validate"` | 卡片级方法 `interface.methods` | 直接在卡片作用域执行动作链 |
-| `"header.validate"` | 插槽方法 `slot.expose.methods` | 路由到内部组件方法，返回 $result |
-
-**完整调用链路：**
-
-```
-消费方 submit 按钮 onClick:
-  [
-    {
-      "action": "invokeMethod",
-      "target": "customerCard",
-      "method": "header.validate",        ← slotName.methodName 路由
-      "params": { "strict": true }
-    },
-    {
-      "action": "apiCall",
-      "condition": "$result.valid === true",  ← $result 拿到内部方法返回值
-      "params": { "url": "/api/submit", "data": "$result.data" }
-    },
-    {
-      "action": "message",
-      "condition": "$result.valid === false",
-      "params": { "type": "error", "content": "校验失败" }
-    }
-  ]
-```
-
-**invokeMethod 路由流程：**
-
-```
-invokeMethod("customerCard", "header.validate", { strict: true })
-        │
-        ▼
-methodName 包含 "." → 插槽方法路由
-        │
-        ▼
-查找 slotDefinitions["header"].expose.methods
-        │
-        ▼
-找到 target: "form_01.validate"
-        │
-        ▼
-调用内部组件 form_01 的 validate 方法
-        │
-        ▼
-返回 { valid: true, errors: {} } → 写入 $result
-        │
-        ▼
-后续动作通过 $result.valid / $result.data 引用
-```
-
-**$slot 作用域结构：**
-
-```typescript
-// $slot 由 CardRenderer.createSlotExposeContext 生成
-$slot = {
-  header: {
-    // 暴露变量（由 expose.variables 表达式求值）
-    customerName: '张三',
-    customerLevel: 'vip',
-    // 暴露方法（由 expose.methods.target 映射到内部组件方法）
-    validate: async (params) => internalMethodInvoker('form_01', 'validate', params),
-    getData: async () => internalMethodInvoker('form_01', 'getData'),
-    // 暴露事件触发器（由 expose.events.source 映射到内部组件事件）
-    onSubmit: (data) => internalEventEmitter('btn_01', 'onClick', data),
-  },
-  footer: {
-    // 另一个插槽的暴露接口
-  },
-};
-```
-
-#### 设计器中配置 invokeMethod 调用插槽方法
-
-在设计器的事件动作链编排器中，选择「调用组件方法」动作类型，所有配置均通过 UI 下拉选择完成，无需手写表达式：
-
-```
-┌─────────────────────────────────────────────────────┐
-│  动作类型: [调用组件方法 ▼]                           │
-├─────────────────────────────────────────────────────┤
-│                                                      │
-│  目标组件: [客户摘要卡片 (customerCard) ▼]             │
-│            ↑ 自动列出页面中所有可调用的组件实例          │
-│                                                      │
-│  调用方法: ▼                                          │
-│  ┌─────────────────────────────────────────────┐    │
-│  │  卡片方法                                     │    │
-│  │    校验 — 校验卡片内所有表单字段                │    │
-│  │    重置 — 重置表单为初始值                     │    │
-│  │    获取数据 — 获取所有表单字段的当前值           │    │
-│  │  ──────────────────────────────────────────  │    │
-│  │  插槽方法                                     │    │
-│  │  📌 header.validate — 校验表单字段             │    │
-│  │  📌 header.getData — 获取表单数据              │    │
-│  │  📌 header.onSubmit — 提交成功事件             │    │
-│  └─────────────────────────────────────────────┘    │
-│            ↑ 自动列出：                               │
-│              - interface.methods（卡片级方法）         │
-│              - slot.expose.methods（插槽暴露方法）    │
-│              - 分组展示，插槽方法带 📌 标识            │
-│                                                      │
-│  参数配置:                                            │
-│    strict  ┌───────────────────────────┐             │
-│            │ ☑ (布尔值)                 │             │
-│            └───────────────────────────┘             │
-│                                                      │
-│  返回值处理:                                          │
-│    返回值自动写入 $result                              │
-│    后续动作通过 $result.xxx 引用                       │
-│    （可在条件表达式中使用 $result.valid 等字段）        │
-│                                                      │
-└─────────────────────────────────────────────────────┘
-```
-
-**变量选择器中的 $slot 引用：**
-
-在变量选择器（🔗 按钮）的变量树中，自动出现「插槽接口」节点：
-
-```
-▼ 插槽接口
-  ▼ 📌 header
-      customerName          ← 暴露变量
-      customerLevel         ← 暴露变量
-      📎 校验               ← 暴露方法（可引用）
-      📎 获取数据            ← 暴露方法
-  ▼ 📌 footer
-      totalCount            ← 暴露变量
-```
-
-消费方在变量选择器中点击即可选中 `$slot.header.customerName`，无需手写路径。
 
 暴露属性通过表达式映射到内部组件的属性上：
 
@@ -1091,10 +811,6 @@ interface CardEventDef {
         ]
       }
     ],
-    "slots": [
-      { "name": "extra", "title": "扩展区域", "description": "卡片右上角扩展内容" },
-      { "name": "footer", "title": "底部区域", "description": "卡片底部自定义内容" }
-    ],
     "events": [
       { "name": "onCustomerClick", "title": "点击客户名称", "payload": { "customerId": "string" } }
     ]
@@ -1106,9 +822,7 @@ interface CardEventDef {
     { "id": "customer_name", "type": "text", "parentId": "title_row", "props": {} },
     { "id": "level_tag", "type": "tag", "parentId": "title_row", "props": {} },
     { "id": "stat_row", "type": "flex", "parentId": "card_container", "props": {} },
-    { "id": "order_stat", "type": "statistic", "parentId": "stat_row", "props": { "title": "订单数" } },
-    { "id": "slot_extra", "type": "slot", "parentId": "title_row", "props": { "name": "extra" } },
-    { "id": "slot_footer", "type": "slot", "parentId": "card_container", "props": { "name": "footer" } }
+    { "id": "order_stat", "type": "statistic", "parentId": "stat_row", "props": { "title": "订单数" } }
   ],
 
   "bindings": {
@@ -1142,12 +856,7 @@ interface CardEventDef {
   },
   "events": {
     "onCustomerClick": [
-      { "action": "navigate", "url": "/customer/${customerId}" }
-    ]
-  },
-  "slots": {
-    "extra": [
-      { "id": "edit_btn", "type": "button", "props": { "children": "编辑" } }
+      { "action": "navigate", "linkType": "external", "url": "/customer/{{customerId}}", "target": "_self" }
     ]
   }
 }
@@ -1207,7 +916,7 @@ interface CardEventDef {
 
 ### 设计器 UI 操作规范
 
-自定义卡片的所有对外接口（属性、方法、事件、插槽）均通过设计器 UI 完成配置，无需手写 JSON 或表达式。
+自定义卡片的所有对外接口（属性、方法、事件）均通过设计器 UI 完成配置，无需手写 JSON 或表达式。
 
 #### 左侧面板 — 卡片拖入
 
@@ -1251,16 +960,6 @@ interface CardEventDef {
 │  │  ┌───────────────────────┬────┐      │
 │  │  │  ☑                   │ 🔗 │      │  ← 开关 + 数据绑定按钮
 │  │  └───────────────────────┴────┘      │
-│  │                                      │
-│  ▼ 插槽                                │
-│  │  扩展区域                             │
-│  │  ┌──────────────────────────┐        │
-│  │  │  📌 拖入组件或点击配置     │        │  ← 插槽放置区
-│  │  └──────────────────────────┘        │
-│  │  底部区域                             │
-│  │  ┌──────────────────────────┐        │
-│  │  │  📌 拖入组件或点击配置     │        │
-│  │  └──────────────────────────┘        │
 │  │                                      │
 │  ▼ 事件                                │
 │  │  点击客户名称 → 配置动作链 ...         │  ← 事件动作配置入口
@@ -1346,9 +1045,11 @@ interface CardEventDef {
 │                                                      │
 │  动作链:                                              │
 │  ┌─ 1. ─────────────────────────────────────────┐   │
-│  │  动作类型: [打开页面 ▼]                        │   │
+│  │  动作类型: [打开页面 ▼]  [🟢禁用开关]          │   │
+│  │  链接类型: [平台内页面 ▼]                      │   │
 │  │  目标页面: [客户详情页 ▼]                      │   │
-│  │  页面参数: customerId ← {{事件.客户ID}}        │   │
+│  │  查询参数: [表达式...]                         │   │
+│  │  目标窗口: [当前窗口 ▼]                        │   │
 │  └──────────────────────────────────────────────┘   │
 │           │                                          │
 │           ▼                                          │
@@ -1406,7 +1107,7 @@ interface CardEventDef {
 
 ##### 批量设置值编辑器
 
-批量设置值动作支持为多个字段配置赋值，每个字段支持三种值模式：
+批量设置值动作支持为多个字段配置赋值。点击"+ 添加赋值"打开 VariableTreeSelector 多选模式，勾选赋值目标后批量添加，每字段支持三种值模式：
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -1415,21 +1116,21 @@ interface CardEventDef {
 │                                                      │
 │  批量设置值                                           │
 │                                                      │
-│  ┌─ fieldName ──────────────────────────────────┐   │
+│  ┌─ $component.username.value ─────────────────┐   │
 │  │  [常量] [变量] [表达式]                        │   │
 │  │  ┌─────────────────────────┬──────────┐      │   │
 │  │  │ $data.customerName      │ 选择变量  │      │   │
 │  │  └─────────────────────────┴──────────┘      │   │
 │  └──────────────────────────────────────────────┘   │
 │                                                      │
-│  ┌─ status ────────────────────────────────────┐   │
+│  ┌─ $component.status.value ──────────────────┐   │
 │  │  [常量] [变量] [表达式]                        │   │
 │  │  ┌─────────────────────────┬──────────┐      │   │
 │  │  │ active                  │          │      │   │
 │  │  └─────────────────────────┴──────────┘      │   │
 │  └──────────────────────────────────────────────┘   │
 │                                                      │
-│  [+ 添加字段]                                        │
+│  [+ 添加赋值]  ← 打开 VariableTreeSelector 多选     │
 │                                                      │
 └─────────────────────────────────────────────────────┘
 ```
@@ -1439,10 +1140,10 @@ interface CardEventDef {
 | 模式 | 说明 | 输入方式 |
 |------|------|---------|
 | 常量 | 静态值，直接输入 | 文本输入框 |
-| 变量 | 变量引用，如 `$data.name` | 文本输入 + "选择变量"按钮（打开变量树选择器） |
+| 变量 | 变量引用，如 `$data.name` | 文本输入 + "选择变量"按钮（打开 VariableTreeSelector 单选） |
 | 表达式 | 表达式，如 `$event.value * 2` | 文本输入 + "选择表达式"按钮（打开 Monaco 编辑器） |
 
-**变量树选择器**：点击"选择变量"按钮打开 VariablePicker 的变量模式，展示页面组件树、数据源、用户信息等变量节点，点击即可选中变量路径，无需手写。
+**赋值目标选择**：点击"+ 添加赋值"打开 VariableTreeSelector 多选模式，展示组件变量树（`$component.*`），支持勾选多个赋值目标后批量添加。赋值 key 格式为 `$component.{name}.{property}`。
 
 #### 方法调用 — 动作配置中引用
 
@@ -1471,18 +1172,6 @@ interface CardEventDef {
 ```
 
 方法的参数表单由 `MethodDefinition.params` 自动生成，与属性配置相同的控件映射规则。返回值可保存到页面变量供后续动作使用。
-
-#### 插槽配置 — 拖拽填充
-
-插槽在设计区显示为可放置的占位区域，支持两种配置方式：
-
-1. **拖拽填充**：从左侧面板拖入组件到插槽区域，自动创建子组件
-2. **点击配置**：点击插槽区域弹出组件选择面板，选择要放入的组件
-
-插槽支持的约束由 `SlotDefinition` 定义：
-- `accept` 限制可放入的组件类型（如只允许按钮类组件）
-- `maxItems` 限制最大数量（如最多 3 个按钮）
-- `defaultContent` 提供默认内容，用户可在此基础上修改
 
 #### 保存为卡片
 
@@ -1551,8 +1240,7 @@ interface CardEventDef {
   解析 expression（运算引擎沙箱执行）→ 赋值到 target 组件属性
         │
         ▼
-渲染 template 组件树，遇到 type="slot" 的节点：
-  替换为消费方传入的 slots[slotName] 内容
+渲染 template 组件树
         │
         ▼
 挂载 events 映射：内部组件事件 → 对外事件发射
@@ -1584,11 +1272,11 @@ interface CardEventDef {
 
 运行时渲染器消费设计器产出的页面描述 JSON，驱动多端 UI 渲染。一切配置皆可序列化为 JSON，运行时无隐式状态。
 
-**当前实现**：`PageRuntime` 组件（`frontend/src/components/PageRuntime.tsx`）提供简化版运行时渲染：
+**当前实现**：`PageRuntime` 组件（`frontend/src/components/PageRuntime.tsx`）基于 `PageRenderer` 完整渲染引擎：
 - 路由：`/:tenantId/app/:appId/page/:pageId`
-- 加载页面 Schema → 递归渲染 antd 组件树 → 应用布局配置
-- 暂不支持数据绑定/联动/事件，仅做静态渲染
-- 完整运行时能力（数据绑定、联动引擎、事件系统）后续接入 `PageRenderer`
+- 加载页面 Schema → `PageRenderer` 递归渲染 antd 组件树 → 应用布局配置
+- 支持数据绑定（变量引用/表达式）、联动引擎、事件动作链、条件规则
+- 组件 ID 同时作为 Form.Item 的 name 和 form store key
 
 ### 页面 Schema 定义
 
@@ -1608,9 +1296,9 @@ interface PageSchema {
 
 /** 组件节点 — 页面描述的基本单元 */
 interface ComponentNode {
-  id: string;                            // 组件实例唯一 ID（格式：{type}_{timestamp}，如 textarea_1781765600372）
+  id: string;                            // 组件实例唯一 ID（格式：{type}_{序号}，如 input_01），同时作为 Form.Item 的 name 和 form store key
   type: string;                          // 组件类型，匹配组件注册表
-  name: string;                          // 字段名（中文名称，如 文本域_01，用于表单绑定和变量引用）
+  name: string;                          // 显示名称（中文，如 输入框_01），用于变量引用路径和设计器展示
   parentId?: string;                     // 父组件 ID（树形结构）
   props: Record<string, PropValue>;      // 组件属性（支持字面量/变量引用/表达式）
   events?: Record<string, ActionChain[]>; // 事件 → 动作链映射
@@ -1912,17 +1600,17 @@ environmentRegistry.registerAvailableTables({
 });
 ```
 
-**VariablePicker 组件自动处理动态注册**：
+**VariableTreeSelector 组件自动处理动态注册**：
 
 ```typescript
-<VariablePicker
+<VariableTreeSelector
   visible={true}
   mode="variable"
   value="$component.input_01.value"
   onChange={handleChange}
   onClear={handleClear}
   onClose={handleClose}
-  // 传入页面组件列表，VariablePicker 打开时自动注册
+  // 传入页面组件列表，VariableTreeSelector 打开时自动注册
   pageComponents={{
     'input_01': { type: 'input', label: '客户名称' },
     'select_02': { type: 'select', label: '客户等级' },
@@ -2114,7 +1802,7 @@ const { resolvedProps, loading, errors } = useBindings(
 
 **EnvironmentRegistry** — 环境变量注册表
 - 管理所有环境变量的元数据（类型、描述、子属性）
-- 生成变量树数据（用于 VariablePicker）
+- 生成变量树数据（用于 VariableTreeSelector）
 - 生成 Monaco 代码提示数据
 - 跨应用变量展示和校验
 - 依赖收集
@@ -2149,28 +1837,17 @@ const { resolvedProps, loading, errors } = useBindings(
 **编辑器结构**：
 ```javascript
 /**
- * 可用环境变量：
- * $user — 当前登录用户信息
- * $platform — 当前运行平台标识
- * $route — 当前路由信息
- * $component — 页面组件实例状态
- * $data — 页面级数据源聚合
- * $table — 服务端表查询（仅表达式）
- * $computation — 运算引擎（仅表达式）
- * $fetch — 第三方请求（仅表达式）
- * $workflow — 流程上下文（仅表达式）
- *
- * 示例：
- * const name = $user.name;
- * const platform = $platform.web;
- * return name + " - " + platform;
+ * 示例: return $user.name + $route.query
  */
-async () => {
+async ({$user, $platform, $route, $component, $data, $table, $computation, $fetch, $workflow, $event, $result}) => {
   // 用户在此编写代码
 }
 ```
 
-**保存逻辑**：保存时自动过滤开头的 JSDoc 注释，只保存函数本身。
+- 环境变量通过解构参数传入，鼠标悬浮到 JSDoc 中的变量名可查看说明（Monaco HoverProvider）
+- 保存时自动过滤开头的 JSDoc 注释，只保存函数体
+- `onChange` 返回 `{ type: 'expression', value: string, async: boolean }`，async 标识随值一起存储
+- 弹窗支持 `modalWidth`（默认 820）和 `modalMaxHeight`（默认 '90vh'）自定义宽高
 
 **自动补全行为**：
 - 输入 `$`：显示所有一级环境变量
@@ -2195,6 +1872,8 @@ async () => {
 - 支持变量模式和表达式模式
 - 复杂表达式可手动指定返回类型覆盖自动推断
 - `any` 类型跳过校验
+- `undefined`/`null` 类型不兼容具体类型（空函数体会触发二次确认）
+- 含运算符的表达式（如 `$user.name + $route.query`）正确走运算符推断，不误判为变量路径
 
 **UI 布局**：
 ```
@@ -2249,7 +1928,8 @@ async () => {
 
 **实现文件**：
 - `packages/renderer/src/components/MonacoEditor.tsx` — MonacoEditorRef 接口
-- `packages/renderer/src/designer/panels/VariablePicker.tsx` — formatExpression / getCodeErrors
+- `packages/renderer/src/components/VariableTreeSelector.tsx` — 组件变量树选择器
+- `packages/renderer/src/components/ExpressionEditor.tsx` — formatExpression / getCodeErrors
 
 #### 已知问题
 
@@ -2260,8 +1940,15 @@ async () => {
 - 这是 Monaco Editor 的限制，目前无法完全禁用语言服务的补全
 
 **$component 动态注册**：
-- `$component` 的子属性（页面组件）需要在 VariablePicker 打开时动态注册
-- 注册依赖 `pageComponents` prop 的传入，如果传入时机晚于 VariablePicker 打开，可能不会显示
+- `$component` 的子属性（页面组件）需要在 VariableTreeSelector / ExpressionEditor 打开时动态注册
+- 注册依赖 `pageComponents` prop 的传入，如果传入时机晚于 VariableTreeSelector / ExpressionEditor 打开，可能不会显示
+
+**Flex 组件 `vertical` 已废弃**：
+- `vertical`（boolean）标记为 `@ignore`，不再出现在 JSON Schema 中
+- 统一使用 `orientation`（`'horizontal' | 'vertical'`），与 antd 的 `useOrientation` 优先级一致
+- 设计时 `DesignCanvas` 容器渲染：Flex/Grid 组件的布局属性（`orientation`/`align`/`justify`/`wrap`/`gap`）通过 `node.props` 传给 antd 组件自身处理，不手动转 inline style
+- @see `packages/renderer/src/libraries/antd/flex/schema.ts`（`@ignore` 标记）
+- @see `packages/renderer/src/designer/panels/DesignCanvas.tsx`（容器样式逻辑）
 
 ### 条件规则引擎
 
@@ -2282,10 +1969,73 @@ interface ActionStep {
   action: string;                        // 动作类型标识，匹配平台统一动作类型字典
   params?: Record<string, any>;          // 动作参数
   condition?: string;                    // 执行条件表达式
+  disabled?: boolean;                    // 是否禁用（跳过执行）
   then?: ActionStep[];                   // 条件满足时的后续动作
   else?: ActionStep[];                   // 条件不满足时的后续动作
 }
 ```
+
+#### 动作执行上下文 (ActionContext)
+
+动作执行器通过 `ActionContext` 获取运行时能力：
+
+```typescript
+interface ActionContext {
+  renderContext: Record<string, any>;    // 运行时环境变量（$user/$platform/$route 等）
+  event?: any;                           // 原生事件对象
+  $result?: any;                         // 上一个动作的返回值
+  formRegistry?: FormRegistryLike;       // 表单注册表
+  setFormValue?: (field: string, value: any) => void;         // 设置表单字段值
+  setComponentProp?: (componentId: string, propName: string, value: any) => void;  // 设置组件属性
+  navigate?: (url: string, params?: Record<string, string>) => void;
+  showModal?: (modalId: string, data?: any) => Promise<any>;
+  closeModal?: (modalId: string, result?: any) => void;
+  apiRequest?: (config: any) => Promise<any>;
+  refreshComponent?: (targetId: string, propNames?: string[]) => Promise<any>;
+}
+```
+
+#### setValues 批量设值
+
+`setValues` 动作支持设置表单字段值和组件属性值：
+
+- **表单字段**：key 为字段名（如 `orderNo`），调用 `setFormValue`
+- **组件属性**：key 以 `$component.` 开头（如 `$component.input_01.disabled`），调用 `setComponentProp`
+- **值格式**：支持字面量、`{ type: 'variable', value: '$platform.mobile' }`、`{ type: 'expression', value: 'async () => { ... }' }`
+
+```jsonc
+{
+  "action": "setValues",
+  "params": {
+    "values": {
+      "$component.input_01.value": { "type": "variable", "value": "$route.path" },
+      "$component.input_01.disabled": { "type": "expression", "value": "async () => { return $platform.mobile }" }
+    }
+  }
+}
+```
+
+运行时通过 `componentOverrides` 机制将组件属性覆盖合并到 `resolvedProps`，触发 React 重渲染。
+
+**Form store 同步**：当 `setValues` 设置 `$component.xxx.value` 时，除了更新 `componentOverrides`，还会同步调用 `form.setFieldsValue()` 更新 antd Form store。这是因为 Form.Item 通过 `React.cloneElement` 注入表单 store 的 value，会覆盖 `componentOverrides` 中的值。组件 ID（`node.id`）同时作为 Form.Item 的 `name` prop 和 form store key，保持三者统一。
+
+#### Form 组件注册
+
+Form 组件挂载时自动注册到 `FormRegistry`，同时注册 antd Form 实例。卸载时注销。注册后 `resetForm`/`validate`/`setFieldValue` 等动作可正确定位表单实例。
+
+```typescript
+// FormWithProvider 挂载时
+const [formInstance] = Form.useForm();  // 获取 antd 表单实例
+const manager = new FormDataContextManager(expressionEngine, linkageEngine);
+manager.init({ formId });
+formRegistry.register(formId, manager);
+formRegistry.registerAntdForm(formId, formInstance);  // 注册 antd 实例（用于 setFieldsValue）
+
+// FormWithProvider 卸载时
+formRegistry.unregister(formId);  // 同时清理 antd 实例
+```
+
+**Form.Item name 统一使用组件 ID**：Renderer 渲染时将 `node.id` 注入为 `name` prop（而非 `node.name`），确保 Form.Item 的字段名、form store key、`setValues` 的 component ID 三者一致。
 
 #### 事件动作链编排器 (EventActionChainEditor)
 
@@ -2297,13 +2047,16 @@ interface ActionStep {
 |------|------|
 | 事件管理 | 添加/删除/编辑组件事件，自动从组件 Schema 提取可用事件列表 |
 | 动作编排 | 拖拽排序动作步骤，支持 16 种标准动作类型 |
+| 动作禁用 | 每个动作步骤支持 Switch 开关禁用/启用，禁用后运行时跳过执行，UI 半透明显示 |
 | 条件分支 | 支持 If-Then-Else 条件分支，条件表达式使用 Monaco 编辑器 |
-| 批量赋值 | 支持多字段批量设置值，每字段支持常量/变量/表达式三种模式 |
+| 批量赋值 | 通过 VariableTreeSelector 多选赋值目标，每字段支持常量/变量/表达式三种模式 |
+| 页面导航 | navigate/redirect 动作支持平台内页面下拉选择 + 查询参数变量/表达式配置（PropValue 格式） |
 | 嵌套限制 | 条件分支内的动作链自动过滤"条件分支"类型，防止无限嵌套 |
 
 **实现文件**：
 - `packages/renderer/src/designer/panels/EventActionChainEditor.tsx` — 主组件
-- `packages/renderer/src/designer/panels/VariablePicker.tsx` — 变量选择器（变量树 + 表达式编辑器）
+- `packages/renderer/src/components/VariableTreeSelector.tsx` — 组件变量树选择器
+- `packages/renderer/src/components/ExpressionEditor.tsx` — 表达式编辑器
 
 **Props 接口**：
 
@@ -2313,10 +2066,11 @@ interface EventActionChainEditorProps {
   onChange: (events: Record<string, ActionChain[]>) => void;
   availableEvents?: Array<{ name: string; title: string }>;
   availableMethods?: ComponentMethod[];
-  availableFields?: string[];
   formComponents?: Array<{ id: string; name: string }>;
   pageComponents?: Record<string, { type: string; label?: string }>;
   pageDataSources?: Record<string, { type: string; description?: string }>;
+  appId?: string;                        // 当前应用 ID（用于加载页面列表）
+  tenantId?: string;                     // 当前租户 ID（用于拼接路由）
 }
 ```
 
@@ -2325,13 +2079,15 @@ interface EventActionChainEditorProps {
 #### 事件编译流程
 
 ```
-设计器产出: { "onClick": [{ "action": "navigate", "url": "/detail/${id}" }] }
+设计器产出: { "onClick": [{ "action": "navigate", "linkType": "internal", "pageId": "abc12345", "url": "/t/app/aid/page/abc12345", "queryParams": { "type": "expression", "value": "return { status: $data.status }" }, "target": "_self" }] }
         │
         ▼
 事件编译器 (EventCompiler)
   ├─ 解析 ActionChain JSON
+  ├─ 跳过 disabled === true 的动作步骤
   ├─ 为每个 ActionStep 匹配动作注册表中的处理器
   ├─ 编译条件表达式为可执行函数
+  ├─ navigate/redirect 的 queryParams 解析（变量路径取值 / 表达式动态包裹 async 外壳后求值）
   └─ 生成: (event, context) => { step1(context); if(cond) step2(context); ... }
         │
         ▼

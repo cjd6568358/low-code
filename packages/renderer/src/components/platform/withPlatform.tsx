@@ -36,6 +36,7 @@ const PLATFORM_KEYS = new Set([
   'node', 'field', 'events', 'linkage', 'designMode',
   'visible',  // 平台级控制，不透传给底层组件（避免原生 DOM 警告）
   'refreshComponent', 'refreshWithDependencyOrder',  // 刷新能力
+  '_formRegistry', '_formId',  // Form 组件注册
 ]);
 
 /**
@@ -52,13 +53,28 @@ function enhanceValueOnChange(
   events?: CompiledEventHandlers,
   linkage?: LinkageEngine,
 ): Record<string, any> {
-  // 如果没有 field 绑定，直接返回原 props
+  // 将编译后的事件处理器注入到对应 props（onClick → onClick, onBlur → onBlur 等）
+  const result = { ...props };
+
+  if (events) {
+    for (const [eventName, handler] of Object.entries(events)) {
+      if (eventName === 'onChange') continue; // onChange 在下面单独处理
+      // 保留组件原始 handler，编译后的事件链先执行
+      const originalHandler = result[eventName];
+      result[eventName] = (...args: any[]) => {
+        handler(args[0]);
+        originalHandler?.(...args);
+      };
+    }
+  }
+
+  // 如果没有 field 绑定，直接返回（已注入非 onChange 事件）
   if (!field?.bindField) {
-    return { ...props, events };
+    return result;
   }
 
   // 找到组件的 onChange 处理器
-  const originalOnChange = props.onChange;
+  const originalOnChange = result.onChange;
 
   // 创建增强的 onChange
   const enhancedOnChange = (...args: any[]) => {
@@ -86,11 +102,11 @@ function enhanceValueOnChange(
   };
 
   return {
-    ...props,
+    ...result,
     value: field.getValue(),
     onChange: enhancedOnChange,
-    events,
   };
+
 }
 
 /**
@@ -262,11 +278,21 @@ export function withPlatform<P extends Record<string, any>>(
       );
     }
 
+    // 过滤平台内部 props（enhanceValueOnChange 可能重新注入 events 等）
+    const { events: _ev, node: _nd, field: _fd, linkage: _lg, ...domSafeProps } = enhancedProps as Record<string, any>;
+
+    // Form 组件注册 props（被 PLATFORM_KEYS 过滤，需显式转发给 FormWithProvider）
+    const allProps = props as Record<string, any>;
+    const formRegistryProps: Record<string, any> = {};
+    if (allProps._formRegistry) formRegistryProps._formRegistry = allProps._formRegistry;
+    if (allProps._formId) formRegistryProps._formId = allProps._formId;
+
     return (
       <WrappedComponent
-        {...(enhancedProps as P)}
+        {...(domSafeProps as P)}
         {...(designAttrs as P)}
         {...(refreshProps as P)}
+        {...(formRegistryProps as P)}
       />
     );
   };

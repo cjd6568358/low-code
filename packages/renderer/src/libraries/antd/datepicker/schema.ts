@@ -20,6 +20,7 @@ export interface DatePickerProps extends BaseProps {
    * @priority 10
    * @no-binding
    * @default 'date'
+   * @enumLabels date:日期, week:周, month:月, quarter:季度, year:年
    */
   picker?: 'date' | 'week' | 'month' | 'quarter' | 'year';
 
@@ -57,6 +58,7 @@ export interface DatePickerProps extends BaseProps {
    * @group 基础属性
    * @priority 15
    * @no-binding
+   * @enumLabels small:小, middle:居中, large:大
    */
   size?: 'small' | 'middle' | 'large';
 
@@ -75,6 +77,7 @@ export interface DatePickerProps extends BaseProps {
    * @group 高级属性
    * @priority 20
    * @no-binding
+   * @enumLabels outlined:描边, filled:填充, borderless:无边框, underlined:下划线
    */
   variant?: 'outlined' | 'filled' | 'borderless' | 'underlined';
 
@@ -83,6 +86,7 @@ export interface DatePickerProps extends BaseProps {
    * @group 高级属性
    * @priority 21
    * @no-binding
+   * @enumLabels error:错误, warning:警告
    */
   status?: 'error' | 'warning';
 
@@ -91,6 +95,7 @@ export interface DatePickerProps extends BaseProps {
    * @group 高级属性
    * @priority 22
    * @no-binding
+   * @enumLabels bottomLeft:左下, bottomRight:右下, topLeft:左上, topRight:右上
    */
   placement?: 'bottomLeft' | 'bottomRight' | 'topLeft' | 'topRight';
 
