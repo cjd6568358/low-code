@@ -2079,7 +2079,7 @@ interface EventActionChainEditorProps {
 #### 事件编译流程
 
 ```
-设计器产出: { "onClick": [{ "action": "navigate", "linkType": "internal", "pageId": "abc12345", "url": "/t/app/aid/page/abc12345", "queryParams": { "type": "expression", "value": "return { status: $data.status }" }, "target": "_self" }] }
+设计器产出: { "onClick": [{ "action": "navigate", "linkType": "internal", "pageId": "abc12345", "url": "/t/app/aid/page/abc12345", "queryParams": { "type": "expression", "value": "return { status: $data.status }", "async": true }, "target": "_self" }] }
         │
         ▼
 事件编译器 (EventCompiler)
@@ -2087,7 +2087,9 @@ interface EventActionChainEditorProps {
   ├─ 跳过 disabled === true 的动作步骤
   ├─ 为每个 ActionStep 匹配动作注册表中的处理器
   ├─ 编译条件表达式为可执行函数
-  ├─ navigate/redirect 的 queryParams 解析（变量路径取值 / 表达式动态包裹 async 外壳后求值）
+  ├─ navigate/redirect 的 queryParams 解析：
+  │   ├─ 变量模式 → resolveVariablePath 取值
+  │   └─ 表达式模式 → 根据 async 标志动态包裹 `async ({params}) => { body }` 后 safeEvaluate
   └─ 生成: (event, context) => { step1(context); if(cond) step2(context); ... }
         │
         ▼
