@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "version": 26,
+  "version": 30,
   "name": "弹性页面",
   "createdAt": 1782187054006,
-  "updatedAt": 1782466521617,
+  "updatedAt": 1782571497993,
   "references": {},
   "pageId": "52e5614f",
   "layout": {
@@ -62,7 +62,12 @@
       "type": "input",
       "name": "输入框_01",
       "props": {
-        "label": "输入框_01"
+        "label": "输入框_01",
+        "initialValue": {
+          "type": "expression",
+          "value": "return $route.query.b",
+          "async": true
+        }
       },
       "parentId": "form_01"
     },
@@ -88,7 +93,8 @@
                   },
                   "$component.input_01.disabled": {
                     "type": "expression",
-                    "value": "async () => {\n  return $platform.mobile\n}"
+                    "value": "return $platform.mobile",
+                    "async": true
                   }
                 }
               },
@@ -107,7 +113,11 @@
                 "pageId": "52e5614f",
                 "url": "/90ef6d72/app/80e88653/page/52e5614f",
                 "target": "_blank",
-                "queryParams": "async ({ $user, $platform, $route, $component, $data, $table, $computation, $fetch, $workflow, $event, $result }) => {\n  return { a: 1, b: 2 }\n}"
+                "queryParams": {
+                  "type": "expression",
+                  "value": "return { a: 1, b: 2 }",
+                  "async": false
+                }
               },
               "disabled": false
             }

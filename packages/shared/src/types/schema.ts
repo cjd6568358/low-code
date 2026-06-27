@@ -5,13 +5,13 @@ import type { ActionChain } from './actions';
  * 属性值类型 — 支持字面量、变量引用、表达式
  *
  * 字面量：直接存储值（string/number/boolean/object）
- * 变量引用：{ type: 'var', value: '$platform.web' }
- * 表达式：{ type: 'express', value: 'async () => { return $user.name; }' }
+ * 变量引用：{ type: 'variable', value: '$platform.web' }
+ * 表达式：{ type: 'expression', value: 'return $user.name', async: true }
  */
 export type PropValue =
   | any
   | { type: 'variable'; value: string }
-  | { type: 'expression'; value: string };
+  | { type: 'expression'; value: string; async?: boolean };
 
 /**
  * 变量引用对象
@@ -23,10 +23,13 @@ export interface VariableBinding {
 
 /**
  * 表达式对象
+ *
+ * value 只存函数体（如 "return $user.name"），运行时根据 async 标志拼接完整函数。
  */
 export interface ExpressionBinding {
   type: 'expression';
-  value: string;  // 如 "async () => { return $user.name; }"
+  value: string;   // 函数体，如 "return $user.name + 1"
+  async?: boolean;  // 是否异步（默认 true）
 }
 
 /**

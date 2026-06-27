@@ -48,4 +48,4 @@ export class MockDictionaryService implements IDictionaryService {
   }
 }
 
-export const mockDictionaryService = new MockDictionaryService();
+export const dictionaryService = new MockDictionaryService();

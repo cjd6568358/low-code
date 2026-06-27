@@ -1,7 +1,6 @@
 import type { ActionChain, ActionStep, ActionContext } from '@low-code/shared';
 import type { ActionRegistryImpl } from './ActionRegistry';
 import type { DefaultExpressionEngine } from '@low-code/computation';
-import { environmentRegistry } from './EnvironmentRegistry';
 
 /** 编译后的事件处理器 */
 export type CompiledEventHandler = (
@@ -149,11 +148,8 @@ export class EventCompiler {
         if (qp.type === 'variable') {
           paramsToResolve.queryParams = resolveVariablePath(qp.value, evalCtx);
         } else if (qp.type === 'expression') {
-          // value 只存函数体，运行时根据 async 标志动态包裹外壳
-          const params = environmentRegistry.getAllDefinitions('expression').map((d) => d.name).join(', ');
-          const prefix = qp.async !== false ? 'async' : '';
-          const fullExpr = `${prefix} ({${params}}) => { ${qp.value} }`;
-          paramsToResolve.queryParams = this.expressionEngine.safeEvaluate(fullExpr, evalCtx);
+          // 函数体 → safeEvaluate 自动包裹为 IIFE 同步求值
+          paramsToResolve.queryParams = this.expressionEngine.safeEvaluate(qp.value, evalCtx);
         }
       }
     }

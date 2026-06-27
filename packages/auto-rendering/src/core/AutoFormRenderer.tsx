@@ -175,87 +175,48 @@ export function AutoFormRenderer(props: AutoFormRendererProps) {
       // 是否禁止变量/表达式绑定（存在 x-no-binding 注解即为禁止）
       const noBinding = 'x-no-binding' in fieldSchema;
 
-      // 切换值模式
+      // 切换值模式（只更新本地 mode，不清值 — 选中变量/表达式时自然覆盖）
       const handleModeChange = (mode: ValueMode) => {
         if (mode === currentMode) return;
         setValueModes(prev => ({ ...prev, [key]: mode }));
-        // 切换模式时清除已有值
-        handleFieldChange(key, undefined);
-        // 选中变量/表达式时弹出 VariablePicker
         if (mode === 'variable' || mode === 'expression') {
           onVariablePickerOpen?.(key, mode);
         }
       };
 
       return (
-        <div key={key} style={{ marginBottom: '16px' }}>
-          <div style={{ display: 'flex', gap: '5px', alignItems: 'center', marginBottom: '4px' }}>
-            <label
-              title={key}
-              style={{
-                fontWeight: 500,
-                fontSize: '14px',
-                cursor: 'default',
-              }}
-            >
+        <PropValueField
+          key={key}
+          mode={currentMode}
+          onModeChange={handleModeChange}
+          value={fieldValue}
+          onOpenPicker={() => onVariablePickerOpen?.(key, currentMode as 'variable' | 'expression')}
+          modes={noBinding ? ['constant'] : undefined}
+          label={
+            <label title={key} style={{ fontWeight: 500, fontSize: '14px', cursor: 'default' }}>
               {fieldSchema.title || key}
-              {schema.required?.includes(key) && (
-                <span style={{ color: '#ff4d4f', marginLeft: '4px' }}>*</span>
-              )}
+              {schema.required?.includes(key) && <span style={{ color: '#ff4d4f', marginLeft: '4px' }}>*</span>}
             </label>
-            {!noBinding && (
-              <div style={{ display: 'flex', marginLeft: 'auto' }}>
-                {(['constant', 'variable', 'expression'] as const).map((m) => (
-                  <button
-                    key={m}
-                    onClick={() => handleModeChange(m)}
-                    style={{
-                      padding: '2px 8px',
-                      fontSize: '12px',
-                      border: 'none',
-                      borderRadius: '2px',
-                      backgroundColor: currentMode === m ? '#e6f7ff' : '#fff',
-                      color: currentMode === m ? '#1890ff' : '#666',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {m === 'constant' ? '常量' : m === 'variable' ? '变量' : '表达式'}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          {fieldSchema.description && (
-            <div style={{ color: '#999', fontSize: '12px', marginBottom: '4px' }}>
-              {fieldSchema.description}
-            </div>
+          }
+          description={fieldSchema.description && (
+            <div style={{ color: '#999', fontSize: '12px', marginBottom: '4px' }}>{fieldSchema.description}</div>
           )}
-          {currentMode === 'constant' ? (
-            <ControlComponent
-              value={fieldValue}
-              onChange={(v: any) => handleFieldChange(key, v)}
-              schema={fieldSchema}
-              disabled={isDisabled}
-              placeholder={placeholder}
-              errors={fieldErrors}
-              dictionaryService={dictionaryService}
-              expressionEngine={expressionEngine}
-              {...componentProps}
-            />
-          ) : (
-            <PropValueField
-              mode={currentMode}
-              onModeChange={handleModeChange}
-              value={fieldValue}
-              onOpenPicker={() => onVariablePickerOpen?.(key, currentMode)}
-            />
+          errors={fieldErrors && fieldErrors.length > 0 && (
+            <div style={{ color: '#ff4d4f', fontSize: '12px', marginTop: '4px' }}>{fieldErrors[0]}</div>
           )}
-          {fieldErrors && fieldErrors.length > 0 && (
-            <div style={{ color: '#ff4d4f', fontSize: '12px', marginTop: '4px' }}>
-              {fieldErrors[0]}
-            </div>
-          )}
-        </div>
+        >
+          <ControlComponent
+            value={fieldValue}
+            onChange={(v: any) => handleFieldChange(key, v)}
+            schema={fieldSchema}
+            disabled={isDisabled}
+            placeholder={placeholder}
+            errors={fieldErrors}
+            dictionaryService={dictionaryService}
+            expressionEngine={expressionEngine}
+            {...componentProps}
+          />
+        </PropValueField>
       );
     },
     [value, valueModes, schema.required, errors, readOnly, handleFieldChange, dictionaryService, expressionEngine, onVariablePickerOpen],

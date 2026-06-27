@@ -438,7 +438,7 @@ Schema 级 `x-layout-mode` 控制整个表单的分组展示方式：
 
 #### PropValueField 公共组件
 
-值模式切换逻辑提取为 `PropValueField` 公共组件（`packages/auto-rendering/src/core/PropValueField.tsx`），供 AutoFormRenderer 和 EventActionChainEditor 复用：
+值模式切换逻辑提取为 `PropValueField` 公共组件（`packages/auto-rendering/src/core/PropValueField.tsx`），供 AutoFormRenderer 和 EventActionChainEditor 复用。采用 slot 模式，统一管理标签、描述、控件、错误信息的布局：
 
 ```typescript
 interface PropValueFieldProps {
@@ -447,8 +447,22 @@ interface PropValueFieldProps {
   value?: unknown;                    // 当前值（变量/表达式模式下显示绑定路径）
   onOpenPicker?: () => void;          // 变量/表达式模式下点击打开选择器
   disabled?: boolean;
-  children?: React.ReactNode;         // 常量模式下渲染的控件
+  children?: React.ReactNode;         // 常量模式下渲染的控件（slot: 默认）
+  modes?: ValueMode[];                // 支持的模式（默认全部）。传 ['constant'] 时隐藏模式切换
+  label?: React.ReactNode;            // 标签插槽（与 ModeSelector 同行）
+  description?: React.ReactNode;      // 描述插槽
+  errors?: React.ReactNode;           // 错误信息插槽
 }
+```
+
+布局结构：
+```
+┌────────────────────────────────────┐
+│ [label]              [常量|变量|表达式] │  ← label + ModeSelector（仅 modes > 1 时显示）
+│ [description]                        │  ← description slot
+│ [children / BindingDisplay]          │  ← mode-based 内容
+│ [errors]                             │  ← errors slot
+└────────────────────────────────────┘
 ```
 
 导出工具函数：
@@ -485,7 +499,7 @@ interface PropValueFieldProps {
 2. **变量**：弹出变量选择器，从变量树中选择变量引用
 3. **表达式**：弹出变量选择器，支持所有环境变量、函数调用、条件判断
 
-> **变量引用 vs 表达式**：变量引用为点路径取值（如 `$user.name`），不支持 `$table/$computation/$fetch`；表达式为 JS 语法（如 `async () => { return $user.name; }`），支持所有环境变量，实质为异步函数。
+> **变量引用 vs 表达式**：变量引用为点路径取值（如 `$user.name`），不支持 `$table/$computation/$fetch`；表达式为函数体（如 `return $user.name`），支持所有环境变量，运行时根据 `async` 标志决定同步/异步执行。
 
 #### PropValue 数据格式
 
@@ -493,7 +507,7 @@ interface PropValueFieldProps {
 type PropValue =
   | any                                    // 字面量
   | { type: 'variable', value: string }    // 变量引用
-  | { type: 'expression', value: string }; // 表达式
+  | { type: 'expression', value: string, async?: boolean }; // 表达式（value 为函数体）
 ```
 
 **JSON 示例**：
@@ -502,7 +516,7 @@ type PropValue =
   "props": {
     "placeholder": "啊啊啊",
     "a": { "type": "variable", "value": "$platform.web" },
-    "b": { "type": "expression", "value": "async () => { return $user.name; }" }
+    "b": { "type": "expression", "value": "return $user.name", "async": true }
   }
 }
 ```
@@ -510,7 +524,7 @@ type PropValue =
 **运行时解析**：
 - 字面量：直接使用
 - 变量引用（同步）：从运行时上下文按路径取值
-- 表达式（异步）：执行 async 函数，支持依赖收集和变更传播
+- 表达式：运行时拼接为 `async ({params}) => { body }` 或 `({params}) => { body }` 后执行
 
 **设计器侧显示规则**：
 
@@ -617,8 +631,8 @@ $component.input_01.loading   — 是否加载中
 
 **编辑器结构**：
 - 环境变量说明和示例作为 JSDoc 注释显示在编辑器顶部
-- 用户在 `async () => {}` 函数体内编写代码
-- 保存时自动过滤 JSDoc 注释，只保存函数本身
+- 用户在函数体内编写代码（如 `return $user.name`）
+- 保存时自动过滤 JSDoc 注释和函数外壳，只保存函数体
 
 **自动补全行为**：
 - 输入 `$`：显示所有一级环境变量
@@ -707,6 +721,32 @@ Schema 中通过 `x-dictionary` 引用系统字典，自动渲染引擎从字典
 - `enum` 优先级高于 `x-dictionary`：同时存在时以 `enum` 为准
 - `x-dictionary` 是 `enum` 的动态替代：避免在 Schema 中硬编码枚举值
 - 字典值变更时，所有引用该字典的表单自动更新选项
+
+### 默认实现
+
+`@low-code/auto-rendering` 包内置了 `MockDictionaryService`（实现 `DictionaryService` 接口），并导出单例 `dictionaryService`：
+
+```typescript
+// packages/auto-rendering/src/core/DictionaryService.ts
+export class MockDictionaryService implements DictionaryService {
+  private cache = new Map<string, DictItem[]>();
+  // ...带缓存 + 监听器的 mock 实现
+}
+
+export const dictionaryService = new MockDictionaryService();
+```
+
+**传递链路**：
+
+```
+PropertyPanel（注入 dictionaryService）
+  └→ AutoFormRenderer（透传 dictionaryService prop）
+       └→ ControlComponent（每个字段控件接收）
+            └→ AntdAutoSelect（唯一消费方）
+                 └→ 读 schema['x-dictionary']，调 dictionaryService.getDictValues() 加载下拉选项
+```
+
+设计器中由 `PropertyPanel` 负责注入，运行时由各引擎的宿主环境注入。替换为真实字典服务时，只需提供相同接口的实现，无需修改控件代码。
 
 ---
 

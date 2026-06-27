@@ -95,8 +95,11 @@ export class DataSourceManager {
     this.updateState(id, { loading: true, error: null });
 
     try {
-      // 统一使用表达式引擎执行
-      const data = await this.expressionEngine.evaluateAsync(config.expression, context);
+      // 数据源表达式包装为 ExpressionBinding（始终异步执行）
+      const data = await this.expressionEngine.evaluateAsync(
+        { type: 'expression', value: config.expression, async: true },
+        context,
+      );
 
       this.updateState(id, {
         data,

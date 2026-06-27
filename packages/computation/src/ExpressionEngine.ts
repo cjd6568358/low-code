@@ -1,4 +1,4 @@
-import type { ExpressionEngine as IExpressionEngine } from '@low-code/shared';
+import type { ExpressionEngine as IExpressionEngine, ExpressionBinding } from '@low-code/shared';
 import { get, isValidPath } from '@low-code/shared';
 
 /** 沙箱白名单全局对象 */
@@ -34,6 +34,12 @@ const DEPENDENCY_REGEX = /\$[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*/
 /** 模板变量正则 {{path}} */
 const TEMPLATE_VAR_REGEX = /\{\{([^}]+)\}\}/g;
 
+/** 判断字符串是否为函数体（return/const/let/var/赋值 开头） */
+function isFunctionBody(expr: string): boolean {
+  const trimmed = expr.trimStart();
+  return /^(return\b|const\s|let\s|var\s|\w+\s*=)/.test(trimmed);
+}
+
 export class DefaultExpressionEngine implements IExpressionEngine {
   /**
    * 求值表达式（非安全模式，直接 new Function）
@@ -41,7 +47,7 @@ export class DefaultExpressionEngine implements IExpressionEngine {
   evaluate(expression: string, context: Record<string, any>): any {
     if (!expression || typeof expression !== 'string') return undefined;
     try {
-      const fn = this.compileExpressionSync(expression, context);
+      const fn = this.compileSimple(expression, context);
       return fn();
     } catch {
       return undefined;
@@ -49,7 +55,11 @@ export class DefaultExpressionEngine implements IExpressionEngine {
   }
 
   /**
-   * 安全求值 — 白名单沙箱，可配置超时（同步版本，不支持 await）
+   * 安全求值 — 白名单沙箱，同步执行
+   *
+   * 只支持两种格式：
+   * - 简单表达式：`$user.name + 1` → 直接求值
+   * - 函数体：`return $user.name` → 包裹为 `(() => { ... })()` 后求值
    */
   safeEvaluate(
     expression: string,
@@ -58,15 +68,19 @@ export class DefaultExpressionEngine implements IExpressionEngine {
   ): any {
     if (!expression || typeof expression !== 'string') return undefined;
 
-    // 安全校验
-    const validation = this.validate(expression);
+    // 函数体 → IIFE；简单表达式 → 直接求值
+    const normalized = isFunctionBody(expression)
+      ? `(() => { ${expression} })()`
+      : expression;
+
+    const validation = this.validate(normalized);
     if (!validation.valid) {
       console.warn(`Expression validation failed: ${validation.errors.join(', ')}`);
       return undefined;
     }
 
     try {
-      const fn = this.compileExpressionSync(expression, context);
+      const fn = this.compileSimple(normalized, context);
       const start = Date.now();
       const result = fn();
       if (Date.now() - start > timeout) {
@@ -81,26 +95,35 @@ export class DefaultExpressionEngine implements IExpressionEngine {
   }
 
   /**
-   * 异步安全求值 — 支持 await 表达式（用于数据源等异步场景）
+   * 执行表达式绑定 — 接收 ExpressionBinding，根据 async 标志决定执行方式
+   *
+   * - async: true  → 拼接为 `async ({params}) => { body }`，返回 Promise
+   * - async: false → 拼接为 `({params}) => { body }`，同步返回结果
    */
   async evaluateAsync(
-    expression: string,
+    binding: ExpressionBinding,
     context: Record<string, any>,
     timeout: number = 3000,
   ): Promise<any> {
-    if (!expression || typeof expression !== 'string') return undefined;
+    if (!binding?.value) return undefined;
 
-    const validation = this.validate(expression);
+    const params = Object.keys(context).join(', ');
+    const isAsync = binding.async !== false;
+    const prefix = isAsync ? 'async' : '';
+    const fullExpr = `${prefix} ({${params}}) => { ${binding.value} }`;
+
+    const validation = this.validate(fullExpr);
     if (!validation.valid) {
       console.warn(`Expression validation failed: ${validation.errors.join(', ')}`);
       return undefined;
     }
 
     try {
-      const fn = this.compileExpressionAsync(expression, context);
+      const fn = this.compileBinding(fullExpr, context, isAsync);
       const result = fn();
 
-      if (result && typeof result.then === 'function') {
+      // 异步函数 → 带超时的 await
+      if (isAsync && result && typeof result.then === 'function') {
         return await Promise.race([
           result,
           new Promise((_, reject) =>
@@ -109,6 +132,7 @@ export class DefaultExpressionEngine implements IExpressionEngine {
         ]);
       }
 
+      // 同步函数 → 直接返回
       return result;
     } catch (e) {
       console.warn(`Expression evaluation error: ${e}`);
@@ -148,7 +172,6 @@ export class DefaultExpressionEngine implements IExpressionEngine {
     const matches = expression.match(DEPENDENCY_REGEX);
     if (matches) {
       for (const match of matches) {
-        // 去掉开头的 $，得到完整路径
         deps.add(match.substring(1));
       }
     }
@@ -189,13 +212,15 @@ export class DefaultExpressionEngine implements IExpressionEngine {
     return resolved;
   }
 
-  // --- 内部方法 ---
+  // --- 内部编译方法 ---
 
   /**
-   * 编译表达式为同步可执行函数（不支持 await）
+   * 编译简单表达式 / IIFE（safeEvaluate / evaluate 使用）
+   *
+   * 不做函数定义检测，输入必须是简单表达式或 `(() => { ... })()` 形式。
    */
-  private compileExpressionSync(expression: string, context: Record<string, any>): () => any {
-    // 如果是纯变量引用 $xxx.yyy，直接取值
+  private compileSimple(expression: string, context: Record<string, any>): () => any {
+    // 纯变量引用 $xxx.yyy → 直接取值
     if (isValidPath(expression) && expression.startsWith('$')) {
       return () => this.resolveVariable(expression, context);
     }
@@ -203,13 +228,8 @@ export class DefaultExpressionEngine implements IExpressionEngine {
     const contextKeys = Object.keys(context);
     const contextValues = contextKeys.map((k) => context[k]);
 
-    const trimmed = expression.trim();
-    const isFunctionDef = /^(async\s+)?(\(.*?\)|[\w]+)\s*=>/.test(trimmed)
-      || /^(async\s+)?function\s/.test(trimmed);
-
-    const sandboxCode = isFunctionDef
-      ? `"use strict"; return (${expression})({${contextKeys.join(',')}});`
-      : `"use strict"; return (${expression});`;
+    // 简单表达式 / IIFE → 直接求值
+    const sandboxCode = `"use strict"; return (${expression});`;
 
     try {
       const fn = new Function(...contextKeys, sandboxCode);
@@ -226,27 +246,18 @@ export class DefaultExpressionEngine implements IExpressionEngine {
   }
 
   /**
-   * 编译表达式为异步可执行函数（支持 await）
+   * 编译带上下文注入的函数（evaluateAsync 使用）
+   *
+   * 输入为已拼接好的完整函数：`async ({params}) => { body }` 或 `({params}) => { body }`
    */
-  private compileExpressionAsync(expression: string, context: Record<string, any>): () => any {
-    // 如果是纯变量引用 $xxx.yyy，直接取值
-    if (isValidPath(expression) && expression.startsWith('$')) {
-      return () => this.resolveVariable(expression, context);
-    }
-
+  private compileBinding(expression: string, context: Record<string, any>, isAsync: boolean): () => any {
     const contextKeys = Object.keys(context);
     const contextValues = contextKeys.map((k) => context[k]);
 
-    const trimmed = expression.trim();
-
-    // 检测是否是函数定义（箭头函数或 function 关键字）
-    // 如果是，传入上下文对象作为参数（支持解构），而不是在作用域内直接注入变量
-    const isFunctionDef = /^(async\s+)?(\(.*?\)|[\w]+)\s*=>/.test(trimmed)
-      || /^(async\s+)?function\s/.test(trimmed);
-
-    const sandboxCode = isFunctionDef
-      ? `"use strict"; return (async () => { return (${expression})({${contextKeys.join(',')}}); })();`
-      : `"use strict"; return (async () => { return (${expression}); })();`;
+    // 函数定义 → 注入上下文对象作为参数
+    const sandboxCode = isAsync
+      ? `"use strict"; return (${expression})({${contextKeys.join(',')}});`
+      : `"use strict"; return (${expression})({${contextKeys.join(',')}});`;
 
     try {
       const fn = new Function(...contextKeys, sandboxCode);

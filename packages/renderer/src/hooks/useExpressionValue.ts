@@ -80,8 +80,8 @@ export function useExpressionValue({
     const currentExecutionId = ++executionIdRef.current;
 
     try {
-      // 统一使用 ExpressionEngine.evaluateAsync
-      const result = await expressionEngine.evaluateAsync(expression.value, context);
+      // 传入 ExpressionBinding 对象，引擎自动拼接函数外壳
+      const result = await expressionEngine.evaluateAsync(expression, context);
 
       // 检查组件是否已卸载，或者执行是否已过期
       if (mountedRef.current && currentExecutionId === executionIdRef.current) {
@@ -189,8 +189,8 @@ export function useExpressionValues({
     // 并行执行所有表达式
     const promises = Object.entries(expressions).map(async ([key, expression]) => {
       try {
-        // 统一使用 ExpressionEngine.evaluateAsync
-        const result = await expressionEngine.evaluateAsync(expression.value, context);
+        // 传入 ExpressionBinding 对象，引擎自动拼接函数外壳
+        const result = await expressionEngine.evaluateAsync(expression, context);
         return { key, result, error: null };
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : String(err);

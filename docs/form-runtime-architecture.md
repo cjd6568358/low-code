@@ -144,6 +144,68 @@ interface FormDataContext {
 }
 ```
 
+### 1.4.1 表单预求值机制
+
+组件 props 中的 `initialValue` 支持 `PropValue` 格式（字面量/变量引用/表达式）。当 `initialValue` 为异步表达式时，存在时序问题：antd `Form.Item` 只在首次挂载时读取 `initialValue`，但异步表达式此时还未求值。
+
+**解决方案**：表单渲染前统一预求值所有子组件的表达式，`Form.Item` 挂载时就有正确值。
+
+#### 预求值流程
+
+```
+FormWithProvider 挂载
+  │
+  ├─ 1. preEvaluateForm() 扫描所有子组件 props
+  │     └─ 收集 expression bindings（如 initialValue: { type: 'expression', ... }）
+  │
+  ├─ 2. 按依赖拓扑排序
+  │     └─ 无 $component 依赖的先求值，有依赖的后求值
+  │
+  ├─ 3. 批量求值（同步 safeEvaluate，异步 await evaluateAsync）
+  │     └─ 结果写入 BindingCache（模块级表达式结果缓存）
+  │
+  ├─ 4. form.setFieldsValue(预求值结果)
+  │
+  ├─ 5. preEvalReady = true → 渲染子组件
+  │     └─ 子组件 useBindings 查 BindingCache → 命中 → 直接复用，不重复计算
+  │
+  └─ 6. handleValuesChange 捕获初始值 → initialValuesRef
+        └─ resetForm 恢复到 initialValuesRef
+```
+
+#### 核心模块
+
+| 模块 | 职责 |
+|------|------|
+| `BindingCache` | 模块级表达式结果缓存，key = `componentId.propKey` |
+| `FormPreEvaluator` | 扫描子组件 → 依赖排序 → 批量求值 → 写入缓存 |
+| `useBindings` | 表达式求值前查 `BindingCache`，命中直接复用 |
+| `FormWithProvider` | 调用 `preEvaluateForm`，预求值期间显示 loading |
+
+#### 预求值期间的 UI
+
+`FormWithProvider` 始终渲染 `<Form>` 元素（确保 `formInstance` 关联），预求值期间子内容显示 `<Spin>`，求值完成后切换为真正的 `children`。
+
+```jsonc
+// Schema 示例：initialValue 为异步表达式
+{
+  "id": "input_01",
+  "type": "input",
+  "props": {
+    "label": "输入框_01",
+    "initialValue": {
+      "type": "expression",
+      "value": "return $route.query.a",
+      "async": true
+    }
+  }
+}
+```
+
+#### 与 useBindings 的关系
+
+预求值调用的是和 `useBindings` 相同的表达式引擎，结果写入共享的 `BindingCache`。子组件渲染时 `useBindings` 查缓存命中，直接复用结果，依赖变更时缓存失效重新求值。预求值是"提前调用 useBindings 的逻辑"，不是绕过它。
+
 ### 1.5 流程节点表单的初始值
 
 流程审批节点嵌入的表单，数据来源固定为快照表，且需叠加字段级权限：

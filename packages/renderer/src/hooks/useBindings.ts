@@ -13,6 +13,7 @@ import type { ExpressionBinding } from '@low-code/shared';
 import type { DefaultExpressionEngine } from '@low-code/computation';
 import { dependencyGraph, extractDependencies } from '../core/DependencyGraph';
 import { DataBindingResolver } from '../core/DataBindingResolver';
+import { bindingCache } from '../core/BindingCache';
 import {
   isExpressionBinding,
   isVariableBinding,
@@ -24,6 +25,7 @@ interface BindingItem {
   key: string;
   type: 'variable' | 'expression';
   value: string;
+  async?: boolean;
 }
 
 /** 绑定解析结果 */
@@ -67,7 +69,7 @@ export function useBindings(
 
     for (const [key, value] of Object.entries(rawProps)) {
       if (isExpressionBinding(value)) {
-        expressionBindings.push({ key, type: 'expression', value: value.value });
+        expressionBindings.push({ key, type: 'expression', value: value.value, async: value.async });
       } else if (isVariableBinding(value)) {
         variableBindings.push({ key, type: 'variable', value: value.value });
       } else {
@@ -122,8 +124,18 @@ export function useBindings(
     setLoading(true);
 
     const promises = toExecute.map(async (binding) => {
+      // 查缓存（表单预求值可能已写入结果）
+      const cached = bindingCache.get(componentId, binding.key);
+      if (cached !== undefined) {
+        return { key: binding.key, result: cached, error: null };
+      }
+
       try {
-        const result = await expressionEngine.evaluateAsync(binding.value, context);
+        // 传入 ExpressionBinding 对象，引擎自动拼接函数外壳
+        const result = await expressionEngine.evaluateAsync(
+          { type: 'expression', value: binding.value, async: binding.async },
+          context,
+        );
         return { key: binding.key, result, error: null };
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : String(err);

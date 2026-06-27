@@ -148,13 +148,9 @@ const resetFormExecutor: ActionExecutor = {
     const { formId } = params;
     const activeId = formId ?? context.formRegistry?.getActiveFormId();
     if (!activeId) return;
-    const manager = context.formRegistry?.get(activeId);
-    if (manager) {
-      const initialValues = manager.getInitialValues();
-      // 通过 FormRegistry 调用 Form 组件注册的重置处理器
-      // 直接操作 antd Form store，Form.Item 的 cloneElement 会将新值注入子组件
-      context.formRegistry?.resetForm(activeId, initialValues);
-    }
+    // 重置处理器内部使用 initialValuesRef（闭包捕获的初始值快照），
+    // 通过 FormRegistry 调用 Form 组件注册的重置处理器
+    context.formRegistry?.resetForm(activeId, {});
   },
 };
 

@@ -13,7 +13,7 @@
  * DOM 元素定位：DesignOverlay 通过 document.querySelector('.lc-did-{id}') 定位。
  * 不添加额外 wrapper DOM，不依赖组件透传 data-* 属性。
  */
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Form } from 'antd';
 import { useFormContext } from './FormContext';
 import type {
@@ -36,7 +36,7 @@ const PLATFORM_KEYS = new Set([
   'node', 'field', 'events', 'linkage', 'designMode',
   'visible',  // 平台级控制，不透传给底层组件（避免原生 DOM 警告）
   'refreshComponent', 'refreshWithDependencyOrder',  // 刷新能力
-  '_formRegistry', '_formId',  // Form 组件注册
+  '_formRegistry', '_formId', '_componentMap', '_context',  // Form 组件注册 + 预求值
 ]);
 
 /**
@@ -243,6 +243,21 @@ export function withPlatform<P extends Record<string, any>>(
 
       const itemLabel = label || name;
 
+      // 处理异步 initialValue：表达式求值完成后，Form.Item 已挂载不会再读 initialValue，
+      // 需要主动调用 form.setFieldsValue 设置值
+      const initialValueRef = useRef(initialValue);
+      useEffect(() => {
+        if (
+          initialValue !== undefined &&
+          initialValue !== initialValueRef.current &&
+          formContext?.form &&
+          name
+        ) {
+          initialValueRef.current = initialValue;
+          formContext.form.setFieldsValue({ [name]: initialValue });
+        }
+      }, [initialValue, formContext?.form, name]);
+
       /**
        * inline 布局 + 像素模式 labelCol：给 Form.Item 的 labelCol 注入 minWidth。
        *
@@ -286,6 +301,8 @@ export function withPlatform<P extends Record<string, any>>(
     const formRegistryProps: Record<string, any> = {};
     if (allProps._formRegistry) formRegistryProps._formRegistry = allProps._formRegistry;
     if (allProps._formId) formRegistryProps._formId = allProps._formId;
+    if (allProps._componentMap) formRegistryProps._componentMap = allProps._componentMap;
+    if (allProps._context) formRegistryProps._context = allProps._context;
 
     return (
       <WrappedComponent

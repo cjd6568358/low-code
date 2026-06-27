@@ -141,14 +141,14 @@ export function PageRenderer(config: RendererConfig) {
     });
 
     return {
-      $user: context.user,
-      $platform: context.platform ?? { web: true, mobile: false, miniApp: false },
-      $route: context.route,
-      $component: context.component,
+      $user: context.$user,
+      $platform: context.$platform ?? { web: true, mobile: false, miniApp: false },
+      $route: context.$route,
+      $component: context.$component,
       $table,
-      $computation: context.computation ?? {},
+      $computation: context.$computation ?? {},
       $fetch,
-      $workflow: context.workflow,
+      $workflow: context.$workflow,
     };
   }, [context, adapter]);
 
@@ -169,7 +169,10 @@ export function PageRenderer(config: RendererConfig) {
 
       // 使用环境变量上下文执行数据源表达式
       try {
-        const result = await expressionEngine.evaluateAsync(schema.dataSource!, envContext);
+        const result = await expressionEngine.evaluateAsync(
+          { type: 'expression', value: schema.dataSource!, async: true },
+          envContext,
+        );
         if (!cancelled) {
           setDataResult(result);
           setDataReady(true);
@@ -463,8 +466,13 @@ export function PageRenderer(config: RendererConfig) {
                   }
                 },
               },
-              // Form 组件注册
-              ...(isFormComponent ? { _formRegistry: formRegistry, _formId: node.id } : {}),
+              // Form 组件注册 + 预求值所需数据
+              ...(isFormComponent ? {
+                _formRegistry: formRegistry,
+                _formId: node.id,
+                _componentMap: componentMap,
+                _context: runtimeContext,
+              } : {}),
             };
 
             // 12. 合并所有 props（node.id 注入为 Form.Item 字段名，保持与 form store key 一致）

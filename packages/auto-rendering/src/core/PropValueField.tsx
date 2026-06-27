@@ -30,6 +30,12 @@ export interface PropValueFieldProps {
   children?: React.ReactNode;
   /** 支持的模式列表（默认 ['constant', 'variable', 'expression']） */
   modes?: ValueMode[];
+  /** 标签插槽 */
+  label?: React.ReactNode;
+  /** 描述插槽 */
+  description?: React.ReactNode;
+  /** 错误信息插槽 */
+  errors?: React.ReactNode;
 }
 
 /**
@@ -38,7 +44,7 @@ export interface PropValueFieldProps {
  * 支持 PropValue 对象格式 { type: 'variable'|'expression', value: '...' }
  * 和裸值（视为常量）
  */
-export function detectValueMode(val: unknown): ValueMode {
+export function detectValueMode (val: unknown): ValueMode {
   if (val != null && typeof val === 'object' && 'type' in val && 'value' in val) {
     const obj = val as { type: string; value: string };
     if (obj.type === 'variable') return 'variable';
@@ -50,7 +56,7 @@ export function detectValueMode(val: unknown): ValueMode {
 /**
  * 从值中提取字符串显示值
  */
-export function extractDisplayValue(val: unknown): string {
+export function extractDisplayValue (val: unknown): string {
   if (typeof val === 'string') return val;
   if (val && typeof val === 'object' && 'value' in val) return String((val as { value: unknown }).value ?? '');
   return String(val ?? '');
@@ -89,7 +95,7 @@ const pickerTriggerStyle: React.CSSProperties = {
 // ─── 子组件 ────────────────────────────────────────────
 
 /** 模式切换按钮组 */
-function ModeSelector({
+const ModeSelector = React.memo(function ModeSelector ({
   currentMode,
   onModeChange,
   disabled,
@@ -120,10 +126,10 @@ function ModeSelector({
       ))}
     </div>
   );
-}
+});
 
 /** 变量/表达式绑定显示 */
-function BindingDisplay({
+function BindingDisplay ({
   mode,
   value,
   onClick,
@@ -133,6 +139,13 @@ function BindingDisplay({
   onClick?: () => void;
 }) {
   const displayValue = extractDisplayValue(value);
+  const isAsync = mode === 'expression'
+    && value != null
+    && typeof value === 'object'
+    && 'async' in value
+    ? (value as { async?: boolean }).async !== false
+    : undefined;
+
   return (
     <div onClick={onClick} style={pickerTriggerStyle}>
       <span
@@ -145,9 +158,22 @@ function BindingDisplay({
       >
         {mode === 'variable' ? '变量' : '表达式'}
       </span>
-      <span style={{ fontSize: '13px', color: '#333', fontFamily: 'monospace' }}>
-        {displayValue || '点击选择...'}
-      </span>
+      {isAsync !== undefined && (
+        <span
+          style={{
+            ...tagBase,
+            backgroundColor: isAsync ? '#f6ffed' : '#fff1f0',
+            borderColor: isAsync ? '#b7eb8f' : '#ffa39e',
+            color: isAsync ? '#52c41a' : '#f5222d',
+          }}
+        >
+          {isAsync ? '异步' : '同步'}
+        </span>
+      )}
+      {mode === 'variable' && (
+        <span style={{ fontSize: '13px', color: '#333', fontFamily: 'monospace' }}>
+          {displayValue || '点击选择...'}
+        </span>)}
     </div>
   );
 }
@@ -172,17 +198,26 @@ function BindingDisplay({
  * </PropValueField>
  * ```
  */
-export function PropValueField(props: PropValueFieldProps) {
-  const { mode, onModeChange, value, onOpenPicker, disabled, children, modes } = props;
+export const PropValueField = React.memo(function PropValueField (props: PropValueFieldProps) {
+  const { mode, onModeChange, value, onOpenPicker, disabled, children, modes, label, description, errors } = props;
   const supportedModes = modes ?? ['constant', 'variable', 'expression'];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-      <ModeSelector currentMode={mode} onModeChange={onModeChange} disabled={disabled} modes={supportedModes} />
+    <div style={{ marginBottom: '16px' }}>
+      {label && (
+        <div style={{ display: 'flex', gap: '5px', alignItems: 'center', marginBottom: '4px' }}>
+          {label}
+          {supportedModes.length > 1 && (
+            <ModeSelector currentMode={mode} onModeChange={onModeChange} disabled={disabled} modes={supportedModes} />
+          )}
+        </div>
+      )}
+      {description}
       {mode === 'constant' && children}
       {mode !== 'constant' && (
-        <BindingDisplay mode={mode} value={value} onClick={onOpenPicker} />
+        <BindingDisplay mode={mode as 'variable' | 'expression'} value={value} onClick={onOpenPicker} />
       )}
+      {errors}
     </div>
   );
-}
+});

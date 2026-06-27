@@ -5,9 +5,12 @@
  * 录入型组件在 Form 内时自动获得表单字段配置能力。
  */
 import { createContext, useContext } from 'react';
+import type { FormInstance } from 'antd';
 
 /** 表单上下文值 */
 export interface FormContextValue {
+  /** antd 表单实例（用于 setFieldsValue 等 API） */
+  form?: FormInstance;
   /** 表单布局 */
   layout?: 'horizontal' | 'vertical' | 'inline';
   /** 标签列宽（归一化后的 Col props） */

@@ -381,6 +381,10 @@ DesignOverlay（Portal，position: fixed）
 
 **Form.Item 自动包装**：`withPlatform` 检测 `isInForm && hasFieldName` 时，自动将组件包裹在 `Form.Item` 中，`label` 默认取 `name` 字段值。
 
+**异步 initialValue 处理**：antd `Form.Item` 只在首次挂载时读取 `initialValue`。当 `initialValue` 是异步表达式时，通过**表单预求值机制**解决：`FormWithProvider` 在渲染子组件前调用 `preEvaluateForm()`，扫描所有子组件的 expression bindings，按依赖拓扑序批量求值，结果写入 `BindingCache` 并通过 `form.setFieldsValue()` 注入 form store。子组件挂载时 `useBindings` 命中缓存直接复用，`Form.Item` 的 `initialValue` 已经是正确值。详见 [表单运行时架构 — 表单预求值机制](form-runtime-architecture.md#141-表单预求值机制)。
+
+**FormContext.form**：`FormContext` 通过 `form` 属性暴露 antd 表单实例，供 `withPlatform` 在异步 `initialValue` 补偿场景中调用 `form.setFieldsValue()`。
+
 **labelCol/wrapperCol 归一化**：`FormWithProvider` 将字符串/数字格式的 `labelCol`/`wrapperCol`（如 `"8"`）转换为 antd 期望的对象格式（如 `{span: 8}`）。
 
 **labelCol 像素模式（inline 布局专用）**：`labelCol` 支持以 `"px"` 结尾的像素值（如 `"80px"`），表示 label 的最小宽度而非栅格列数。
@@ -1311,7 +1315,7 @@ interface ComponentNode {
 type PropValue =
   | any                                    // 字面量（string/number/boolean/object）
   | { type: 'variable', value: string }    // 变量引用
-  | { type: 'expression', value: string }; // 表达式
+  | { type: 'expression', value: string, async?: boolean }; // 表达式（value 为函数体）
 
 /**
  * 页面根节点布局配置
@@ -1412,7 +1416,7 @@ interface ComponentRegistration {
 type PropValue =
   | any                                    // 字面量（string/number/boolean/object）
   | { type: 'variable', value: string }    // 变量引用
-  | { type: 'expression', value: string }; // 表达式
+  | { type: 'expression', value: string, async?: boolean }; // 表达式（value 为函数体）
 ```
 
 **JSON 示例**：
@@ -1421,7 +1425,7 @@ type PropValue =
   "props": {
     "placeholder": "啊啊啊",
     "a": { "type": "variable", "value": "$platform.web" },
-    "b": { "type": "expression", "value": "async () => { return $user.name; }" }
+    "b": { "type": "expression", "value": "return $user.name", "async": true }
   }
 }
 ```
@@ -1430,7 +1434,7 @@ type PropValue =
 |--------|----------|-----------|
 | 字面量 | `"张三"`、`42`、`true` | 直接使用 |
 | 变量引用 | `{ "type": "variable", "value": "$user.name" }` | 同步解析，从运行时上下文按路径取值 |
-| 表达式 | `{ "type": "expression", "value": "async () => { ... }" }` | 异步执行，支持依赖收集和变更传播 |
+| 表达式 | `{ "type": "expression", "value": "return $user.name", "async": true }` | 运行时拼接为 `async ({params}) => { body }` 后执行 |
 
 **运行时解析流程**：
 ```
@@ -1691,16 +1695,17 @@ $component.input_01.loading   — 是否加载中
 **表达式引擎行为**：
 
 ```typescript
-// evaluateAsync — 异步求值（支持 await）
-const result = await expressionEngine.evaluateAsync('await $fetch.get("/api/users")', context);
+// evaluateAsync — 接收 ExpressionBinding，根据 async 标志决定执行方式
+// async: true → 拼接为 async ({params}) => { body }，返回 Promise
+// async: false → 拼接为 ({params}) => { body }，同步返回结果
+const result = await expressionEngine.evaluateAsync(
+  { type: 'expression', value: 'return await $fetch.get("/api/users")', async: true },
+  context,
+);
 
-// 自动调用函数定义 — 用户写函数形式时自动执行
-// 输入：async () => { return await $fetch.get("/api/users") }
-// 编译为：(async () => { return (async () => { return await $fetch.get(...) })(); })()
-// 自动调用函数，而不是返回函数引用
-
-// safeEvaluate — 同步求值（不支持 await，用于条件规则等）
+// safeEvaluate — 同步求值，支持简单表达式和函数体（自动包裹 IIFE）
 const visible = expressionEngine.safeEvaluate('$user.role === "admin"', context);
+const computed = expressionEngine.safeEvaluate('return $data.a + $data.b', context);
 ```
 
 **响应式上下文（ReactiveEnvContext）**：
@@ -1830,6 +1835,17 @@ const { resolvedProps, loading, errors } = useBindings(
 - 提供代码编辑能力
 - 支持变量代码提示（基于环境变量注册表）
 
+**BindingCache** — 表达式结果缓存
+- 模块级单例，key = `componentId.propKey`
+- 表单预求值时写入，useBindings 读取时命中直接复用
+- 依赖变更时缓存失效，重新求值
+
+**FormPreEvaluator** — 表单预求值器
+- 扫描表单内所有子组件的 expression bindings
+- 按依赖拓扑排序（无 $component 依赖的先求值）
+- 批量求值（同步 safeEvaluate，异步 await evaluateAsync）
+- 结果写入 BindingCache，返回 initialValue 字段值供 form.setFieldsValue
+
 #### 表达式编辑器
 
 表达式编辑器基于 Monaco Editor，支持 JavaScript 语法高亮和自动补全。
@@ -1845,8 +1861,8 @@ async ({$user, $platform, $route, $component, $data, $table, $computation, $fetc
 ```
 
 - 环境变量通过解构参数传入，鼠标悬浮到 JSDoc 中的变量名可查看说明（Monaco HoverProvider）
-- 保存时自动过滤开头的 JSDoc 注释，只保存函数体
-- `onChange` 返回 `{ type: 'expression', value: string, async: boolean }`，async 标识随值一起存储
+- 保存时自动过滤 JSDoc 注释和函数外壳，只保存函数体（`return ...`），运行时根据 async 标志动态拼接
+- `onChange` 返回 `{ type: 'expression', value: string, async: boolean }`，value 为函数体，async 标识随值一起存储
 - 弹窗支持 `modalWidth`（默认 820）和 `modalMaxHeight`（默认 '90vh'）自定义宽高
 
 **自动补全行为**：
@@ -2001,7 +2017,7 @@ interface ActionContext {
 
 - **表单字段**：key 为字段名（如 `orderNo`），调用 `setFormValue`
 - **组件属性**：key 以 `$component.` 开头（如 `$component.input_01.disabled`），调用 `setComponentProp`
-- **值格式**：支持字面量、`{ type: 'variable', value: '$platform.mobile' }`、`{ type: 'expression', value: 'async () => { ... }' }`
+- **值格式**：支持字面量、`{ type: 'variable', value: '$platform.mobile' }`、`{ type: 'expression', value: 'return ...', async: true }`
 
 ```jsonc
 {
@@ -2009,7 +2025,7 @@ interface ActionContext {
   "params": {
     "values": {
       "$component.input_01.value": { "type": "variable", "value": "$route.path" },
-      "$component.input_01.disabled": { "type": "expression", "value": "async () => { return $platform.mobile }" }
+      "$component.input_01.disabled": { "type": "expression", "value": "return $platform.mobile", "async": true }
     }
   }
 }

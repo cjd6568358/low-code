@@ -117,18 +117,18 @@ export default function PageRuntime({ appId, pageId }: PageRuntimeProps) {
 
   // 构建 RenderContext
   const buildContext = useCallback((compState: Record<string, any>): RenderContext => ({
-    user: { id: '', name: '', roles: [], department: '', departmentName: '', position: '' },
-    platform: { web: true, mobile: false, miniApp: false },
-    route: {
+    $user: { id: '', name: '', roles: [], department: '', departmentName: '', position: '' },
+    $platform: { web: true, mobile: false, miniApp: false },
+    $route: {
       params: { tenantId: '', appId, pageId },
       query: Object.fromEntries(new URLSearchParams(window.location.search)),
       path: window.location.pathname,
     },
-    component: compState,
-    data: dataResult ?? {},
-    table: {} as any,
-    computation: { evaluate: async () => null },
-    fetch: {
+    $component: compState,
+    $data: dataResult ?? {},
+    $table: {} as any,
+    $computation: { evaluate: async () => null },
+    $fetch: {
       get: (url: string, config?: any) => adapter.api.request({ url, method: 'GET', ...config }),
       post: (url: string, data?: any, config?: any) => adapter.api.request({ url, method: 'POST', data, ...config }),
       put: (url: string, data?: any, config?: any) => adapter.api.request({ url, method: 'PUT', data, ...config }),

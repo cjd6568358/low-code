@@ -416,21 +416,20 @@ function ParamsEditor({
                   ))}
                 </select>
               </ParamField>
-              <ParamField label="查询参数">
-                <QueryParamsPicker
-                  value={params.queryParams}
-                  onChange={(qp) => {
-                    if (!qp) {
-                      const { queryParams: _, ...rest } = params;
-                      onChange(rest);
-                    } else {
-                      onChange({ ...params, queryParams: qp });
-                    }
-                  }}
-                  pageComponents={pageComponents}
-                  pageDataSources={pageDataSources}
-                />
-              </ParamField>
+              <QueryParamsPicker
+                label="查询参数"
+                value={params.queryParams}
+                onChange={(qp) => {
+                  if (!qp) {
+                    const { queryParams: _, ...rest } = params;
+                    onChange(rest);
+                  } else {
+                    onChange({ ...params, queryParams: qp });
+                  }
+                }}
+                pageComponents={pageComponents}
+                pageDataSources={pageDataSources}
+              />
             </>
           ) : (
             <ParamField label="URL">
@@ -800,9 +799,10 @@ function SetValuesEditor({
 
 /** 查询参数选择器 — 变量/表达式二选一 */
 function QueryParamsPicker({
-  value, onChange,
+  label, value, onChange,
   pageComponents = {}, pageDataSources = {},
 }: {
+  label?: string;
   value: unknown;
   onChange: (val: { type: 'variable' | 'expression'; value: string; async?: boolean } | undefined) => void;
   pageComponents?: Record<string, { type: string; label?: string }>;
@@ -814,6 +814,7 @@ function QueryParamsPicker({
   return (
     <div style={{ fontSize: 12 }}>
       <PropValueField
+        label={label}
         modes={['variable', 'expression']}
         mode={mode}
         onModeChange={(m) => {
@@ -847,7 +848,6 @@ function QueryParamsPicker({
           visible={true}
           value={value}
           expectedType="object"
-          bodyOnly
           onChange={(val) => { onChange({ type: 'expression', value: val.value, async: val.async }); setPickerMode(null); }}
           onClear={() => { onChange(undefined); setPickerMode(null); }}
           onClose={() => setPickerMode(null)}

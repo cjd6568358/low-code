@@ -127,17 +127,17 @@ interface WorkflowContext {
   [key: string]: any;
 }
 
-/** 运行时环境变量上下文 */
+/** 运行时环境变量上下文（顶层 key 带 $ 前缀，对应表达式中的 $user/$fetch 等） */
 interface EnvironmentContext {
-  user: EnvUserInfo;
-  platform: PlatformInfo;
-  route: RouteInfo;
-  component: Record<string, ComponentState>;
-  data: Record<string, DataSourceItem>;
-  table: ServerVariableProxy;
-  computation: ComputationEngine;
-  fetch: FetchProxy;
-  workflow?: WorkflowContext;
+  $user: EnvUserInfo;
+  $platform: PlatformInfo;
+  $route: RouteInfo;
+  $component: Record<string, ComponentState>;
+  $data: Record<string, DataSourceItem>;
+  $table: ServerVariableProxy;
+  $computation: ComputationEngine;
+  $fetch: FetchProxy;
+  $workflow?: WorkflowContext;
 }
 
 export type {

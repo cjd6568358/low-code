@@ -4,7 +4,7 @@ import { isInContainer } from '../utils';
 import type { WatermarkConfig, ComponentNode } from '@low-code/shared';
 
 import { AutoFormRenderer, controlRegistry, registerAntdControls } from '@low-code/auto-rendering';
-import { mockDictionaryService } from '@low-code/auto-rendering';
+import { dictionaryService } from '@low-code/auto-rendering';
 import { EventActionChainEditor } from './EventActionChainEditor';
 import { VariableTreeSelector } from '../../components/VariableTreeSelector';
 import { ExpressionEditor } from '../../components/ExpressionEditor';
@@ -257,7 +257,7 @@ export function PropertyPanel({ registry }: { registry: any }) {
                   value={{ ...selectedNode.props, name: selectedNode.name }}
                   onChange={handlePropsChange}
                   layoutMode="sections"
-                  dictionaryService={mockDictionaryService}
+                  dictionaryService={dictionaryService}
                   onVariablePickerOpen={(fieldName: string, initialTab: 'variable' | 'expression') => {
                     setBindingTarget(fieldName);
                     setBindingMode(initialTab);
@@ -318,7 +318,7 @@ export function PropertyPanel({ registry }: { registry: any }) {
                   value={selectedNode.props}
                   onChange={handlePropsChange}
                   layoutMode="sections"
-                  dictionaryService={mockDictionaryService}
+                  dictionaryService={dictionaryService}
                   onVariablePickerOpen={(fieldName: string, initialTab: 'variable' | 'expression') => {
                     setBindingTarget(fieldName);
                     setBindingMode(initialTab);
@@ -381,7 +381,7 @@ export function PropertyPanel({ registry }: { registry: any }) {
                 value={selectedNode.props}
                 onChange={handlePropsChange}
                 layoutMode="sections"
-                dictionaryService={mockDictionaryService}
+                dictionaryService={dictionaryService}
                 onVariablePickerOpen={(fieldName: string, initialTab: 'variable' | 'expression') => {
                   setBindingTarget(fieldName);
                   setBindingMode(initialTab);

@@ -128,15 +128,15 @@ export class RenderContextBuilder {
     this.cachedUser = user;
 
     return {
-      user,
-      platform: this.platformAdapter.getPlatform(),
-      route: this.routerService.getCurrentRoute(),
-      component: this.getComponentStates(),
-      data,
-      table: this.serverVariableResolver.createProxy(),
-      computation: this.computationEngineService.getEngine(),
-      fetch: this.fetchService.getProxy(),
-      workflow: this.workflowService?.getWorkflowContext() ?? undefined,
+      $user: user,
+      $platform: this.platformAdapter.getPlatform(),
+      $route: this.routerService.getCurrentRoute(),
+      $component: this.getComponentStates(),
+      $data: data,
+      $table: this.serverVariableResolver.createProxy(),
+      $computation: this.computationEngineService.getEngine(),
+      $fetch: this.fetchService.getProxy(),
+      $workflow: this.workflowService?.getWorkflowContext() ?? undefined,
     };
   }
 

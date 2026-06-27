@@ -143,13 +143,13 @@ export class VariableBindingEngineImpl {
       return path;
     }
 
-    // 移除 $ 前缀，按 . 分割
-    const parts = path.replace(/^\$/, '').split('.');
-    const varName = `$${parts[0]}`;
+    // 按 . 分割，保留 $ 前缀
+    const parts = path.split('.');
+    const varName = parts[0]; // 如 "$user"
     const restParts = parts.slice(1);
 
-    // 获取顶级变量值
-    const topLevelKey = parts[0] as keyof EnvironmentContext;
+    // 获取顶级变量值（context key 带 $ 前缀）
+    const topLevelKey = varName as keyof EnvironmentContext;
     let current: any = context[topLevelKey];
 
     if (current === undefined) {

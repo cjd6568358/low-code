@@ -5,15 +5,23 @@
  * 和运行时平台能力（field/events/linkage）。
  *
  * 表单组件作为容器，通过 FormContext 向子组件注入表单能力。
+ *
+ * 运行时流程：
+ * 1. 扫描子组件 props 中的 expression bindings
+ * 2. 按依赖拓扑序预求值（FormPreEvaluator）
+ * 3. 结果写入 BindingCache + form.setFieldsValue
+ * 4. 子组件 useBindings 命中缓存直接复用
  */
-import React, { useEffect, useRef } from 'react';
-import { Form } from 'antd';
+import React, { useEffect, useRef, useState } from 'react';
+import { Form, Spin } from 'antd';
 import { withPlatform } from '../../../components/platform';
 import { FormContext } from '../../../components/platform/FormContext';
 import type { FormRegistry } from '../../../core/FormRegistry';
+import type { ComponentNode } from '@low-code/shared';
 import { FormDataContextManager } from '../../../core/FormDataContext';
 import { expressionEngine } from '@low-code/computation';
 import { LinkageEngine } from '../../../core/LinkageEngine';
+import { preEvaluateForm } from '../../../core/FormPreEvaluator';
 
 /**
  * 归一化 Col 配置
@@ -70,44 +78,81 @@ function FormWithProvider(props: React.PropsWithChildren<any>) {
     size,
     _formRegistry,
     _formId,
+    _componentMap,
+    _context,
     ...rest
   } = props;
 
   // 获取 antd 表单实例（用于 setFieldsValue 等 API）
   const [formInstance] = Form.useForm();
 
+  // 预求值状态：true = 子组件可以直接渲染（缓存已就绪或无需预求值）
+  const [preEvalReady, setPreEvalReady] = useState(false);
+
   // 注册到 FormRegistry（支持 resetForm/validate 等动作）
   const managerRef = useRef<FormDataContextManager | null>(null);
-  const initialValuesCaptured = useRef(false);
+  /** 捕获的初始值快照（用于 resetForm 恢复，ref 保证闭包读到最新值） */
+  const initialValuesRef = useRef<Record<string, any>>({});
+
+  // 预求值：扫描子组件 expression bindings → 拓扑排序 → 批量求值 → 写入 BindingCache
   useEffect(() => {
-    if (!_formRegistry || !_formId) return;
+    if (!_formRegistry || !_formId || !_componentMap || !_context) {
+      // 缺少必要参数，跳过预求值直接渲染
+      setPreEvalReady(true);
+      return;
+    }
+
+    let cancelled = false;
+
+    preEvaluateForm(_formId, _componentMap, _context, expressionEngine)
+      .then(({ fieldValues }) => {
+        if (cancelled) return;
+
+        // 预求值结果写入 form store
+        if (Object.keys(fieldValues).length > 0) {
+          formInstance.setFieldsValue(fieldValues);
+        }
+
+        // 捕获初始值快照
+        const snapshot = formInstance.getFieldsValue();
+        initialValuesRef.current = { ...snapshot };
+
+        setPreEvalReady(true);
+      })
+      .catch((e) => {
+        console.warn('[FormWithProvider] 预求值失败，回退到逐组件求值:', e);
+        if (!cancelled) setPreEvalReady(true);
+      });
+
+    return () => { cancelled = true; };
+  }, [_formId, _componentMap, _context, _formRegistry, formInstance]);
+
+  // 注册 FormRegistry（预求值完成后）
+  useEffect(() => {
+    if (!_formRegistry || !_formId || !preEvalReady) return;
     const registry = _formRegistry as FormRegistry;
     const linkageEngine = new LinkageEngine(expressionEngine);
     const manager = new FormDataContextManager(expressionEngine, linkageEngine);
-    manager.init({ formId: _formId });
+
+    // 用预求值捕获的初始值初始化 manager
+    manager.init({ formId: _formId, schemaDefaults: initialValuesRef.current });
     managerRef.current = manager;
-    initialValuesCaptured.current = false;
+
     registry.register(_formId, manager);
     registry.registerAntdForm(_formId, formInstance);
-    // 注册重置处理器：直接操作 antd Form store，确保 UI 同步更新
-    registry.registerResetHandler(_formId, (values: Record<string, any>) => {
-      formInstance.setFieldsValue(values);
+    // 注册重置处理器：用 initialValuesRef.current 保证闭包读到最新初始值
+    registry.registerResetHandler(_formId, () => {
+      formInstance.setFieldsValue(initialValuesRef.current);
     });
     return () => {
       registry.unregister(_formId);
       managerRef.current = null;
     };
-  }, [_formRegistry, _formId, formInstance]);
+  }, [_formRegistry, _formId, formInstance, preEvalReady]);
 
-  // 监听表单值变化，同步到 FormDataContextManager
-  // 首次收到非空值时，将其捕获为初始值（用于 resetForm 恢复）
+  // 监听表单值变化，同步到 FormDataContextManager。
   const handleValuesChange = (_changedValues: any, allValues: any) => {
     if (managerRef.current) {
-      // 首次捕获：将子组件挂载后的表单值作为初始值
-      if (!initialValuesCaptured.current && Object.keys(allValues).length > 0) {
-        initialValuesCaptured.current = true;
-        managerRef.current.init({ formId: _formId, schemaDefaults: allValues });
-      }
       managerRef.current.setValues(allValues);
     }
     (rest as any).onValuesChange?.(_changedValues, allValues);
@@ -122,6 +167,7 @@ function FormWithProvider(props: React.PropsWithChildren<any>) {
    * labelCol 注入 minWidth，确保 label 不被小尺寸内容组件（如 ColorPicker）挤压。
    */
   const contextValue = {
+    form: formInstance,
     layout,
     labelCol: normalizedLabelCol,
     wrapperCol: normalizedWrapperCol,
@@ -148,7 +194,8 @@ function FormWithProvider(props: React.PropsWithChildren<any>) {
         onValuesChange={handleValuesChange}
         {...rest}
       >
-        {children}
+        {/* 预求值期间显示 loading，子组件不挂载，避免 initialValue 还没到位 */}
+        {preEvalReady ? children : <Spin size="small" />}
       </Form>
     </FormContext.Provider>
   );

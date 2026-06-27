@@ -9,7 +9,8 @@
  * - 保存前格式化 + 语法检查
  */
 
-import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
+import { Switch } from 'antd';
 import { environmentRegistry } from '../core/EnvironmentRegistry';
 import { MonacoEditor } from './MonacoEditor';
 import type { CompletionItem, MonacoEditorRef } from './MonacoEditor';
@@ -45,7 +46,11 @@ export interface ExpressionEditorProps {
   onChange: (value: { type: 'expression'; value: string; async: boolean }) => void;
   onClear: () => void;
   onClose: () => void;
-  /** 同步模式：输出 () => { ... }，异步模式：输出 async () => { ... }（默认 true） */
+  /**
+   * 同步/异步模式。
+   * - 传入 boolean：锁定为该模式，编辑器内不可切换
+   * - 不传：编辑器内显示切换开关，默认异步
+   */
   async?: boolean;
   /** 页面 ID（用于获取组件定义注入 $component，与 pageComponents 二选一） */
   pageId?: string;
@@ -65,8 +70,6 @@ export interface ExpressionEditorProps {
   modalWidth?: number;
   /** 弹窗最大高度（默认 '90vh'） */
   modalMaxHeight?: string;
-  /** 仅保存函数体（去掉 async/params 外壳），运行时动态包裹 */
-  bodyOnly?: boolean;
 }
 
 // ─── 样式常量 ──────────────────────────────────────────
@@ -285,7 +288,7 @@ export function ExpressionEditor(props: ExpressionEditorProps) {
   const {
     visible,
     value = '',
-    async: isAsync = true,
+    async: asyncProp,
     onChange,
     onClear,
     onClose,
@@ -298,8 +301,12 @@ export function ExpressionEditor(props: ExpressionEditorProps) {
     editorTheme = 'dark',
     modalWidth = 820,
     modalMaxHeight = '90vh',
-    bodyOnly = false,
   } = props;
+
+  // asyncProp 有值 → 锁定；无值 → 内部可切换（默认异步）
+  const asyncLocked = asyncProp !== undefined;
+  const [asyncInternal, setAsyncInternal] = useState(asyncProp ?? true);
+  const isAsync = asyncLocked ? asyncProp! : asyncInternal;
 
   // ─── 状态 ─────────────────────────────────────────────
 
@@ -319,6 +326,8 @@ export function ExpressionEditor(props: ExpressionEditorProps) {
   const inferTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pageDataSourcesRef = useRef(pageDataSources);
   pageDataSourcesRef.current = pageDataSources;
+  /** 程序化更新标记，防止 editorValue → onChange → inputValue → editorValue 无限循环 */
+  const programmaticUpdateRef = useRef(false);
 
   // ─── 从 pageId 获取组件定义 ───────────────────────────
 
@@ -419,7 +428,7 @@ export function ExpressionEditor(props: ExpressionEditorProps) {
 
   const envVars = useMemo(() => environmentRegistry.getAllDefinitions('expression'), [refreshCounter]);
 
-  /** 动态生成 JSDoc + 函数签名 */
+  /** 动态生成 JSDoc + 完整函数（编辑器显示用） */
   const editorValue = useMemo(() => {
     const params = envVars.map((def) => def.name).join(', ');
     const fnPrefix = isAsync ? `async ({${params}}) =>` : `({${params}}) =>`;
@@ -428,10 +437,22 @@ export function ExpressionEditor(props: ExpressionEditorProps) {
     if (inputValue) {
       const trimmed = inputValue.trimStart();
       if (trimmed.startsWith('/**')) return inputValue;
-      return jsdoc + inputValue;
+      return jsdoc + `${fnPrefix} {\n  ${inputValue}\n}`;
     }
     return jsdoc + `${fnPrefix} {\n  \n}`;
   }, [inputValue, envVars, isAsync]);
+
+  // editorValue 变更时标记程序化更新
+  // useLayoutEffect 在 Monaco useEffect(setValue) 之前同步执行，
+  // Monaco.setValue 同步触发 onChange → 此时 flag 仍为 true → 跳过回写
+  // requestAnimationFrame 在下一帧清除 flag → 用户下次输入正常处理
+  useLayoutEffect(() => {
+    programmaticUpdateRef.current = true;
+    const frame = requestAnimationFrame(() => {
+      programmaticUpdateRef.current = false;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [editorValue]);
 
   /** 传给 Monaco 的悬浮提示项 */
   const hoverItems = useMemo(
@@ -446,11 +467,11 @@ export function ExpressionEditor(props: ExpressionEditorProps) {
     [],
   );
 
-  /** 从完整函数表达式中提取函数体（去掉 async/params 外壳） */
+  /** 从完整函数表达式中提取函数体内容（去掉 async/params 外壳和花括号） */
   const stripFunctionWrapper = useCallback(
     (code: string): string => {
-      const match = code.match(/^(?:async\s+)?\([^)]*\)\s*=>\s*(\{[\s\S]*\})\s*$/);
-      return match ? match[1] : code;
+      const match = code.match(/^(?:async\s+)?\([^)]*\)\s*=>\s*\{([\s\S]*)\}\s*$/);
+      return match ? match[1].trim() : code;
     },
     [],
   );
@@ -507,21 +528,21 @@ export function ExpressionEditor(props: ExpressionEditorProps) {
       return;
     }
 
-    // 4. 保存
+    // 4. 保存 — 只存函数体，运行时根据 async 标志拼接
     const stripped = stripJSDoc(formattedValue);
-    const valueToSave = bodyOnly ? stripFunctionWrapper(stripped) : stripped;
+    const valueToSave = stripFunctionWrapper(stripped);
     onChange({ type: 'expression', value: valueToSave, async: isAsync });
     onClose();
-  }, [formatExpression, getCodeErrors, validateType, manualReturnType, expectedType, stripJSDoc, bodyOnly, onChange, onClose, isAsync]);
+  }, [formatExpression, getCodeErrors, validateType, manualReturnType, expectedType, stripJSDoc, onChange, onClose, isAsync]);
 
   const handleMismatchContinue = useCallback(async () => {
     setMismatchInfo(null);
     const formattedValue = await formatExpression();
     const stripped = stripJSDoc(formattedValue);
-    const valueToSave = bodyOnly ? stripFunctionWrapper(stripped) : stripped;
+    const valueToSave = stripFunctionWrapper(stripped);
     onChange({ type: 'expression', value: valueToSave, async: isAsync });
     onClose();
-  }, [formatExpression, stripJSDoc, stripFunctionWrapper, bodyOnly, onChange, onClose, isAsync]);
+  }, [formatExpression, stripJSDoc, stripFunctionWrapper, onChange, onClose, isAsync]);
 
   const handleMismatchCancel = useCallback(() => setMismatchInfo(null), []);
 
@@ -543,7 +564,13 @@ export function ExpressionEditor(props: ExpressionEditorProps) {
         <MonacoEditor
           ref={editorRef}
           value={editorValue}
-          onChange={(val) => setInputValue(stripJSDoc(val))}
+          onChange={(val) => {
+            if (programmaticUpdateRef.current) {
+              programmaticUpdateRef.current = false;
+              return;
+            }
+            setInputValue(stripFunctionWrapper(stripJSDoc(val)));
+          }}
           height={editorHeight}
           language="javascript"
           theme={editorTheme}
@@ -585,9 +612,21 @@ export function ExpressionEditor(props: ExpressionEditorProps) {
 
         {/* 操作栏 */}
         <div style={footerStyle}>
-          <button onClick={handleClear} style={clearBindingBtnStyle}>
-            清除绑定
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button onClick={handleClear} style={clearBindingBtnStyle}>
+              清除绑定
+            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#666' }}>
+              <span>同步</span>
+              <Switch
+                size="small"
+                checked={isAsync}
+                disabled={asyncLocked}
+                onChange={(checked) => setAsyncInternal(checked)}
+              />
+              <span>异步</span>
+            </div>
+          </div>
           <div style={{ display: 'flex', gap: '8px' }}>
             <button onClick={onClose} style={cancelBtnStyle}>
               取消
