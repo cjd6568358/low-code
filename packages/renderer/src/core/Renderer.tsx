@@ -21,7 +21,9 @@ import { UnifiedDependencyGraph } from './UnifiedDependencyGraph';
 import { ServerVariableResolver } from './ServerVariableResolver';
 import { ResolvedComponent } from './ResolvedComponent';
 import { FormRegistry } from './FormRegistry';
+import { ComponentMethodRegistry } from './ComponentMethodRegistry';
 import { FormRegistryContext } from '../components/FormRegistryContext';
+import { ComponentMethodRegistryContext } from '../components/ComponentMethodRegistryContext';
 import type { PlatformAdapter } from '@low-code/shared';
 
 /** 渲染器配置 */
@@ -35,6 +37,8 @@ export interface RendererConfig {
   onEvent?: (eventName: string, data: any) => void;
   /** 组件属性更新回调 */
   onComponentPropsUpdate?: (componentId: string, props: Record<string, any>) => void;
+  /** 自定义卡片定义映射（cardId → CustomCardDefinition），用于卡片渲染和方法注册 */
+  cardDefinitions?: Map<string, import('@low-code/shared').CustomCardDefinition>;
 }
 
 /**
@@ -51,6 +55,7 @@ export function PageRenderer(config: RendererConfig) {
     onFormValueChange,
     onEvent,
     onComponentPropsUpdate,
+    cardDefinitions,
   } = config;
 
   // 引擎实例（稳定引用）
@@ -103,6 +108,34 @@ export function PageRenderer(config: RendererConfig) {
 
   // 表单注册表（每个 PageRenderer 实例独立）
   const formRegistry = useMemo(() => new FormRegistry(), []);
+
+  // 组件方法注册表（每个 PageRenderer 实例独立）
+  const methodRegistry = useMemo(() => new ComponentMethodRegistry(), []);
+
+  // 预注册所有组件的方法到 ComponentMethodRegistry
+  // 组件树渲染前完成注册，确保事件链中靠前的组件能 invokeMethod 到靠后的组件
+  useEffect(() => {
+    for (const node of schema.components) {
+      const reg = registry.resolve(node.type);
+      if (!reg?.methods?.length) continue;
+
+      const methods: Record<string, (params?: any) => any> = {};
+      const meta: Record<string, { label: string; description?: string }> = {};
+
+      for (const m of reg.methods) {
+        // 空壳处理器：组件实际挂载后通过 useComponentMethods 注册真实实现
+        methods[m.name] = (params?: any) => {
+          console.warn(`[invokeMethod] 组件 "${node.id}" 的方法 "${m.name}" 尚未注册运行时处理器`);
+          return undefined;
+        };
+        meta[m.name] = { label: m.title, description: m.description };
+      }
+
+      methodRegistry.register(node.id, node.type, methods, meta);
+    }
+
+    return () => { methodRegistry.clear(); };
+  }, [schema.components, registry, methodRegistry]);
 
   // 组件属性覆盖（setValues 运行时写入）
   const [componentOverrides, setComponentOverrides] = useState<Record<string, Record<string, any>>>({});
@@ -312,8 +345,9 @@ export function PageRenderer(config: RendererConfig) {
       setComponentProp,
       navigate: (url, params) => adapter.navigate(url, params),
       apiRequest: (config) => adapter.api.request(config),
-      showModal: (modalId: string, data?: any) => modalStack.open(modalId, data),
-      closeModal: (modalId: string, result?: any) => modalStack.close(modalId, result),
+      showModal: (resourceType: string, resourceId: string, data?: any) => modalStack.open(resourceType, resourceId, data),
+      closeModal: () => modalStack.closeAll(),
+      resolveModal: (result?: any) => modalStack.resolve(result),
       refreshComponent: async (componentId: string, propNames?: string[]) => {
         if (propNames) {
           return componentRefreshManager.refreshProps(componentId, propNames, runtimeContext);
@@ -326,8 +360,11 @@ export function PageRenderer(config: RendererConfig) {
       analyzeChangeImpact: (changedPaths: Set<string>) => {
         return dependencyGraph.analyzeChangeImpact(changedPaths);
       },
+      invokeMethod: async (targetId: string, method: string, params?: any) => {
+        return methodRegistry.invoke(targetId, method, params);
+      },
     }),
-    [runtimeContext, formRegistry, getActiveFormId, adapter, onFormValueChange, setComponentProp, modalStack, componentRefreshManager, dependencyGraph],
+    [runtimeContext, formRegistry, getActiveFormId, adapter, onFormValueChange, setComponentProp, modalStack, componentRefreshManager, dependencyGraph, methodRegistry],
   );
 
   // 渲染单个组件节点
@@ -349,6 +386,16 @@ export function PageRenderer(config: RendererConfig) {
       if (node.type.startsWith('card:')) {
         isCard = true;
         componentType = 'card';
+
+        // 注册卡片方法到 ComponentMethodRegistry
+        const cardId = node.type.slice('card:'.length);
+        const cardDef = cardDefinitions?.get(cardId);
+        if (cardDef?.interface.methods?.length) {
+          cardRenderer.createMethodInvoker(
+            cardDef, runtimeContext, eventCompiler,
+            methodRegistry, node.id,
+          );
+        }
       }
 
       const registration = registry.resolve(node.type);
@@ -506,6 +553,9 @@ export function PageRenderer(config: RendererConfig) {
       adapter,
       formRegistry,
       componentOverrides,
+      cardDefinitions,
+      cardRenderer,
+      methodRegistry,
     ],
   );
 
@@ -543,15 +593,17 @@ export function PageRenderer(config: RendererConfig) {
   }
 
   return (
-    <FormRegistryContext.Provider value={{ registry: formRegistry, activeFormId: getActiveFormId() }}>
-      <div
-        className="lc-page"
-        data-page-id={schema.pageId}
-        style={layoutStyle}
-      >
-        {rootChildren}
-      </div>
-    </FormRegistryContext.Provider>
+    <ComponentMethodRegistryContext.Provider value={{ registry: methodRegistry }}>
+      <FormRegistryContext.Provider value={{ registry: formRegistry, activeFormId: getActiveFormId() }}>
+        <div
+          className="lc-page"
+          data-page-id={schema.pageId}
+          style={layoutStyle}
+        >
+          {rootChildren}
+        </div>
+      </FormRegistryContext.Provider>
+    </ComponentMethodRegistryContext.Provider>
   );
 }
 

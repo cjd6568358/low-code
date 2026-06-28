@@ -48,8 +48,12 @@ export interface ActionContext {
   setComponentProp?: (componentId: string, propName: string, value: any) => void;
   navigate?: (url: string, params?: Record<string, string>) => void;
   showMessage?: (type: string, content: string, duration?: number) => void;
-  showModal?: (modalId: string, data?: any) => Promise<any>;
-  closeModal?: (modalId: string, result?: any) => void;
+  /** 打开弹窗（加载页面/卡片资源） */
+  showModal?: (resourceType: string, resourceId: string, data?: any) => Promise<any>;
+  /** 关闭所有弹窗 */
+  closeModal?: () => void;
+  /** 关闭当前弹窗并返回结果（弹窗内部调用） */
+  resolveModal?: (result?: any) => void;
   apiRequest?: (config: any) => Promise<any>;
   invokeMethod?: (targetId: string, method: string, params?: any) => Promise<any>;
   /** 刷新组件属性（支持指定属性列表） */

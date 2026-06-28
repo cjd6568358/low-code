@@ -4,7 +4,8 @@ import { ComponentRegistryImpl } from '@low-code/renderer';
 import {
   antdComponentImpls, antdCategoryMap, antdContainerTypes, antdSchemas,
 } from '@low-code/renderer';
-import type { ComponentLibrary } from '@low-code/shared';
+import { antdComponentMethods } from '../libraries/antd/component-methods';
+import type { ComponentLibrary, ComponentMethodDef } from '@low-code/shared';
 import { designerReducer, createInitialDesignerState } from './core/DesignerState';
 import { DesignerContext } from './core/DesignerContext';
 import { ComponentPanel } from './panels/ComponentPanel';
@@ -40,6 +41,7 @@ const LIBRARY_REGISTRY: Record<string, {
   library: ComponentLibrary;
   components: Record<string, React.ComponentType<any>>;
   schemas: Record<string, Record<string, any>>;
+  methodsMap?: Record<string, ComponentMethodDef[]>;
 }> = {
   antd: {
     library: {
@@ -51,6 +53,7 @@ const LIBRARY_REGISTRY: Record<string, {
     // 所有组件已通过 withPlatform HOC 包装
     components: antdComponentImpls,
     schemas: antdSchemas,
+    methodsMap: antdComponentMethods,
   },
 };
 
@@ -79,7 +82,7 @@ export function Designer(props: DesignerProps) {
 
     // 注册组件库
     const libConfig = LIBRARY_REGISTRY[library] || LIBRARY_REGISTRY.antd;
-    reg.registerLibrary(libConfig.library, libConfig.components, libConfig.schemas);
+    reg.registerLibrary(libConfig.library, libConfig.components, libConfig.schemas, libConfig.methodsMap);
 
     // 注册额外组件
     if (extraComponents) {

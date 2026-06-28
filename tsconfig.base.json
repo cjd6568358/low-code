@@ -19,7 +19,9 @@
       "@low-code/shared": ["packages/shared/src"],
       "@low-code/computation": ["packages/computation/src"],
       "@low-code/renderer": ["packages/renderer/src"],
-      "@low-code/auto-rendering": ["packages/auto-rendering/src"]
+      "@low-code/auto-rendering": ["packages/auto-rendering/src"],
+      "@low-code/workflow-bpmn": ["packages/workflow-bpmn/src"],
+      "@low-code/workflow": ["packages/workflow/src"]
     }
   },
   "exclude": ["node_modules", "dist"]

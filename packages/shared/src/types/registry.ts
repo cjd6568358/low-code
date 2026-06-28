@@ -24,6 +24,60 @@ export interface ComponentRegistration {
   acceptsChildren?: boolean;
   library?: string;
   version?: string;
+  /** 组件暴露的方法（用于 invokeMethod 设计时选择） */
+  methods?: ComponentMethodDef[];
+}
+
+/** 组件方法定义（设计时元数据，描述组件可被 invokeMethod 调用的方法） */
+export interface ComponentMethodDef {
+  /** 方法名 */
+  name: string;
+  /** 显示标签 */
+  title: string;
+  /** 方法描述 */
+  description?: string;
+  /** 方法分组 */
+  group?: string;
+  /** 参数定义 */
+  params?: MethodParamDef[];
+  /** 返回值类型描述 */
+  returnType?: string;
+}
+
+/** 方法参数定义 */
+export interface MethodParamDef {
+  /** 参数名 */
+  name: string;
+  /** 参数类型 */
+  type: 'string' | 'number' | 'boolean' | 'object' | 'array';
+  /** 显示标签 */
+  title: string;
+  /** 是否必填 */
+  required?: boolean;
+  /** 默认值 */
+  default?: any;
+  /** 参数描述 */
+  description?: string;
+}
+
+/**
+ * 组件方法引用（设计时 UI 用）
+ *
+ * 描述页面中某个组件实例的某个可调用方法。
+ * 由 PropertyPanel 从 ComponentRegistration.methods + schema.components 组合生成，
+ * 传给 EventActionChainEditor 作为 invokeMethod 动作的目标选择列表。
+ */
+export interface ComponentMethod {
+  /** 组件实例 ID */
+  componentId: string;
+  /** 组件类型 */
+  componentType: string;
+  /** 方法名 */
+  methodName: string;
+  /** 显示标签 */
+  label: string;
+  /** 方法描述 */
+  description?: string;
 }
 
 /**

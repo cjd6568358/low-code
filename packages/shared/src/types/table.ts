@@ -16,6 +16,29 @@ export interface FieldSourceMapping {
   componentProp: string;
 }
 
+/**
+ * 外键引用 — 记录该字段引用了哪张表的哪个字段
+ *
+ * 两种来源：
+ * - 自动推断：页面组件数据源绑定到某表的某字段时，同时填写 foreignKey + sourceMapping
+ * - 手动新增：在数据表编辑器中手动设置外键关系，只填写 foreignKey
+ */
+export interface ForeignKeyReference {
+  /** 引用的目标表 ID */
+  targetTableId: string;
+  /** 引用的目标字段名（通常是 'id'） */
+  targetFieldName: string;
+  /**
+   * 删除策略
+   * - RESTRICT: 有引用时禁止删除（默认，最安全）
+   * - CASCADE: 删除主记录时级联删除引用记录
+   * - SET NULL: 删除主记录时将外键设为 null
+   *
+   * 注：业务场景统一软删除，此规则主要用于前端提示校验
+   */
+  onDelete?: 'CASCADE' | 'SET NULL' | 'RESTRICT';
+}
+
 /** 表字段定义 */
 export interface TableColumn {
   /** 字段 ID（8位hex） */
@@ -34,6 +57,8 @@ export interface TableColumn {
   system?: boolean;
   /** 来源映射（从页面创建时设置，用于后续同步） */
   sourceMapping?: FieldSourceMapping;
+  /** 外键引用（自动推断或手动设置，设置后该字段为外键字段） */
+  foreignKey?: ForeignKeyReference;
 }
 
 /**

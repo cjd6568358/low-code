@@ -60,11 +60,11 @@ export async function loginRequest(params: LoginParams): Promise<LoginResult> {
 }
 
 /**
- * 获取当前登录用户（从 sessionStorage）
+ * 获取当前登录用户（从 localStorage，支持跨标签页共享）
  */
 export function getStoredUser(): AuthUser | null {
   try {
-    const stored = sessionStorage.getItem('auth_user');
+    const stored = localStorage.getItem('auth_user');
     if (!stored) return null;
     return JSON.parse(stored) as AuthUser;
   } catch {
@@ -76,12 +76,12 @@ export function getStoredUser(): AuthUser | null {
  * 存储登录用户
  */
 export function storeUser(user: AuthUser): void {
-  sessionStorage.setItem('auth_user', JSON.stringify(user));
+  localStorage.setItem('auth_user', JSON.stringify(user));
 }
 
 /**
  * 清除登录状态
  */
 export function clearUser(): void {
-  sessionStorage.removeItem('auth_user');
+  localStorage.removeItem('auth_user');
 }

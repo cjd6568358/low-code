@@ -157,13 +157,16 @@ const TreeNode = React.memo(function TreeNode({ node, level, selectedKeys, onTog
     color: hasChildren ? '#262626' : '#1890ff',
   }), [hasChildren]);
 
-  const handleClick = useCallback(() => {
-    if (hasChildren) {
-      setUserExpanded((v) => !v);
-    } else {
-      onToggle(node.key);
-    }
-  }, [hasChildren, onToggle, node.key]);
+  /** 点击行 → 选中/取消选中（所有节点都可选中） */
+  const handleRowClick = useCallback(() => {
+    onToggle(node.key);
+  }, [onToggle, node.key]);
+
+  /** 点击箭头 → 仅展开/折叠（不影响选中状态） */
+  const handleArrowClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setUserExpanded((v) => !v);
+  }, []);
 
   const handleMouseEnter = useCallback((e: React.MouseEvent) => {
     if (!isChecked) (e.currentTarget as HTMLElement).style.background = '#fafafa';
@@ -176,22 +179,20 @@ const TreeNode = React.memo(function TreeNode({ node, level, selectedKeys, onTog
   return (
     <div>
       <div
-        onClick={handleClick}
+        onClick={handleRowClick}
         style={rowStyle}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
         {hasChildren ? (
-          <span style={arrowStyle}>{expanded ? '▼' : '▶'}</span>
+          <span style={arrowStyle} onClick={handleArrowClick}>{expanded ? '▼' : '▶'}</span>
         ) : (
           <span style={arrowPlaceholderStyle} />
         )}
 
-        {!hasChildren && (
-          <span style={checkboxStyle}>
-            {isChecked && <span style={checkIconStyle}>✓</span>}
-          </span>
-        )}
+        <span style={checkboxStyle}>
+          {isChecked && <span style={checkIconStyle}>✓</span>}
+        </span>
 
         <span style={labelStyle}>{highlightLabel(node.label, searchKeyword)}</span>
 
@@ -231,6 +232,8 @@ export interface SelectableTreeProps {
   searchPlaceholder?: string;
   /** 是否显示全选 */
   showSelectAll?: boolean;
+  /** 全选时是否包含父节点（默认 false，只选叶子节点） */
+  selectAllIncludesParents?: boolean;
   /** 自定义统计文本 */
   countText?: (selected: number, total: number) => string;
 }
@@ -248,6 +251,18 @@ function collectLeafKeys(nodes: TreeNodeData[]): string[] {
   return keys;
 }
 
+/** 收集所有节点 key（含父节点） */
+function collectAllKeys(nodes: TreeNodeData[]): string[] {
+  const keys: string[] = [];
+  for (const node of nodes) {
+    keys.push(node.key);
+    if (node.children?.length) {
+      keys.push(...collectAllKeys(node.children));
+    }
+  }
+  return keys;
+}
+
 export function SelectableTree({
   data,
   selectedKeys,
@@ -255,11 +270,13 @@ export function SelectableTree({
   searchable = true,
   searchPlaceholder = '搜索...',
   showSelectAll = true,
+  selectAllIncludesParents = false,
   countText,
 }: SelectableTreeProps) {
   const [searchKeyword, setSearchKeyword] = useState('');
 
   const allLeafKeys = useMemo(() => collectLeafKeys(data), [data]);
+  const allKeys = useMemo(() => selectAllIncludesParents ? collectAllKeys(data) : allLeafKeys, [selectAllIncludesParents, data, allLeafKeys]);
 
   const filteredData = useMemo(() => {
     if (!searchKeyword) return data;
@@ -284,6 +301,7 @@ export function SelectableTree({
   }, [data, searchKeyword]);
 
   const filteredLeafKeys = useMemo(() => collectLeafKeys(filteredData), [filteredData]);
+  const filteredAllKeys = useMemo(() => selectAllIncludesParents ? collectAllKeys(filteredData) : filteredLeafKeys, [selectAllIncludesParents, filteredData, filteredLeafKeys]);
 
   const handleToggle = useCallback((key: string) => {
     const updater = (prev: SelectedKeys) => {
@@ -296,24 +314,24 @@ export function SelectableTree({
   }, [onChange]);
 
   const handleToggleAll = useCallback(() => {
-    const allSelected = filteredLeafKeys.every((k) => selectedKeys.has(k));
+    const allSelected = filteredAllKeys.every((k) => selectedKeys.has(k));
     const updater = (prev: SelectedKeys) => {
       const next = new Set(prev);
       if (allSelected) {
-        for (const k of filteredLeafKeys) next.delete(k);
+        for (const k of filteredAllKeys) next.delete(k);
       } else {
-        for (const k of filteredLeafKeys) next.add(k);
+        for (const k of filteredAllKeys) next.add(k);
       }
       return next;
     };
     onChange(updater);
-  }, [filteredLeafKeys, selectedKeys, onChange]);
+  }, [filteredAllKeys, selectedKeys, onChange]);
 
-  const allSelected = filteredLeafKeys.length > 0 && filteredLeafKeys.every((k) => selectedKeys.has(k));
+  const allSelected = filteredAllKeys.length > 0 && filteredAllKeys.every((k) => selectedKeys.has(k));
 
   const displayText = countText
-    ? countText(selectedKeys.size, allLeafKeys.length)
-    : `已选 ${selectedKeys.size} / ${allLeafKeys.length}`;
+    ? countText(selectedKeys.size, allKeys.length)
+    : `已选 ${selectedKeys.size} / ${allKeys.length}`;
 
   return (
     <div style={containerStyle}>

@@ -12,6 +12,18 @@ export { runMigrations, getDbVersion, setDbVersion, hasPendingMigrations } from 
 export { SYSTEM_SCHEMA_SQL, SYSTEM_MIGRATIONS, SYSTEM_DB_VERSION } from './schema/system';
 export { TENANT_SCHEMA_SQL, TENANT_MIGRATIONS, TENANT_DB_VERSION } from './schema/tenant';
 
+// 动态建表
+export {
+  generateCreateTableSQL,
+  generateAlterTableSQL,
+  executeTableSchema,
+  softDeleteRecord,
+  restoreRecord,
+  queryRecords,
+  insertRecord,
+  updateRecord,
+} from './schema-builder';
+
 // 类型
 export type {
   DatabaseConfig,

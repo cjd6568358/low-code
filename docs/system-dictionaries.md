@@ -663,14 +663,14 @@
 | submit | 提交表单 | data | 表单 | `api`, `redirectUrl` | 提交并跳转 |
 | apiCall | 调用 API | data | 渲染/表单/自动化/流程 | `api`, `method`, `data`, `headers` | 调用后端 API |
 | invokeMethod | 调用组件方法 | data | 渲染/表单 | `target`, `method`, `params` | 调用卡片/组件暴露的方法 |
-| showModal | 打开弹窗 | ui | 渲染/表单 | `modalId`, `data` | 打开模态弹窗 |
-| closeModal | 关闭弹窗 | ui | 渲染/表单 | `modalId` | 关闭模态弹窗 |
+| showModal | 打开弹窗 | ui | 渲染/表单 | `resourceType`, `resourceId`, `data` | 加载页面/卡片资源打开弹窗 |
+| closeModal | 关闭所有弹窗 | ui | 渲染/表单 | 无参数 | 关闭所有弹窗 |
 | message | 消息提示 | ui | 渲染/表单/自动化/流程 | `type`, `content`, `duration` | 显示提示消息 |
 | notification | 通知提醒 | ui | 渲染/表单/自动化 | `title`, `content`, `type` | 显示通知 |
 | refreshComponent | 刷新组件 | ui | 渲染/表单 | `target` | 重新加载组件数据 |
 | showLoading | 显示加载 | ui | 渲染/表单 | `target`, `text` | 显示加载状态 |
 | hideLoading | 隐藏加载 | ui | 渲染/表单 | `target` | 隐藏加载状态 |
-| triggerWorkflow | 触发流程 | workflow | 自动化/流程 | `workflowId`, `inputData` | 启动流程实例 |
+| triggerWorkflow | 触发流程 | workflow | 自动化/流程 | `workflowId`, `inputData` | 启动流程实例（支持当前应用 + 跨应用流程） |
 | sendNotification | 发送通知 | notification | 自动化/流程 | `channels`, `templateId`, `recipients` | 多渠道消息推送 |
 | executeScript | 执行脚本 | script | 自动化/流程 | `script`, `language` | 执行自定义脚本 |
 | webhook | 调用 Webhook | integration | 自动化 | `url`, `method`, `data`, `headers` | 推送事件到外部 |

@@ -81,7 +81,6 @@ interface AppDetail {
 |---------|------|-----------|---------|
 | 页面 | 可视化搭建的页面 | `/designer/page/:id` | 查看、编辑、删除、复制、发布 |
 | 卡片 | 基础组件组合的业务组件 | `/designer/card/:id` | 查看、编辑、删除 |
-| 表单 | 数据录入表单 | `/designer/form/:id` | 查看、编辑、删除 |
 | 数据表 | 数据存储 | `/designer/table/:id` | 查看、导入、导出、清空 |
 | 流程 | 业务流程定义 | `/designer/workflow/:id` | 查看、编辑、启用/停用、删除 |
 | 自动化 | ECA 规则 | `/designer/automation/:id` | 查看、编辑、启用/停用、删除 |

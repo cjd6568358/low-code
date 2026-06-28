@@ -3,9 +3,11 @@ import type {
   PropBinding,
   CardEventDef,
   RenderContext,
+  MethodDefinition,
 } from '@low-code/shared';
 import type { DefaultExpressionEngine } from '@low-code/computation';
 import type { DataBindingResolver } from './DataBindingResolver';
+import type { ComponentMethodRegistry, MethodHandler } from './ComponentMethodRegistry';
 
 /**
  * 自定义卡片渲染器
@@ -94,12 +96,34 @@ export class CardRenderer {
    *     1. 找到 MethodDefinition.implementation
    *     2. 在卡片作用域内执行动作链
    *     3. 返回结果
+   *
+   * 同时将卡片方法注册到 ComponentMethodRegistry（如果提供了）。
    */
   createMethodInvoker(
     definition: CustomCardDefinition,
     context: Record<string, any>,
     eventCompiler: any,
+    methodRegistry?: ComponentMethodRegistry,
+    componentId?: string,
   ): (methodName: string, params?: any) => Promise<any> {
+    // 注册卡片方法到 ComponentMethodRegistry
+    if (methodRegistry && componentId && definition.interface.methods?.length) {
+      const methods: Record<string, MethodHandler> = {};
+      const meta: Record<string, { label: string; description?: string }> = {};
+
+      for (const m of definition.interface.methods) {
+        methods[m.name] = (params?: any) => this.invokeCardMethod(
+          m.name, params, definition, context, eventCompiler,
+        );
+        meta[m.name] = {
+          label: m.title || m.name,
+          description: m.description,
+        };
+      }
+
+      methodRegistry.register(componentId, `card:${definition.id}`, methods, meta);
+    }
+
     return async (methodName: string, params?: any) => {
       return this.invokeCardMethod(
         methodName, params,
@@ -118,7 +142,7 @@ export class CardRenderer {
     context: Record<string, any>,
     eventCompiler: any,
   ): Promise<any> {
-    const method = definition.interface.methods?.find((m) => m.name === methodName);
+    const method = definition.interface.methods?.find((m: MethodDefinition) => m.name === methodName);
     if (!method) {
       console.warn(`Method "${methodName}" not found on card "${definition.id}"`);
       return undefined;

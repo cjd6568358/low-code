@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "version": 30,
+  "version": 32,
   "name": "弹性页面",
   "createdAt": 1782187054006,
-  "updatedAt": 1782571497993,
+  "updatedAt": 1782653574544,
   "references": {},
   "pageId": "52e5614f",
   "layout": {
@@ -101,9 +101,17 @@
               "disabled": true
             },
             {
-              "action": "resetForm",
+              "action": "showModal",
               "params": {
-                "formId": "form_01"
+                "resourceType": "page",
+                "resourceId": "52e5614f",
+                "data": {
+                  "type": "variable",
+                  "value": {
+                    "$data": "$data",
+                    "query": "$route.query"
+                  }
+                }
               },
               "disabled": false
             },

@@ -154,6 +154,16 @@ export class EventCompiler {
       }
     }
 
+    // triggerWorkflow 的 inputData 解析（支持变量/表达式格式）
+    if (step.action === 'triggerWorkflow' && paramsToResolve.inputData) {
+      paramsToResolve.inputData = resolvePropValue(paramsToResolve.inputData, { ...context.renderContext, $result, $event: context.event }, this.expressionEngine);
+    }
+
+    // showModal 的 data 解析（支持变量/表达式格式）
+    if (step.action === 'showModal' && paramsToResolve.data) {
+      paramsToResolve.data = resolvePropValue(paramsToResolve.data, { ...context.renderContext, $result, $event: context.event }, this.expressionEngine);
+    }
+
     const resolvedParams = this.resolveParams(paramsToResolve, {
       ...context.renderContext,
       $result,
@@ -209,4 +219,42 @@ function resolveVariablePath(path: string, renderContext: Record<string, any>): 
     current = current[part];
   }
   return current;
+}
+
+/**
+ * 解析 PropValue（支持单选/多选变量、表达式）
+ *
+ * - 单选变量：{ type: 'variable', value: '$data.xx' } → 取值
+ * - 多选变量：{ type: 'variable', value: { a: '$data.a', b: '$data.b' } } → 逐个取值合并
+ * - 表达式：{ type: 'expression', value: '...' } → 求值
+ */
+function resolvePropValue(
+  val: unknown,
+  evalCtx: Record<string, any>,
+  expressionEngine: InstanceType<typeof import('@low-code/computation').DefaultExpressionEngine>,
+): any {
+  if (val == null || typeof val !== 'object' || !('type' in val) || !('value' in val)) return val;
+
+  const { type, value } = val as { type: string; value: unknown };
+
+  if (type === 'expression' && typeof value === 'string') {
+    return expressionEngine.safeEvaluate(value, evalCtx);
+  }
+
+  if (type === 'variable') {
+    // 单选：value 是字符串路径
+    if (typeof value === 'string') {
+      return resolveVariablePath(value, evalCtx);
+    }
+    // 多选：value 是 { key: path, ... }
+    if (typeof value === 'object' && value !== null) {
+      const result: Record<string, any> = {};
+      for (const [key, path] of Object.entries(value as Record<string, string>)) {
+        result[key] = resolveVariablePath(path, evalCtx);
+      }
+      return result;
+    }
+  }
+
+  return val;
 }

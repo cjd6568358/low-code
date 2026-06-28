@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "version": 7,
+  "name": "���Ա�",
+  "createdAt": 1782657684787,
+  "updatedAt": 1782661809649,
+  "references": {},
+  "tableId": "1c3c9e1c",
+  "columns": [
+    {
+      "id": "c1",
+      "fieldName": "name",
+      "fieldType": "string",
+      "required": true
+    },
+    {
+      "id": "c2",
+      "fieldName": "age",
+      "fieldType": "number",
+      "required": false,
+      "defaultValue": "0"
+    }
+  ],
+  "sourcePageId": "52e5614f"
+}

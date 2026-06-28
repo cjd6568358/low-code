@@ -40,6 +40,8 @@ export interface VariableTreeSelectorProps {
   value?: string;
   /** 单选/多选模式 */
   multiSelect?: boolean;
+  /** 多选初始值（变量路径数组） */
+  initialSelectedKeys?: string[];
   /** 确认回调。单选返回 { type: 'variable', value }，多选返回数组 */
   onChange: (
     value:
@@ -58,6 +60,8 @@ export interface VariableTreeSelectorProps {
   pageDataSources?: Record<string, { type: string; description?: string }>;
   /** 属性期望类型（用于类型校验） */
   expectedType?: string;
+  /** 限定显示的顶层环境变量（如 ["$component"]），不传则显示全部 */
+  env?: string[];
 }
 
 // ─── 样式常量 ──────────────────────────────────────────
@@ -259,13 +263,7 @@ function VariableTreeNodeComponent({
   return (
     <div style={{ paddingLeft: '8px' }}>
       <div
-        onClick={() => {
-          if (hasChildren) {
-            setExpanded(!expanded);
-          } else {
-            onSelect(node.key);
-          }
-        }}
+        onClick={() => { onSelect(node.key); }}
         style={{
           padding: '4px 8px',
           cursor: 'pointer',
@@ -280,18 +278,16 @@ function VariableTreeNodeComponent({
         }}
       >
         {hasChildren && (
-          <span style={{ fontSize: '10px', width: '12px' }}>
+          <span style={{ fontSize: '10px', width: '12px' }} onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}>
             {expanded ? '▼' : '▶'}
           </span>
         )}
-        {!hasChildren && (
-          multiSelect ? (
-            <span style={{ width: '12px', fontSize: '12px', color: isMultiSelected ? '#1890ff' : '#d9d9d9' }}>
-              {isMultiSelected ? '☑' : '☐'}
-            </span>
-          ) : (
-            <span style={{ width: '12px' }} />
-          )
+        {multiSelect ? (
+          <span style={{ width: '12px', fontSize: '12px', color: isMultiSelected ? '#1890ff' : '#d9d9d9' }}>
+            {isMultiSelected ? '☑' : '☐'}
+          </span>
+        ) : (
+          !hasChildren && <span style={{ width: '12px' }} />
         )}
         <span style={{ fontFamily: 'monospace', color: '#1890ff' }}>{node.label}</span>
         {node.isCrossApp && node.appName && (
@@ -343,6 +339,7 @@ export function VariableTreeSelector(props: VariableTreeSelectorProps) {
     visible,
     value = '',
     multiSelect = false,
+    initialSelectedKeys = [],
     onChange,
     onClear,
     onClose,
@@ -351,6 +348,7 @@ export function VariableTreeSelector(props: VariableTreeSelectorProps) {
     pageComponents: externalPageComponents,
     pageDataSources = {},
     expectedType,
+    env,
   } = props;
 
   // ─── 状态 ─────────────────────────────────────────────
@@ -361,7 +359,7 @@ export function VariableTreeSelector(props: VariableTreeSelectorProps) {
     return '';
   });
   const [searchKeyword, setSearchKeyword] = useState('');
-  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set(initialSelectedKeys));
   const [refreshCounter, setRefreshCounter] = useState(0);
   const [mismatchInfo, setMismatchInfo] = useState<MismatchState | null>(null);
   const [inferredType, setInferredType] = useState<BaseType | null>(null);
@@ -433,9 +431,12 @@ export function VariableTreeSelector(props: VariableTreeSelectorProps) {
   // ─── 派生数据 ─────────────────────────────────────────
 
   const variableTree = useMemo(
-    () => environmentRegistry.generateVariableTree('variable'),
+    () => {
+      const tree = environmentRegistry.generateVariableTree('variable');
+      return env ? tree.filter((node) => env.includes(node.key)) : tree;
+    },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [refreshCounter],
+    [refreshCounter, env],
   );
 
   const filteredTree = useMemo(() => {

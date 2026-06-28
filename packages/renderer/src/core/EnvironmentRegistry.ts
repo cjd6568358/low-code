@@ -900,7 +900,7 @@ interface CrossAppValidationResult {
 }
 
 /** 变量树节点 */
-interface VariableTreeNode {
+export interface VariableTreeNode {
   key: string;
   label: string;
   description: string;
@@ -915,7 +915,6 @@ export const environmentRegistry = new EnvironmentRegistryImpl();
 export type {
   MonacoCompletionItem,
   CrossAppSource,
-  VariableTreeNode,
   VariablePathParseResult,
   CrossAppValidationResult,
 };

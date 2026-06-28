@@ -789,18 +789,28 @@ private buildDAG(rules: LinkageRule[]): void {
 
 | Action | 说明 | 参数 |
 |--------|------|------|
-| `showModal` | 打开弹窗（返回 Promise，阻塞链条直到弹框关闭） | `{ modalId, data? }` |
-| `closeModal` | 关闭弹窗（携带返回值，resolve 对应 showModal 的 Promise） | `{ modalId, result? }` |
+| `showModal` | 打开弹窗（加载页面/卡片资源，返回 Promise，弹窗自身关闭时 resolve） | `{ resourceType: 'page' \| 'card', resourceId, data? }` |
+| `closeModal` | 关闭所有弹窗（所有 showModal 的 Promise resolve 为 undefined） | 无参数 |
 | `showMessage` | 消息提示 | `{ type: 'success' \| 'error' \| 'warning' \| 'info', content }` |
 | `setVisible` | 控制组件显隐 | `{ componentId, visible: boolean }` |
 | `setDisabled` | 控制组件禁用 | `{ componentId, disabled: boolean }` |
 | `setLoading` | 控制组件加载态 | `{ componentId, loading: boolean }` |
+| `refreshComponent` | 刷新组件属性（重新求值表达式绑定） | `{ targets: string[], propNames?: string[] }` |
+| `invokeMethod` | 调用组件方法（命令式组件间通信，与 setValue 互补） | `{ target: string, method: string, params?: any }` |
 
 #### 流程类
 
 | Action | 说明 | 参数 |
 |--------|------|------|
-| `triggerWorkflow` | 触发工作流 | `{ workflowId, snapshotOptions? }` |
+| `triggerWorkflow` | 触发工作流（支持当前应用 + 跨应用暴露的流程） | `{ workflowId, inputData? }` |
+
+#### 控制类
+
+| Action | 说明 | 参数 |
+|--------|------|------|
+| `condition` | 条件分支（If-Then-Else） | `{ condition: string, then: ActionStep[], else: ActionStep[] }` |
+
+> 条件分支由 EventCompiler 在 `executeStep` 中特殊处理，不经过 ActionRegistry 的 executor。条件表达式使用 `safeEvaluate` 求值，上下文包含 `$data`/`$user`/`$result`/`$event`。Then/Else 子链递归执行，`$result` 透传。详见 [渲染引擎 — 条件分支运行时执行](render-engine.md#条件分支运行时执行)。
 
 #### 自定义类
 
@@ -1031,7 +1041,7 @@ const actionRegistry = new Map<string, ActionExecutor>([
 
 #### 设计目标
 
-`showModal` 打开弹框后，action chain 需要**暂停等待**弹框关闭，并获取弹框的返回值。支持多层弹框嵌套（A 打开 B，B 关闭后返回给 A，A 再关闭返回给调用方）。
+`showModal` 打开弹框（加载页面/卡片资源），action chain 需要**暂停等待**弹框关闭，并获取弹框的返回值。支持多层弹框嵌套（A 打开 B，B 关闭后返回给 A，A 再关闭返回给调用方）。
 
 #### 核心数据结构
 
@@ -1042,12 +1052,26 @@ class ModalStack {
 
   /** 状态变化回调（供宿主 UI 监听以渲染/关闭弹框） */
   private onChange?: (event: ModalChangeEvent) => void;
+
+  /** 打开弹框，加载页面/卡片资源 */
+  open(resourceType: string, resourceId: string, data?: any): Promise<any>;
+
+  /** 弹窗自身关闭时调用，返回结果给 showModal 的 Promise */
+  resolve(result?: any): void;
+
+  /** 关闭所有弹窗（closeModal 动作调用） */
+  closeAll(): void;
 }
 
 interface ModalEntry {
-  modalId: string;
+  /** 资源类型：page | card */
+  resourceType: string;
+  /** 资源 ID */
+  resourceId: string;
+  /** 传递给弹窗的数据 */
   data?: any;
-  resolve: (result?: any) => void;  // showModal 的 Promise resolve
+  /** Promise resolve 函数 */
+  resolve: (result?: any) => void;
 }
 ```
 
@@ -1056,25 +1080,17 @@ interface ModalEntry {
 ```
 调用方 action chain
   │
-  ▼ 步骤1: showModal("A", data)
+  ▼ 步骤1: showModal("page", "abc123", data)
      ModalStack.open() → 压栈，返回 Promise（链条暂停 await）
   ┌─────────────────────────────────────┐
-  │  弹框 A 的 action chain              │
+  │  弹框渲染页面资源 abc123             │
   │                                     │
-  │  showModal("B", data2)              │
-  │    → ModalStack.open() 再压栈        │
-  │  ┌──────────────────────────┐       │
-  │  │  弹框 B 的 action chain   │       │
-  │  │  closeModal("B", result) │       │
-  │  │    → ModalStack.close()  │       │
-  │  │    → Promise<B> resolve  │       │
-  │  └──────────────────────────┘       │
-  │  $result = result (来自 B)           │
-  │  closeModal("A", result2)           │
-  │    → Promise<A> resolve             │
+  │  弹窗内按钮 → resolveModal(result)  │
+  │    → ModalStack.resolve(result)     │
+  │    → Promise resolve                │
   └─────────────────────────────────────┘
   │
-  ▼ $result = result2 (来自 A)
+  ▼ $result = result (来自弹窗)
   步骤2: setFormValue("field", "{{$result.xxx}}")
 ```
 
@@ -1083,21 +1099,21 @@ interface ModalEntry {
 | 特性 | 说明 |
 |------|------|
 | **Promise 驱动** | `showModal` 返回 Promise，`await` 自然暂停链条，无需手动管理状态 |
-| **栈隔离** | 每层弹框有独立的 `$result` 作用域，互不干扰 |
-| **级联关闭** | `closeModal("A")` 自动关闭其上方的所有弹框（避免幽灵弹框残留） |
+| **资源加载** | `showModal` 指定 `resourceType`（page/card）和 `resourceId`，宿主负责渲染对应资源 |
+| **弹窗自关闭** | 弹窗通过 `resolveModal(result)` 关闭自身并返回结果，非 `closeModal` 关闭 |
+| **closeModal 关闭全部** | `closeModal()` 关闭所有弹窗，所有 showModal 的 Promise resolve 为 undefined |
 | **宿主通知** | 通过 `onChange` 回调通知宿主渲染/关闭弹框 UI，渲染层本身不关心具体 UI 组件 |
 | **卸载清理** | 页面/组件卸载时 `ModalStack.clear()` 自动 resolve 所有挂起的 Promise |
 
-#### 弹框内 action chain 的 $result 传递
+#### 弹窗返回值机制
 
-弹框内的 action chain 与主页面共享同一套 `$result` 链式传递机制。`closeModal` 的 `result` 参数支持模板变量：
+弹窗内通过 `resolveModal` 动作返回结果，非 `closeModal`：
 
 ```jsonc
-// 弹框内：用户选择后关闭，返回选中数据
+// 弹窗内：用户点击确定按钮
 {
-  "action": "closeModal",
+  "action": "resolveModal",
   "params": {
-    "modalId": "userSelector",
     "result": {
       "userId": "{{selectedUser.id}}",
       "userName": "{{selectedUser.name}}"
@@ -1116,7 +1132,23 @@ interface ModalEntry {
 }
 ```
 
-### 3.7 onChange 的特殊处理
+### 3.7 变量多选模式
+
+`triggerWorkflow` 和 `showModal` 的数据参数支持变量多选模式，返回格式为：
+
+```jsonc
+// 单选变量
+{ "type": "variable", "value": "$data.orderId" }
+
+// 多选变量（自动合成对象）
+{ "type": "variable", "value": { "orderId": "$data.orderId", "amount": "$data.amount" } }
+```
+
+运行时解析：
+- 单选：按路径取值，返回实际值
+- 多选：逐 key 按路径取值，返回合并对象 `{ orderId: 实际值, amount: 实际值 }`
+
+### 3.8 onChange 的特殊处理
 
 `onChange` 事件承担双重职责：更新表单值 + 执行用户自定义动作。必须保证执行顺序：
 
@@ -1320,6 +1352,7 @@ function renderComponentWithEvents(
 │  界面操作                         │
 │  ├ 消息提示 (showMessage)         │
 │  ├ 打开弹窗 (showModal)           │
+│  ├ 关闭所有弹窗 (closeModal)      │
 │  ├ 显示/隐藏 (setVisible)         │
 │  └ 禁用/启用 (setDisabled)        │
 │                                  │
@@ -1328,6 +1361,10 @@ function renderComponentWithEvents(
 │                                  │
 │  高级                             │
 │  └ 自定义脚本 (customScript)      │
+│                                  │
+│  弹窗操作                         │
+│  ├ resolveModal (弹窗返回结果)    │
+│  └ closeModal (关闭所有弹窗)      │
 │                                  │
 └──────────────────────────────────┘
 ```

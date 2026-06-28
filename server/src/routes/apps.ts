@@ -11,6 +11,8 @@ import path from 'path';
 import crypto from 'crypto';
 import KoaRouter from '@koa/router';
 import { TENANTS_DIR } from '../config/index.js';
+import type { DatabaseManager } from '@low-code/data';
+import { TableService } from '../services/TableService.js';
 
 /** Generate 8-char hex UUID (no prefix) */
 function generateUuid(): string {
@@ -207,8 +209,9 @@ function findAppDir(appId: string): [string, string] | null {
 }
 
 /** Create app routes */
-export function createAppsRouter(): KoaRouter {
+export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
   const router = new KoaRouter({ prefix: '/api/apps' });
+  const tableService = manager ? new TableService(manager) : null;
 
   /**
    * GET /api/apps
@@ -472,6 +475,59 @@ export function createAppsRouter(): KoaRouter {
   });
 
   /**
+   * GET /api/apps/:appId/:resourceType
+   * 获取资源列表（单个类型）
+   */
+  router.get('/:appId/:resourceType', async (ctx) => {
+    const { appId, resourceType } = ctx.params;
+
+    // 验证资源类型
+    const validTypes = ['pages', 'cards', 'tables', 'workflows', 'automations', 'computations'];
+    if (!validTypes.includes(resourceType)) {
+      ctx.status = 400;
+      ctx.body = { success: false, error: `无效的资源类型: ${resourceType}` };
+      return;
+    }
+
+    const found = findAppDir(appId);
+    if (!found) {
+      ctx.status = 404;
+      ctx.body = { success: false, error: '应用不存在' };
+      return;
+    }
+
+    const [, appDir] = found;
+    const typeDir = path.join(appDir, resourceType);
+    const prefix = resourceType.slice(0, -1);
+
+    try {
+      const files = fs.readdirSync(typeDir).filter((f) => f.endsWith('.json'));
+      const resources = files
+        .map((f) => {
+          try {
+            const content = JSON.parse(fs.readFileSync(path.join(typeDir, f), 'utf-8'));
+            // 跳过已删除的资源
+            if (content._deleted) return null;
+            return {
+              id: content[`${prefix}Id`] || content.id || resourceIdFromFilename(f),
+              tableId: content.tableId || content[`${prefix}Id`] || resourceIdFromFilename(f),
+              name: content.name || resourceIdFromFilename(f),
+              schemaVersion: content.schemaVersion,
+              version: content.version,
+            };
+          } catch {
+            return { id: resourceIdFromFilename(f), name: resourceIdFromFilename(f) };
+          }
+        })
+        .filter(Boolean);
+
+      ctx.body = { success: true, resources };
+    } catch {
+      ctx.body = { success: true, resources: [] };
+    }
+  });
+
+  /**
    * POST /api/apps/:appId/:resourceType
    * 创建资源（页面、卡片、表单、数据表等）
    *
@@ -662,12 +718,40 @@ export function createAppsRouter(): KoaRouter {
 
     fs.writeFileSync(filePath, JSON.stringify(updated, null, 2));
 
+    // 数据表类型：同步物理表
+    if (resourceType === 'tables' && tableService) {
+      try {
+        const tenantDirName = found[0]; // 格式：tenant_xxxxxxxx
+        const tableId = resourceId;
+
+        // 读取旧 Schema（如果有）
+        let oldSchema: any;
+        try {
+          const oldContent = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+          // 移除本次更新的字段，得到更新前的状态
+          delete oldContent.updatedAt;
+          delete oldContent.version;
+          oldSchema = oldContent;
+        } catch {
+          // 新表，无旧 Schema
+        }
+
+        // 类型转换：将 updated 对象转为 TableSchema
+        const tableSchema = updated as any;
+        await tableService.syncTableSchema(tenantDirName, tableId, tableSchema, oldSchema);
+        console.log(`[TableService] 同步物理表成功: ${tenantDirName}/${tableId}`);
+      } catch (err) {
+        console.error('[TableService] 同步物理表失败:', err);
+        // 不阻塞响应，Schema JSON 已保存成功
+      }
+    }
+
     ctx.body = { success: true, resource: updated };
   });
 
   /**
    * DELETE /api/apps/:appId/:resourceType/:resourceId
-   * 删除资源
+   * 删除资源（软删除：标记 _deleted，物理文件和表保留）
    */
   router.delete('/:appId/:resourceType/:resourceId', async (ctx) => {
     const { appId, resourceType, resourceId } = ctx.params;
@@ -698,7 +782,18 @@ export function createAppsRouter(): KoaRouter {
       return;
     }
 
-    fs.unlinkSync(filePath);
+    // 软删除：标记 _deleted，不删除物理文件
+    try {
+      const content = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+      content._deleted = true;
+      content._deletedAt = Date.now();
+      content.updatedAt = Date.now();
+      fs.writeFileSync(filePath, JSON.stringify(content, null, 2));
+    } catch {
+      ctx.status = 500;
+      ctx.body = { success: false, error: '删除失败' };
+      return;
+    }
 
     ctx.body = { success: true };
   });

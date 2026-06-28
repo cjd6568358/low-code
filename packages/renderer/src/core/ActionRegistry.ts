@@ -223,32 +223,45 @@ const notificationExecutor: ActionExecutor = {
   },
 };
 
-/** 打开弹窗（返回 Promise，弹框关闭时 resolve，结果注入 $result） */
+/** 打开弹窗（加载页面/卡片资源，返回 Promise，弹窗自身关闭时 resolve） */
 const showModalExecutor: ActionExecutor = {
   async execute(params, context) {
-    const { modalId, data } = params;
-    if (context.showModal) {
-      return context.showModal(modalId, data);
+    const { resourceType, resourceId, data } = params;
+    if (context.showModal && resourceType && resourceId) {
+      return context.showModal(resourceType, resourceId, data);
     }
   },
 };
 
-/** 关闭弹窗（携带返回值，触发对应 showModal 的 Promise resolve） */
+/** 关闭所有弹窗（所有 showModal 的 Promise resolve 为 undefined） */
 const closeModalExecutor: ActionExecutor = {
-  async execute(params, context) {
-    const { modalId, result } = params;
+  async execute(_params, context) {
     if (context.closeModal) {
-      context.closeModal(modalId, result);
+      context.closeModal();
     }
   },
 };
 
-/** 刷新组件 */
+/** 刷新组件（targets = 组件 ID 列表，propNames = 指定属性列表） */
 const refreshComponentExecutor: ActionExecutor = {
   async execute(params, context) {
-    const { target, propNames } = params;
+    const { targets, propNames } = params;
+    if (!Array.isArray(targets) || targets.length === 0) return;
+
+    if (targets.length === 1 && context.refreshComponent) {
+      return context.refreshComponent(targets[0], propNames);
+    }
+
+    // 多个目标：优先用 refreshWithDependencyOrder，否则逐个调用
+    if (context.refreshWithDependencyOrder) {
+      return context.refreshWithDependencyOrder(targets);
+    }
     if (context.refreshComponent) {
-      return context.refreshComponent(target, propNames);
+      const results = [];
+      for (const id of targets) {
+        results.push(await context.refreshComponent(id, propNames));
+      }
+      return results;
     }
   },
 };
@@ -293,27 +306,61 @@ const submitExecutor: ActionExecutor = {
 const triggerWorkflowExecutor: ActionExecutor = {
   async execute(params, context) {
     const { workflowId, inputData } = params;
+
+    // 获取 appId：优先从 params，其次从 context
+    let appId = params.appId;
+    let actualWorkflowId = workflowId;
+
+    // 处理跨应用流程 ID 格式: ${refAppId}.${wfId}
+    if (workflowId && workflowId.includes('.')) {
+      const [refAppId, refWfId] = workflowId.split('.');
+      appId = appId || refAppId;
+      actualWorkflowId = refWfId;
+    }
+
+    // 从 context 中获取 appId（如果 params 中没有）
+    if (!appId && context.$app) {
+      appId = (context.$app as any).id || (context.$app as any).appId;
+    }
+
+    if (!appId) {
+      console.error('[triggerWorkflow] 缺少 appId');
+      return;
+    }
+
     if (context.apiRequest) {
       return context.apiRequest({
-        url: `/api/workflows/${workflowId}/trigger`,
+        url: `/api/workflows/${actualWorkflowId}/trigger`,
         method: 'POST',
-        data: inputData,
+        params: { appId },
+        data: {
+          ...inputData,
+          startedBy: context.$user?.id,
+          startedByName: context.$user?.name,
+        },
       });
     }
   },
 };
 
-/** 执行脚本 */
+/** 执行脚本（customScript） — 支持 async/await，注入完整上下文 */
 const executeScriptExecutor: ActionExecutor = {
   async execute(params, context) {
     const { script } = params;
     if (!script) return;
     try {
-      // 在沙箱中执行脚本，通过 $component.form_xxx.$form 访问表单数据
-      const fn = new Function('$context', '$result', script);
-      return fn(
+      // 使用 AsyncFunction 支持脚本中直接 await
+      const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+      const fn = new AsyncFunction(
+        '$context', '$result', '$event', '$fetch', '$component',
+        script,
+      );
+      return await fn(
         context.renderContext?.$context,
         context.$result,
+        context.event,
+        context.apiRequest,
+        context.renderContext?.$component,
       );
     } catch (e) {
       console.error('Script execution error:', e);
@@ -358,6 +405,7 @@ export function createDefaultActionRegistry(): ActionRegistryImpl {
   registry.register('showModal', showModalExecutor);
   registry.register('closeModal', closeModalExecutor);
   registry.register('message', messageExecutor);
+  registry.register('showMessage', messageExecutor);
   registry.register('notification', notificationExecutor);
   registry.register('refreshComponent', refreshComponentExecutor);
   registry.register('showLoading', showLoadingExecutor);
@@ -366,6 +414,7 @@ export function createDefaultActionRegistry(): ActionRegistryImpl {
   // Workflow
   registry.register('triggerWorkflow', triggerWorkflowExecutor);
   registry.register('executeScript', executeScriptExecutor);
+  registry.register('customScript', executeScriptExecutor);
 
   // Control
   registry.register('condition', conditionExecutor);

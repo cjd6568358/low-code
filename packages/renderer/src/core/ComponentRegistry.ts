@@ -2,6 +2,7 @@ import type {
   ComponentRegistry as IComponentRegistry,
   ComponentRegistration,
   ComponentLibrary,
+  ComponentMethodDef,
 } from '@low-code/shared';
 import type React from 'react';
 
@@ -57,11 +58,13 @@ export class ComponentRegistryImpl implements IComponentRegistry {
    * @param library 组件库描述
    * @param components type → React 组件实现映射
    * @param schemas type → JSON Schema 映射
+   * @param methodsMap type → 方法定义列表映射（可选，用于 invokeMethod 设计时选择）
    */
   registerLibrary(
     library: ComponentLibrary,
     components: Record<string, React.ComponentType<any>>,
     schemas: Record<string, Record<string, any>>,
+    methodsMap?: Record<string, ComponentMethodDef[]>,
   ): void {
     // 注册组件实现
     for (const [type, impl] of Object.entries(components)) {
@@ -82,6 +85,7 @@ export class ComponentRegistryImpl implements IComponentRegistry {
         propsSchema: schema as any,
         acceptsChildren: library.containerTypes.has(type),
         library: library.name,
+        methods: methodsMap?.[type],
       });
     }
   }

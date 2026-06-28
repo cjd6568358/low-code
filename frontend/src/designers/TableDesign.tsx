@@ -15,12 +15,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  App, Spin, Button, Input, Select, Switch, Table, Space, Tag, Tooltip, Typography,
+  App, Spin, Button, Input, Select, Switch, Table, Space, Tag, Tooltip, Typography, Popover,
 } from 'antd';
 import {
-  PlusOutlined, DeleteOutlined, SyncOutlined, SaveOutlined, LinkOutlined,
+  PlusOutlined, DeleteOutlined, SyncOutlined, SaveOutlined, LinkOutlined, SettingOutlined,
 } from '@ant-design/icons';
-import type { TableSchema, TableColumn, FieldSourceMapping } from '@low-code/shared';
+import type { TableSchema, TableColumn, FieldSourceMapping, ForeignKeyReference } from '@low-code/shared';
 import { SYSTEM_ID_COLUMN, type TableFieldType } from '@low-code/shared';
 import { PageComponentPicker, type PageComponentPickResult } from './PageComponentPicker';
 
@@ -112,6 +112,10 @@ export default function TableDesign({ appId, tableId, schema, onSaved }: TableDe
   const [loading, setLoading] = useState(!schema);
   const [pickerVisible, setPickerVisible] = useState(false);
 
+  // 外键编辑相关状态
+  const [otherTables, setOtherTables] = useState<Array<{ tableId: string; name: string; columns: string[] }>>([]);
+  const [editingForeignKey, setEditingForeignKey] = useState<string | null>(null); // 正在编辑的列 ID
+
   // ─── 加载数据表 schema ─────────────────────────────────
   useEffect(() => {
     if (schema) return;
@@ -131,6 +135,45 @@ export default function TableDesign({ appId, tableId, schema, onSaved }: TableDe
     })();
     return () => { cancelled = true; };
   }, [appId, tableId, schema]);
+
+  // ─── 加载其他表列表（用于外键选择） ──────────────────────
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const resp = await fetch(`/api/apps/${appId}/tables`);
+        const data = await resp.json();
+        if (!cancelled && data.success && data.resources) {
+          // 排除当前表，加载每张表的列名
+          const tables = await Promise.all(
+            data.resources
+              .filter((t: any) => t.tableId !== tableId && !t._deleted)
+              .map(async (t: any) => {
+                try {
+                  const schemaResp = await fetch(`/api/apps/${appId}/tables/${t.tableId}`);
+                  const schemaData = await schemaResp.json();
+                  if (schemaData.success && schemaData.resource) {
+                    const columnNames = schemaData.resource.columns
+                      .filter((c: any) => !c.system)
+                      .map((c: any) => c.fieldName);
+                    return { tableId: t.tableId, name: t.name || t.tableId, columns: columnNames };
+                  }
+                } catch {
+                  // 忽略加载失败的表
+                }
+                return null;
+              }),
+          );
+          if (!cancelled) {
+            setOtherTables(tables.filter(Boolean) as typeof otherTables);
+          }
+        }
+      } catch {
+        // 静默处理
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [appId, tableId]);
 
   // ─── 更新字段 ─────────────────────────────────────────
 
@@ -386,6 +429,131 @@ export default function TableDesign({ appId, tableId, schema, onSaved }: TableDe
       },
     },
     {
+      title: '外键',
+      dataIndex: 'foreignKey',
+      key: 'foreignKey',
+      width: 140,
+      render: (val: ForeignKeyReference | undefined, record: TableColumn) => {
+        if (record.system) return null;
+
+        // 外键编辑 Popover 内容
+        const foreignKeyContent = (
+          <div style={{ width: 280 }}>
+            <div style={{ marginBottom: 8 }}>
+              <Text strong style={{ fontSize: 12 }}>目标表：</Text>
+              <Select
+                size="small"
+                style={{ width: '100%', marginTop: 4 }}
+                placeholder="选择目标表"
+                value={val?.targetTableId}
+                onChange={(targetTableId) => {
+                  const targetTable = otherTables.find((t) => t.tableId === targetTableId);
+                  updateColumn(record.id, {
+                    foreignKey: {
+                      targetTableId,
+                      targetFieldName: 'id',
+                      onDelete: 'RESTRICT',
+                    },
+                  });
+                }}
+                options={otherTables.map((t) => ({ label: t.name, value: t.tableId }))}
+                allowClear
+              />
+            </div>
+            {val?.targetTableId && (
+              <div style={{ marginBottom: 8 }}>
+                <Text strong style={{ fontSize: 12 }}>目标字段：</Text>
+                <Select
+                  size="small"
+                  style={{ width: '100%', marginTop: 4 }}
+                  value={val.targetFieldName || 'id'}
+                  onChange={(targetFieldName) => {
+                    updateColumn(record.id, {
+                      foreignKey: { ...val, targetFieldName },
+                    });
+                  }}
+                  options={[
+                    { label: 'id（主键）', value: 'id' },
+                    ...(otherTables.find((t) => t.tableId === val.targetTableId)?.columns || [])
+                      .map((c) => ({ label: c, value: c })),
+                  ]}
+                />
+              </div>
+            )}
+            {val?.targetTableId && (
+              <div style={{ marginBottom: 8 }}>
+                <Text strong style={{ fontSize: 12 }}>删除策略：</Text>
+                <Select
+                  size="small"
+                  style={{ width: '100%', marginTop: 4 }}
+                  value={val.onDelete || 'RESTRICT'}
+                  onChange={(onDelete) => {
+                    updateColumn(record.id, {
+                      foreignKey: { ...val, onDelete: onDelete as ForeignKeyReference['onDelete'] },
+                    });
+                  }}
+                  options={[
+                    { label: 'RESTRICT（禁止删除）', value: 'RESTRICT' },
+                    { label: 'CASCADE（级联删除）', value: 'CASCADE' },
+                    { label: 'SET NULL（设为空）', value: 'SET NULL' },
+                  ]}
+                />
+              </div>
+            )}
+            {val?.targetTableId && (
+              <Button
+                size="small"
+                danger
+                block
+                onClick={() => updateColumn(record.id, { foreignKey: undefined })}
+              >
+                移除外键
+              </Button>
+            )}
+          </div>
+        );
+
+        // 外键显示
+        if (val) {
+          return (
+            <Popover
+              content={foreignKeyContent}
+              title="外键配置"
+              trigger="click"
+              open={editingForeignKey === record.id}
+              onOpenChange={(open) => setEditingForeignKey(open ? record.id : null)}
+            >
+              <Tag
+                color="orange"
+                icon={<LinkOutlined />}
+                style={{ margin: 0, fontSize: 11, cursor: 'pointer' }}
+              >
+                {val.targetTableId}.{val.targetFieldName || 'id'}
+              </Tag>
+            </Popover>
+          );
+        }
+
+        // 无外键：显示设置按钮
+        return (
+          <Popover
+            content={foreignKeyContent}
+            title="设置外键"
+            trigger="click"
+            open={editingForeignKey === record.id}
+            onOpenChange={(open) => setEditingForeignKey(open ? record.id : null)}
+          >
+            <Button
+              type="text"
+              size="small"
+              icon={<SettingOutlined />}
+              style={{ fontSize: 11, color: '#8c8c8c' }}
+            />
+          </Popover>
+        );
+      },
+    },
+    {
       title: '操作',
       key: 'action',
       width: 50,
@@ -399,7 +567,7 @@ export default function TableDesign({ appId, tableId, schema, onSaved }: TableDe
         />
       ),
     },
-  ], [updateColumn, deleteColumn]);
+  ], [updateColumn, deleteColumn, otherTables, editingForeignKey]);
 
   // ─── 渲染 ────────────────────────────────────────────
 

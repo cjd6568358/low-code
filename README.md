@@ -311,6 +311,7 @@ RBAC 模型实现细粒度数据鉴权。
 | 后端框架 | Koa 2 |
 | 数据库 | SQLite（koffi FFI 直调 sqlite3.dll，无需原生编译） |
 | 多租户 | 租户级 SQLite 文件隔离（每租户一个 .db） |
+| 流程引擎 | react-flow-builder + 自研 BPMN 2.0 引擎 |
 | 包管理 | Yarn 1.22 Workspaces |
 | 测试 | Vitest 2 |
 | 认证集成 | LDAP / AD / OAuth2 / SAML 2.0 |
@@ -325,7 +326,7 @@ low-code/
 │   └── src/
 │       ├── auth/                      # 认证（AuthContext、ProtectedRoute、mockAuth）
 │       ├── components/                # 通用组件（PermissionGuard、PageRuntime）
-│       ├── designers/                 # 资源设计器（PageDesign、CardDesign、FormDesign、TableDesign、...）
+│       ├── designers/                 # 资源设计器（PageDesign、CardDesign、TableDesign、...）
 │       ├── layouts/                   # 布局（MainLayout 侧边栏+顶栏）
 │       ├── pages/                     # 页面（LoginPage、WorkspacePage、AppCenterPage、WorkflowCenterPage、ConfigCenterPage、AppDesignPage）
 │       └── styles/                    # 全局样式
@@ -334,16 +335,18 @@ low-code/
 │   └── src/
 │       ├── config/                    # 配置（端口、数据库路径、DB 单例）
 │       ├── middlewares/               # 中间件（错误处理、CORS、日志）
-│       ├── routes/                    # 路由（auth、health）
-│       └── services/                  # 业务服务层（预留）
+│       ├── routes/                    # 路由（auth、health、workflows、workflow-instances、workflow-tasks）
+│       └── services/                  # 业务服务层（FileDatabaseAdapter、FileSnapshotService、WorkflowService）
 │
 ├── packages/                          # 引擎层（纯逻辑，无框架依赖）
 │   ├── shared/                        # 公共类型、权限引擎
 │   ├── computation/                   # 运算引擎
-│   ├── renderer/                      # 渲染引擎 + 设计器
+│   ├── renderer/                      # 渲染引擎 + 设计器 + 流程 UI
 │   ├── auto-rendering/                # 自动渲染引擎
 │   ├── data/                          # 数据引擎（SQLite koffi FFI）
-│   └── build-tools/                   # 构建工具（TS → JSON Schema 编译器）
+│   ├── build-tools/                   # 构建工具（TS → JSON Schema 编译器）
+│   ├── workflow-bpmn/                 # BPMN 2.0 类型定义、校验器、序列化器
+│   └── workflow/                      # 流程引擎核心（WorkflowEngine、StateMachine、SnapshotEngine）
 │
 ├── tenants/                           # 租户数据（每租户独立目录）
 │   └── tenant_{uuid}/                 # 目录名带前缀，uuid 为 8 位 hex

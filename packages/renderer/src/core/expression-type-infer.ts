@@ -127,30 +127,77 @@ function checkPromiseReturn(expression: string): TypeInferResult {
  * 支持：
  * - return xxx;
  * - return (xxx);
- * - return xxx（无分号，后跟换行或 }）
+ * - return { a: 1 }（对象字面量）
+ * - return xxx（无分号，后跟换行）
  * - 多行代码取最后一个 return
  */
 function extractReturnExpression(code: string): string | null {
-  // 匹配 return 语句（支持换行，支持无分号的情况）
-  // (?:;|$|[\r\n]|}) 匹配：分号、字符串结尾、换行、右花括号
-  const returnRegex = /return\s+([\s\S]*?)(?:;|$|[\r\n]|\})/g;
+  // 先用正则找到 return 的起始位置，然后用括号平衡提取完整表达式
+  const returnStartRegex = /return\s+/g;
   let lastReturn: string | null = null;
   let match: RegExpExecArray | null;
 
-  while ((match = returnRegex.exec(code)) !== null) {
-    lastReturn = match[1].trim();
+  while ((match = returnStartRegex.exec(code)) !== null) {
+    const startIdx = match.index + match[0].length;
+    const expr = extractBalancedExpression(code, startIdx);
+    if (expr) lastReturn = expr;
   }
 
   // 如果没有 return，检查是否是单表达式（隐式返回）
   if (lastReturn === null) {
     const trimmed = code.trim();
     // 单行表达式（没有分号、没有花括号）
-    if (trimmed && !trimmed.includes('{') && !trimmed.includes(';')) {
+    if (trimmed && !trimmed.includes(';')) {
       return trimmed;
     }
   }
 
   return lastReturn;
+}
+
+/**
+ * 从指定位置开始，按括号平衡提取完整表达式
+ */
+function extractBalancedExpression(code: string, startIdx: number): string | null {
+  let depth = 0;
+  let i = startIdx;
+
+  while (i < code.length) {
+    const ch = code[i];
+
+    // 跳过字符串字面量
+    if (ch === '"' || ch === "'" || ch === '`') {
+      i++;
+      while (i < code.length && code[i] !== ch) {
+        if (code[i] === '\\') i++; // 跳过转义
+        i++;
+      }
+      i++;
+      continue;
+    }
+
+    if (ch === '(' || ch === '[' || ch === '{') {
+      depth++;
+    } else if (ch === ')' || ch === ']' || ch === '}') {
+      if (depth === 0) break; // 遇到不匹配的右括号，表达式结束
+      depth--;
+    } else if (ch === ';' && depth === 0) {
+      break; // 分号结束
+    } else if ((ch === '\n' || ch === '\r') && depth === 0) {
+      // 换行：检查下一行是否是续行（以 . 或 , 或运算符开头）
+      const rest = code.substring(i + 1).trimStart();
+      if (rest.startsWith('.') || rest.startsWith(',') || rest.startsWith('||') || rest.startsWith('&&') || rest.startsWith('?') || rest.startsWith(':')) {
+        // 续行，继续
+      } else {
+        break; // 换行结束
+      }
+    }
+
+    i++;
+  }
+
+  const result = code.substring(startIdx, i).trim();
+  return result || null;
 }
 
 /**

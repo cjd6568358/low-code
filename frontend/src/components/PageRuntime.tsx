@@ -10,7 +10,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Spin, App, Watermark } from 'antd';
 import type { PageSchema, RenderContext, WatermarkConfig } from '@low-code/shared';
-import { PageRenderer, componentRegistry, antdComponents, antdSchemas, WebAdapter } from '@low-code/renderer';
+import { PageRenderer, componentRegistry, antdComponents, antdSchemas, antdComponentMethods, WebAdapter } from '@low-code/renderer';
 import { expressionEngine } from '@low-code/computation';
 import { useNavigate } from 'react-router-dom';
 
@@ -56,6 +56,7 @@ export default function PageRuntime({ appId, pageId }: PageRuntimeProps) {
           component: type,
           propsSchema: schemaObj as any,
           library: 'antd',
+          methods: antdComponentMethods[type],
         });
       }
     }

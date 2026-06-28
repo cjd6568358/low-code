@@ -1,13 +1,26 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
-import type { ActionChain, ActionStep } from '@low-code/shared';
-import { PropValueField, detectValueMode } from '@low-code/auto-rendering';
+import type { ActionChain, ActionStep, ComponentMethod } from '@low-code/shared';
+import { PropValueField, detectValueMode, extractDisplayValue } from '@low-code/auto-rendering';
 import type { ValueMode } from '@low-code/auto-rendering';
 import { VariableTreeSelector } from '../../components/VariableTreeSelector';
 import { ExpressionEditor } from '../../components/ExpressionEditor';
 
 /** 应用页面信息（从 API 加载） */
 interface AppPageInfo {
+  id: string;
+  name: string;
+}
+
+/** 应用资源信息 */
+interface AppResourceInfo {
+  id: string;
+  name: string;
+}
+
+/** 应用弹窗资源（页面 + 卡片） */
+interface AppModalResource {
+  type: 'page' | 'card';
   id: string;
   name: string;
 }
@@ -36,6 +49,127 @@ function useAppPages(appId?: string): { pages: AppPageInfo[]; loading: boolean }
   return { pages, loading };
 }
 
+/** 加载应用弹窗资源（页面 + 卡片） */
+function useAppModalResources(appId?: string): { resources: AppModalResource[]; loading: boolean } {
+  const [resources, setResources] = useState<AppModalResource[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!appId) return;
+    let cancelled = false;
+    setLoading(true);
+    fetch(`/api/apps/${appId}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled || !data.success) return;
+
+        const result: AppModalResource[] = [];
+
+        // 页面
+        const pages = data.resources?.pages ?? [];
+        result.push(...pages.map((p: AppResourceInfo) => ({
+          type: 'page' as const,
+          id: p.id,
+          name: p.name || p.id,
+        })));
+
+        // 卡片
+        const cards = data.resources?.cards ?? [];
+        result.push(...cards.map((c: AppResourceInfo) => ({
+          type: 'card' as const,
+          id: c.id,
+          name: c.name || c.id,
+        })));
+
+        if (!cancelled) setResources(result);
+      })
+      .catch(() => { /* ignore */ })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [appId]);
+
+  return { resources, loading };
+}
+
+/** 加载应用流程列表（当前应用 + 跨应用暴露的流程） */
+function useAppWorkflows(appId?: string): { workflows: AppResourceInfo[]; loading: boolean } {
+  const [workflows, setWorkflows] = useState<AppResourceInfo[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!appId) return;
+    let cancelled = false;
+    setLoading(true);
+
+    // 获取当前应用信息（包含 resources 和 references）
+    fetch(`/api/apps/${appId}`)
+      .then((r) => r.json())
+      .then(async (data) => {
+        if (cancelled || !data.success) return;
+
+        const result: AppResourceInfo[] = [];
+
+        // 1. 当前应用的流程
+        const localWorkflows = data.resources?.workflows ?? [];
+        result.push(...localWorkflows.map((w: AppResourceInfo) => ({
+          id: w.id,
+          name: w.name || w.id,
+        })));
+
+        // 2. 跨应用引用的流程（格式：appId.workflowId）
+        const crossAppRefs = data.app?.references?.workflows ?? [];
+        if (crossAppRefs.length > 0) {
+          // 按 appId 分组
+          const refsByApp = new Map<string, string[]>();
+          for (const ref of crossAppRefs) {
+            const parts = ref.split('.');
+            if (parts.length === 2) {
+              const [refAppId, refWorkflowId] = parts;
+              if (!refsByApp.has(refAppId)) refsByApp.set(refAppId, []);
+              refsByApp.get(refAppId)!.push(refWorkflowId);
+            }
+          }
+
+          // 批量获取跨应用流程信息
+          const crossAppPromises = Array.from(refsByApp.entries()).map(async ([refAppId, workflowIds]) => {
+            try {
+              const resp = await fetch(`/api/apps/${refAppId}`);
+              const appData = await resp.json();
+              if (appData.success) {
+                const appName = appData.app?.name || refAppId;
+                const crossWorkflows = appData.resources?.workflows ?? [];
+                return workflowIds.map((wfId) => {
+                  const found = crossWorkflows.find((w: AppResourceInfo) => w.id === wfId);
+                  return {
+                    id: `${refAppId}.${wfId}`,
+                    name: `[${appName}] ${found?.name || wfId}`,
+                  };
+                });
+              }
+            } catch { /* ignore */ }
+            return workflowIds.map((wfId) => ({
+              id: `${refAppId}.${wfId}`,
+              name: `[${refAppId}] ${wfId}`,
+            }));
+          });
+
+          const crossResults = await Promise.all(crossAppPromises);
+          result.push(...crossResults.flat());
+        }
+
+        if (!cancelled) {
+          setWorkflows(result);
+        }
+      })
+      .catch(() => { /* ignore */ })
+      .finally(() => { if (!cancelled) setLoading(false); });
+
+    return () => { cancelled = true; };
+  }, [appId]);
+
+  return { workflows, loading };
+}
+
 /** 动作类型列表（设计器事件配置用） */
 const ACTION_TYPES = [
   { value: 'setValues', label: '批量设置值' },
@@ -56,19 +190,6 @@ const ACTION_TYPES = [
 ];
 
 /** 组件方法描述（卡片实例暴露的方法） */
-export interface ComponentMethod {
-  /** 组件实例 ID */
-  componentId: string;
-  /** 组件类型 */
-  componentType: string;
-  /** 方法名 */
-  methodName: string;
-  /** 显示标签 */
-  label: string;
-  /** 方法描述 */
-  description?: string;
-}
-
 /** 事件动作链编排器属性 */
 export interface EventActionChainEditorProps {
   events: Record<string, ActionChain[]>;
@@ -80,8 +201,8 @@ export interface EventActionChainEditorProps {
   /** 组件名称列表（含类型和标签，用于 setValues 目标树） */
   /** 页面中的表单组件列表（用于 resetForm/submit/validate/clearValidate） */
   formComponents?: Array<{ id: string; name: string }>;
-  /** 页面组件列表（用于 $component 代码提示） */
-  pageComponents?: Record<string, { type: string; label?: string }>;
+  /** 页面组件列表（用于 $component 代码提示和组件变量树） */
+  pageComponents?: Record<string, { type: string; label?: string; propsSchema?: Record<string, any> }>;
   /** 页面数据源列表（用于 $data 代码提示） */
   pageDataSources?: Record<string, { type: string; description?: string }>;
   /** 当前应用 ID（用于加载页面列表） */
@@ -102,6 +223,8 @@ export interface EventActionChainEditorProps {
 export function EventActionChainEditor(props: EventActionChainEditorProps) {
   const { events, onChange, availableEvents = [], availableMethods = [], formComponents = [], pageComponents = {}, pageDataSources = {}, appId, tenantId } = props;
   const { pages: appPages } = useAppPages(appId);
+  const { workflows: appWorkflows } = useAppWorkflows(appId);
+  const { resources: modalResources } = useAppModalResources(appId);
   const [editingEvent, setEditingEvent] = useState<string | null>(null);
   const [showEventSelector, setShowEventSelector] = useState(false);
   const addEventBtnRef = useRef<HTMLButtonElement>(null);
@@ -190,6 +313,8 @@ export function EventActionChainEditor(props: EventActionChainEditorProps) {
                       appId={appId}
                       tenantId={tenantId}
                       appPages={appPages}
+                      appWorkflows={appWorkflows}
+                      modalResources={modalResources}
                     />
                   ))}
                   <button onClick={() => handleAddAction(eventName, chainIndex)}
@@ -265,7 +390,7 @@ export function EventActionChainEditor(props: EventActionChainEditorProps) {
 function ActionStepEditor({
   step, index, onUpdate, onDelete, availableMethods, formComponents,
   pageComponents = {}, pageDataSources = {}, excludeActions = [],
-  appId, tenantId, appPages = [],
+  appId, tenantId, appPages = [], appWorkflows = [], modalResources = [],
 }: {
   step: ActionStep;
   index: number;
@@ -273,7 +398,7 @@ function ActionStepEditor({
   onDelete: () => void;
   availableMethods: ComponentMethod[];
   formComponents: Array<{ id: string; name: string }>;
-  pageComponents?: Record<string, { type: string; label?: string }>;
+  pageComponents?: Record<string, { type: string; label?: string; propsSchema?: Record<string, any> }>;
   pageDataSources?: Record<string, { type: string; description?: string }>;
   /** 需要排除的动作类型列表（如条件分支内禁止嵌套条件分支） */
   excludeActions?: string[];
@@ -283,6 +408,10 @@ function ActionStepEditor({
   tenantId?: string;
   /** 当前应用页面列表（用于页面选择） */
   appPages?: AppPageInfo[];
+  /** 当前应用及跨应用流程列表（用于流程选择） */
+  appWorkflows?: AppResourceInfo[];
+  /** 当前应用弹窗资源（页面 + 卡片） */
+  modalResources?: AppModalResource[];
 }) {
   // 过滤可用动作类型
   const filteredActionTypes = useMemo(
@@ -342,6 +471,8 @@ function ActionStepEditor({
           appId={appId}
           tenantId={tenantId}
           appPages={appPages}
+          appWorkflows={appWorkflows}
+          modalResources={modalResources}
         />
       ) : (
         <ParamsEditor
@@ -356,6 +487,8 @@ function ActionStepEditor({
           appId={appId}
           tenantId={tenantId}
           appPages={appPages}
+          appWorkflows={appWorkflows}
+          modalResources={modalResources}
         />
       )}
     </div>
@@ -366,14 +499,14 @@ function ActionStepEditor({
 function ParamsEditor({
   action, params, onChange, availableMethods, formComponents,
   pageComponents = {}, pageDataSources = {},
-  appId, tenantId, appPages = [],
+  appId, tenantId, appPages = [], appWorkflows = [], modalResources = [],
 }: {
   action: string;
   params: Record<string, any>;
   onChange: (params: Record<string, any>) => void;
   availableMethods: ComponentMethod[];
   formComponents: Array<{ id: string; name: string }>;
-  pageComponents?: Record<string, { type: string; label?: string }>;
+  pageComponents?: Record<string, { type: string; label?: string; propsSchema?: Record<string, any> }>;
   pageDataSources?: Record<string, { type: string; description?: string }>;
   /** 当前应用 ID（用于拼接路由） */
   appId?: string;
@@ -381,6 +514,10 @@ function ParamsEditor({
   tenantId?: string;
   /** 当前应用页面列表（用于页面选择） */
   appPages?: AppPageInfo[];
+  /** 当前应用及跨应用流程列表（用于流程选择） */
+  appWorkflows?: AppResourceInfo[];
+  /** 当前应用弹窗资源（页面 + 卡片） */
+  modalResources?: AppModalResource[];
 }) {
   switch (action) {
     case 'navigate':
@@ -576,73 +713,117 @@ function ParamsEditor({
         </div>
       );
 
-    case 'showModal':
+    case 'showModal': {
+      // 根据选中的类型过滤资源
+      const filteredResources = params.resourceType
+        ? modalResources.filter((r) => r.type === params.resourceType)
+        : [];
+
       return (
         <div>
-          <ParamField label="弹窗 ID">
-            <input value={params.modalId ?? ''} onChange={(e) => onChange({ ...params, modalId: e.target.value })}
-              style={inputStyle} />
+          <ParamField label="资源类型">
+            <select value={params.resourceType ?? ''} onChange={(e) => {
+              const newType = e.target.value;
+              onChange({ ...params, resourceType: newType, resourceId: '' });
+            }} style={inputStyle}>
+              <option value="">请选择类型</option>
+              <option value="page">页面</option>
+              <option value="card">卡片</option>
+            </select>
           </ParamField>
-          <ParamField label="传递数据 (JSON)">
-            <textarea value={JSON.stringify(params.data ?? {}, null, 2)}
-              onChange={(e) => { try { onChange({ ...params, data: JSON.parse(e.target.value) }); } catch { /* ignore */ } }}
-              rows={2} style={{ ...inputStyle, fontFamily: 'monospace' }} />
+          <ParamField label="选择资源">
+            <select value={params.resourceId ?? ''} onChange={(e) => onChange({ ...params, resourceId: e.target.value })} style={inputStyle}>
+              <option value="">请选择资源</option>
+              {filteredResources.map((r) => (
+                <option key={r.id} value={r.id}>{r.name}</option>
+              ))}
+            </select>
           </ParamField>
+          <DataFieldPicker
+            label="传递数据"
+            value={params.data}
+            onChange={(data) => {
+              if (!data) {
+                const { data: _, ...rest } = params;
+                onChange(rest);
+              } else {
+                onChange({ ...params, data });
+              }
+            }}
+            pageComponents={pageComponents}
+            pageDataSources={pageDataSources}
+          />
         </div>
       );
+    }
 
     case 'closeModal':
       return (
-        <div>
-          <ParamField label="弹窗 ID">
-            <input value={params.modalId ?? ''} onChange={(e) => onChange({ ...params, modalId: e.target.value })}
-              style={inputStyle} />
-          </ParamField>
-          <ParamField label="返回结果 (JSON)">
-            <textarea value={JSON.stringify(params.result ?? null, null, 2)}
-              onChange={(e) => { try { onChange({ ...params, result: JSON.parse(e.target.value) }); } catch { /* ignore */ } }}
-              rows={2} style={{ ...inputStyle, fontFamily: 'monospace' }} />
-          </ParamField>
+        <div style={{ color: '#999', fontSize: '12px', padding: '4px 0' }}>
+          关闭所有弹窗，由弹窗自身的关闭按钮触发返回结果
         </div>
       );
 
     case 'triggerWorkflow':
       return (
         <div>
-          <ParamField label="流程 ID">
-            <input value={params.workflowId ?? ''} onChange={(e) => onChange({ ...params, workflowId: e.target.value })}
-              style={inputStyle} placeholder="流程定义 ID" />
+          <ParamField label="选择流程">
+            <select value={params.workflowId ?? ''} onChange={(e) => onChange({ ...params, workflowId: e.target.value })} style={inputStyle}>
+              <option value="">请选择流程</option>
+              {appWorkflows.length > 0 && (
+                <optgroup label="当前应用">
+                  {appWorkflows
+                    .filter((w) => !w.id.includes('.'))
+                    .map((w) => (
+                      <option key={w.id} value={w.id}>{w.name}</option>
+                    ))}
+                </optgroup>
+              )}
+              {appWorkflows.some((w) => w.id.includes('.')) && (
+                <optgroup label="跨应用流程">
+                  {appWorkflows
+                    .filter((w) => w.id.includes('.'))
+                    .map((w) => (
+                      <option key={w.id} value={w.id}>{w.name}</option>
+                    ))}
+                </optgroup>
+              )}
+            </select>
           </ParamField>
-          <ParamField label="触发数据 (JSON)">
-            <textarea value={JSON.stringify(params.data ?? {}, null, 2)}
-              onChange={(e) => { try { onChange({ ...params, data: JSON.parse(e.target.value) }); } catch { /* ignore */ } }}
-              rows={2} style={{ ...inputStyle, fontFamily: 'monospace' }} />
-          </ParamField>
+          <DataFieldPicker
+            label="触发数据"
+            value={params.inputData}
+            onChange={(inputData) => {
+              if (!inputData) {
+                const { inputData: _, ...rest } = params;
+                onChange(rest);
+              } else {
+                onChange({ ...params, inputData });
+              }
+            }}
+            pageComponents={pageComponents}
+            pageDataSources={pageDataSources}
+          />
         </div>
       );
 
     case 'refreshComponent':
       return (
-        <div>
-          <ParamField label="目标组件">
-            <input value={params.target ?? ''} onChange={(e) => onChange({ ...params, target: e.target.value })}
-              style={inputStyle} placeholder="组件 ID" />
-          </ParamField>
-          <ParamField label="刷新属性 (可选)">
-            <input value={params.propNames?.join(', ') ?? ''} onChange={(e) => onChange({ ...params, propNames: e.target.value ? e.target.value.split(',').map((s: string) => s.trim()) : undefined })}
-              style={inputStyle} placeholder="留空刷新全部，或用逗号分隔属性名" />
-          </ParamField>
-        </div>
+        <RefreshComponentEditor
+          params={params}
+          onChange={onChange}
+          pageComponents={pageComponents}
+        />
       );
 
     case 'customScript':
       return (
-        <ParamField label="脚本代码">
-          <textarea value={params.script ?? ''}
-            onChange={(e) => onChange({ ...params, script: e.target.value })}
-            rows={6} style={{ ...inputStyle, fontFamily: 'monospace', fontSize: '11px' }}
-            placeholder={`// 可用变量:\n// $event - 原生事件对象\n// $result - 上一个动作的返回值\n// $fetch - HTTP 请求函数\n// $component.form_xxx.$form - 表单上下文\n\nawait $fetch('/api/data', {\n  method: 'POST',\n  body: { key: 'value' }\n});`} />
-        </ParamField>
+        <CustomScriptEditor
+          params={params}
+          onChange={onChange}
+          pageComponents={pageComponents}
+          pageDataSources={pageDataSources}
+        />
       );
 
     default:
@@ -656,6 +837,154 @@ function ParamsEditor({
   }
 }
 
+/** refreshComponent 编辑器 — 复用 VariableTreeSelector 多选模式 */
+function RefreshComponentEditor({
+  params, onChange,
+  pageComponents = {}, pageDataSources = {},
+}: {
+  params: Record<string, any>;
+  onChange: (params: Record<string, any>) => void;
+  pageComponents?: Record<string, { type: string; label?: string; propsSchema?: Record<string, any> }>;
+  pageDataSources?: Record<string, { type: string; description?: string }>;
+}) {
+  const [pickerVisible, setPickerVisible] = useState(false);
+
+  // 当前已选组件 ID 列表
+  const targets: string[] = params.targets ?? [];
+
+  /** 移除单个组件 */
+  const handleRemove = useCallback((compId: string) => {
+    const next = targets.filter((t) => t !== compId);
+    if (next.length === 0) {
+      const { targets: _, ...rest } = params;
+      onChange(rest);
+    } else {
+      onChange({ ...params, targets: next });
+    }
+  }, [targets, params, onChange]);
+
+  return (
+    <div>
+      {/* 已选组件标签 */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', minHeight: '28px', alignItems: 'center' }}>
+        {targets.map((tid) => {
+          const comp = pageComponents[tid];
+          return (
+            <span key={tid} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 8px', backgroundColor: '#e6f7ff', border: '1px solid #91d5ff', borderRadius: '4px', fontSize: '12px', fontFamily: 'monospace', color: '#1890ff' }}>
+              {comp?.label || comp?.type || tid}
+              <span style={{ cursor: 'pointer', color: '#ff4d4f', fontSize: '13px', marginLeft: '2px' }} onClick={() => handleRemove(tid)}>×</span>
+            </span>
+          );
+        })}
+        <button onClick={() => setPickerVisible(true)} style={{ padding: '2px 10px', border: '1px dashed #1890ff', borderRadius: '4px', cursor: 'pointer', backgroundColor: '#e6f7ff', color: '#1890ff', fontSize: '12px' }}>
+          + 选择组件
+        </button>
+      </div>
+
+      {/* 复用 VariableTreeSelector 多选模式，只显示 $component 节点 */}
+      {pickerVisible && (
+        <VariableTreeSelector
+          visible
+          multiSelect
+          env={['$component']}
+          onChange={(val) => {
+            const items = Array.isArray(val) ? val : [val];
+            const componentIds = new Set(Object.keys(pageComponents));
+            const newTargets: string[] = [];
+            const newPropNames = new Set<string>();
+            for (const v of items) {
+              if (!v.value.startsWith('$component.')) continue;
+              const rest = v.value.slice('$component.'.length);
+              if (!rest) continue; // 根节点 $component 本身，跳过
+              if (componentIds.has(rest)) {
+                // 选中的是组件节点 → 刷新全部属性
+                newTargets.push(rest);
+              } else {
+                // 选中的是属性节点（如 dept_select.options）→ 提取组件 ID + 属性名
+                const dotIdx = rest.indexOf('.');
+                if (dotIdx > 0) {
+                  const compId = rest.slice(0, dotIdx);
+                  const propName = rest.slice(dotIdx + 1);
+                  newTargets.push(compId);
+                  newPropNames.add(propName);
+                }
+              }
+            }
+            const mergedTargets = Array.from(new Set([...targets, ...newTargets]));
+            const mergedPropNames = new Set([...(params.propNames ?? []), ...newPropNames]);
+            const next: Record<string, any> = { ...params, targets: mergedTargets };
+            if (mergedPropNames.size > 0) next.propNames = Array.from(mergedPropNames);
+            onChange(next);
+            setPickerVisible(false);
+          }}
+          onClear={() => setPickerVisible(false)}
+          onClose={() => setPickerVisible(false)}
+          pageComponents={pageComponents}
+          pageDataSources={pageDataSources}
+        />
+      )}
+    </div>
+  );
+}
+
+/** 自定义脚本编辑器 — 复用 ExpressionEditor（Monaco），锁定 async 模式 */
+function CustomScriptEditor({
+  params, onChange,
+  pageComponents = {}, pageDataSources = {},
+}: {
+  params: Record<string, any>;
+  onChange: (params: Record<string, any>) => void;
+  pageComponents?: Record<string, { type: string; label?: string; propsSchema?: Record<string, any> }>;
+  pageDataSources?: Record<string, { type: string; description?: string }>;
+}) {
+  const [showEditor, setShowEditor] = useState(false);
+  const script: string = params.script ?? '';
+
+  return (
+    <ParamField label="脚本代码">
+      <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+        {script ? (
+          <pre style={{
+            flex: 1, fontFamily: 'monospace', fontSize: '11px', color: '#333',
+            padding: '4px 8px', margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+            maxHeight: '96px', overflow: 'auto', backgroundColor: '#fafafa', borderRadius: '4px', border: '1px solid #d9d9d9',
+          }}>{script}</pre>
+        ) : (
+          <span style={{ flex: 1, color: '#999', fontSize: '12px' }}>未设置脚本</span>
+        )}
+        <button
+          onClick={() => setShowEditor(true)}
+          style={{
+            padding: '4px 8px', border: '1px solid #1890ff', borderRadius: '4px',
+            cursor: 'pointer', backgroundColor: '#e6f7ff', color: '#1890ff', fontSize: '11px', whiteSpace: 'nowrap', flexShrink: 0,
+          }}
+        >
+          {script ? '编辑' : '编写脚本'}
+        </button>
+      </div>
+
+      {showEditor && (
+        <ExpressionEditor
+          visible={showEditor}
+          value={script ? { type: 'expression' as const, value: script, async: true } : undefined}
+          async
+          onChange={(val) => {
+            onChange({ ...params, script: val.value });
+            setShowEditor(false);
+          }}
+          onClear={() => {
+            onChange({ ...params, script: '' });
+            setShowEditor(false);
+          }}
+          onClose={() => setShowEditor(false)}
+          pageComponents={pageComponents}
+          pageDataSources={pageDataSources}
+        />
+      )}
+    </ParamField>
+  );
+}
+
 /** setValues 选择器编辑器（VariableTreeSelector 选目标 + PropValueField 赋值卡片） */
 function SetValuesEditor({
   values, onChange,
@@ -663,7 +992,7 @@ function SetValuesEditor({
 }: {
   values: Record<string, any>;
   onChange: (values: Record<string, any>) => void;
-  pageComponents?: Record<string, { type: string; label?: string }>;
+  pageComponents?: Record<string, { type: string; label?: string; propsSchema?: Record<string, any> }>;
   pageDataSources?: Record<string, { type: string; description?: string }>;
 }) {
   /** pickerMode: null=关闭, 'target'=选择赋值目标, {field,mode}=编辑某字段的值 */
@@ -805,7 +1134,7 @@ function QueryParamsPicker({
   label?: string;
   value: unknown;
   onChange: (val: { type: 'variable' | 'expression'; value: string; async?: boolean } | undefined) => void;
-  pageComponents?: Record<string, { type: string; label?: string }>;
+  pageComponents?: Record<string, { type: string; label?: string; propsSchema?: Record<string, any> }>;
   pageDataSources?: Record<string, { type: string; description?: string }>;
 }) {
   const mode = detectValueMode(value);
@@ -859,17 +1188,162 @@ function QueryParamsPicker({
   );
 }
 
+// DataFieldPicker 样式（与 PropValueField 保持一致）
+const tagBase: React.CSSProperties = {
+  padding: '2px 8px',
+  border: '1px solid',
+  borderRadius: '2px',
+  fontSize: '12px',
+  flexShrink: 0,
+};
+
+const pickerTriggerStyle: React.CSSProperties = {
+  padding: '6px 12px',
+  border: '1px solid #d9d9d9',
+  borderRadius: '4px',
+  backgroundColor: '#f5f5f5',
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  gap: '8px',
+  minHeight: '32px',
+};
+
+/** 数据字段选择器 — 变量 / 表达式 两种模式 */
+function DataFieldPicker({
+  label, value, onChange,
+  pageComponents = {}, pageDataSources = {},
+}: {
+  label?: string;
+  value: unknown;
+  onChange: (val: { type: 'variable' | 'expression'; value: string; async?: boolean } | Record<string, any> | undefined) => void;
+  pageComponents?: Record<string, { type: string; label?: string; propsSchema?: Record<string, any> }>;
+  pageDataSources?: Record<string, { type: string; description?: string }>;
+}) {
+  const mode = detectValueMode(value);
+
+  // 多选变量的显示文本：{ type: "variable", value: { a: "$data.a", b: "$data.b" } }
+  const multiSelectDisplay = useMemo(() => {
+    if (value && typeof value === 'object' && 'type' in value && 'value' in value
+      && (value as any).type === 'variable' && typeof (value as any).value === 'object') {
+      return Object.values((value as any).value as Record<string, string>).join(', ');
+    }
+    return null;
+  }, [value]);
+
+  // 多选变量的已选路径数组
+  const initialKeys = useMemo(() => {
+    if (value && typeof value === 'object' && 'type' in value && 'value' in value
+      && (value as any).type === 'variable' && typeof (value as any).value === 'object') {
+      return Object.values((value as any).value as Record<string, string>);
+    }
+    return [];
+  }, [value]);
+
+  const [pickerMode, setPickerMode] = useState<'variable' | 'expression' | null>(null);
+
+  return (
+    <div style={{ fontSize: 12 }}>
+      <div style={{ marginBottom: '16px' }}>
+        {label && (
+          <div style={{ display: 'flex', gap: '5px', alignItems: 'center', marginBottom: '4px' }}>
+            {label}
+            <div style={{ display: 'flex', marginLeft: 'auto' }}>
+              {(['variable', 'expression'] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setPickerMode(m)}
+                  style={{
+                    padding: '2px 8px', fontSize: '12px', border: 'none', borderRadius: '2px', cursor: 'pointer',
+                    backgroundColor: mode === m ? '#e6f7ff' : '#fff',
+                    color: mode === m ? '#1890ff' : '#666',
+                  }}
+                >
+                  {m === 'variable' ? '变量' : '表达式'}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        <div onClick={() => setPickerMode(mode === 'expression' ? 'expression' : 'variable')} style={pickerTriggerStyle}>
+          <span style={{
+            ...tagBase,
+            backgroundColor: mode === 'variable' ? '#e6f7ff' : '#fff7e6',
+            borderColor: mode === 'variable' ? '#91d5ff' : '#ffd591',
+            color: mode === 'variable' ? '#1890ff' : '#fa8c16',
+          }}>
+            {mode === 'variable' ? '变量' : '表达式'}
+          </span>
+          {mode === 'variable' && (
+            <span style={{ fontSize: '13px', color: '#333', fontFamily: 'monospace' }}>
+              {multiSelectDisplay || extractDisplayValue(value) || '点击选择...'}
+            </span>
+          )}
+          {mode === 'expression' && value && typeof value === 'object' && 'value' in value && (
+            <span style={{ fontSize: '13px', color: '#333', fontFamily: 'monospace' }}>
+              {((value as any).value as string || '').substring(0, 50)}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* 变量选择器（多选模式，返回 { type: "variable", value: { key: path } }） */}
+      {pickerMode === 'variable' && (
+        <VariableTreeSelector
+          visible={true}
+          multiSelect={true}
+          initialSelectedKeys={initialKeys}
+          onChange={(val) => {
+            if (Array.isArray(val)) {
+              // 多选：{ type: "variable", value: { key1: "$data.a", key2: "$data.b" } }
+              const merged: Record<string, string> = {};
+              for (const item of val) {
+                const parts = item.value.split('.');
+                const key = parts[parts.length - 1] || item.value;
+                merged[key] = item.value;
+              }
+              onChange({ type: 'variable', value: merged });
+            } else {
+              // 单选：{ type: "variable", value: "$data.xx" }
+              onChange(val as { type: 'variable'; value: string });
+            }
+            setPickerMode(null);
+          }}
+          onClear={() => { onChange(undefined); setPickerMode(null); }}
+          onClose={() => setPickerMode(null)}
+          pageComponents={pageComponents}
+          pageDataSources={pageDataSources}
+        />
+      )}
+
+      {/* 表达式编辑器 */}
+      {pickerMode === 'expression' && (
+        <ExpressionEditor
+          visible={true}
+          value={value}
+          expectedType="object"
+          onChange={(val) => { onChange({ type: 'expression', value: val.value, async: val.async }); setPickerMode(null); }}
+          onClear={() => { onChange(undefined); setPickerMode(null); }}
+          onClose={() => setPickerMode(null)}
+          pageComponents={pageComponents}
+          pageDataSources={pageDataSources}
+        />
+      )}
+    </div>
+  );
+}
+
 /** 条件分支编辑器 */
 function ConditionBranchEditor({
   params, onChange, availableMethods, formComponents,
   pageComponents = {}, pageDataSources = {},
-  appId, tenantId, appPages = [],
+  appId, tenantId, appPages = [], appWorkflows = [], modalResources = [],
 }: {
   params: Record<string, any>;
   onChange: (params: Record<string, any>) => void;
   availableMethods: ComponentMethod[];
   formComponents: Array<{ id: string; name: string }>;
-  pageComponents?: Record<string, { type: string; label?: string }>;
+  pageComponents?: Record<string, { type: string; label?: string; propsSchema?: Record<string, any> }>;
   pageDataSources?: Record<string, { type: string; description?: string }>;
   /** 当前应用 ID（用于拼接路由） */
   appId?: string;
@@ -877,6 +1351,10 @@ function ConditionBranchEditor({
   tenantId?: string;
   /** 当前应用页面列表（用于页面选择） */
   appPages?: AppPageInfo[];
+  /** 当前应用及跨应用流程列表（用于流程选择） */
+  appWorkflows?: AppResourceInfo[];
+  /** 当前应用弹窗资源（页面 + 卡片） */
+  modalResources?: AppModalResource[];
 }) {
   const condition = params.condition || '';
   const thenActions = params.then || [];
@@ -953,6 +1431,8 @@ function ConditionBranchEditor({
             appId={appId}
             tenantId={tenantId}
             appPages={appPages}
+            appWorkflows={appWorkflows}
+            modalResources={modalResources}
             excludeActions={['condition']}
           />
         ))}
@@ -982,6 +1462,8 @@ function ConditionBranchEditor({
             appId={appId}
             tenantId={tenantId}
             appPages={appPages}
+            appWorkflows={appWorkflows}
+            modalResources={modalResources}
             excludeActions={['condition']}
           />
         ))}

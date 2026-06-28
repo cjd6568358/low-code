@@ -5,6 +5,9 @@
 import React, { useRef, useEffect, useCallback, useImperativeHandle, forwardRef } from 'react';
 import * as monaco from 'monaco-editor';
 
+// side-effect: 注册 JavaScript/TypeScript 语言特性（格式化提供器等）
+const tsContributionReady = import('monaco-editor/esm/vs/language/typescript/monaco.contribution');
+
 /** 代码诊断信息 */
 export interface CodeDiagnostic {
   /** 错误级别：error | warning | info */
@@ -144,6 +147,30 @@ export const MonacoEditor = forwardRef<MonacoEditorRef, MonacoEditorProps>((prop
   // 初始化编辑器和补全提供器
   useEffect(() => {
     if (!containerRef.current) return;
+
+    let disposed = false;
+
+    // 等待 TypeScript 语言特性加载完成后再创建编辑器
+    tsContributionReady.then(() => {
+      if (disposed || !containerRef.current) return;
+
+      // 配置 JavaScript 语言服务
+      if (language === 'javascript') {
+        const tsDefaults = (monaco.languages.typescript as any).javascriptDefaults;
+        if (tsDefaults) {
+          tsDefaults.setCompilerOptions({
+            target: 99, // ScriptTarget.ESNext
+            module: 99, // ModuleKind.ESNext
+            allowNonTsExtensions: true,
+            noEmit: true,
+            allowJs: true,
+          });
+          tsDefaults.setDiagnosticsOptions({
+            noSemanticValidation: true,
+            noSyntaxValidation: false,
+          });
+        }
+      }
 
     // 创建编辑器实例
     const editor = monaco.editor.create(containerRef.current, {
@@ -291,8 +318,12 @@ export const MonacoEditor = forwardRef<MonacoEditorRef, MonacoEditorProps>((prop
       },
     });
     disposablesRef.current.push(hoverProvider);
+    });
 
-    return cleanup;
+    return () => {
+      disposed = true;
+      cleanup();
+    };
   }, [language, theme, disabled, placeholder]);
 
   // 外部值变更时同步到编辑器

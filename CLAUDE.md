@@ -309,6 +309,7 @@ const db = outDb[0]; // sqlite3* 指针
 5. **Form.Item name 统一使用组件 ID** — Renderer 将 `node.id` 注入为 Form.Item 的 `name` prop，同时作为 form store key。`setValues` 设置 `$component.xxx.value` 时同步调用 `form.setFieldsValue()` 更新 antd Form store，防止 Form.Item 的 `cloneElement` 注入空值覆盖
 6. **事件处理器直接注入 props** — `withPlatform` 的 `enhanceValueOnChange` 将编译后的事件处理器（onClick/onBlur 等）直接注入为组件 props，而非嵌套在 `events` 对象中，确保非 onChange 事件能正确触发
 7. **表单预求值** — antd `Form.Item` 只在首次挂载时读 `initialValue`，异步表达式此时未求值。`FormWithProvider` 渲染子组件前调用 `preEvaluateForm()` 扫描子组件 expression bindings → 依赖拓扑排序 → 批量求值 → 结果写入 `BindingCache` + `form.setFieldsValue()`。子组件 `useBindings` 命中缓存直接复用，`Form.Item` 挂载时 `initialValue` 已是正确值
+8. **组件方法调用 (invokeMethod + ComponentMethodRegistry)** — 命令式调用其他组件方法，与 setValue（声明式）互补。ComponentMethodRegistry 管理方法注册，组件树渲染前预注册空壳处理器（解决渲染顺序依赖），组件挂载后通过 useComponentMethods hook 注册真实实现。antd 组件通过 ComponentRegistration.methods 预声明可用方法元数据
 
 ### 关键实现文件
 
@@ -318,3 +319,6 @@ const db = outDb[0]; // sqlite3* 指针
 - `packages/renderer/src/core/Renderer.tsx` — 注入 ModalStack 到 ActionContext
 - `packages/renderer/src/core/BindingCache.ts` — 表达式结果缓存（表单预求值写入，useBindings 读取）
 - `packages/renderer/src/core/FormPreEvaluator.ts` — 表单预求值器（扫描子组件 → 依赖排序 → 批量求值）
+- `packages/renderer/src/core/ComponentMethodRegistry.ts` — 组件方法注册表
+- `packages/renderer/src/components/ComponentMethodRegistryContext.tsx` — React Context + useComponentMethods hook
+- `packages/renderer/src/libraries/antd/component-methods.ts` — antd 组件方法元数据声明

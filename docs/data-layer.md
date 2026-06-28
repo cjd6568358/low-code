@@ -122,6 +122,74 @@ await dbManager.backupTenant('tenant_001', '/backup/tenant_001_20240115.db');
 fs.copyFileSync('/backup/tenant_001_20240115.db', 'data/tenant_001.db');
 ```
 
+## 业务数据表外键设计
+
+业务数据表（用户通过设计器创建的表）支持外键关系，通过 `TableColumn.foreignKey` 属性定义。
+
+### 外键元数据
+
+```typescript
+interface ForeignKeyReference {
+  targetTableId: string;    // 引用的目标表 ID
+  targetFieldName: string;  // 引用的目标字段（通常是 'id'）
+  onDelete?: 'CASCADE' | 'SET NULL' | 'RESTRICT';  // 删除策略，默认 RESTRICT
+}
+```
+
+### 外键来源
+
+| 来源 | 存储 | 说明 |
+|------|------|------|
+| 自动推断 | `sourceMapping` + `foreignKey` | 页面组件数据源绑定到某表时，自动推断外键关系 |
+| 手动新增 | 仅 `foreignKey` | 在数据表编辑器中手动设置外键关系 |
+
+### 建表时的外键约束
+
+动态建表时，根据 `foreignKey` 生成 SQL `REFERENCES` 约束：
+
+```sql
+-- 示例：orders.customer_id 引用 customers.id
+CREATE TABLE orders (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE RESTRICT,
+  product TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+```
+
+### 动态建表实现
+
+**核心文件**：
+- `packages/data/src/schema-builder.ts` — Schema 到 SQL 转换器
+- `server/src/services/TableService.ts` — 数据表服务
+- `server/src/routes/apps.ts` — 路由集成
+
+**物理表名规则**：直接使用 `tableId`（8位hex，无冲突风险）
+
+**表结构**：
+- 系统主键列：`id INTEGER PRIMARY KEY AUTOINCREMENT`
+- 软删除标记：`_deleted INTEGER DEFAULT 0`
+- 时间戳：`_created_at TEXT`、`_updated_at TEXT`
+- 用户列：根据 `TableSchema.columns` 生成
+
+**同步时机**：保存数据表 Schema JSON 后，自动调用 `TableService.syncTableSchema()` 同步物理表
+
+**表结构变更**：采用「重建表」策略（SQLite 限制不支持 DROP COLUMN）：
+1. 创建临时表（新结构）
+2. 复制数据（匹配的列）
+3. 删除旧表
+4. 重命名临时表
+
+### 删除策略说明
+
+业务删除统一采用**软删除**（标记 deleted 而非物理删除），外键约束主要用于前端校验提示：
+
+| 策略 | 行为 | 场景 |
+|------|------|------|
+| RESTRICT | 有引用时提示禁止删除 | 默认，最安全 |
+| CASCADE | 级联删除引用记录 | 父记录删除时子记录也无意义（如评论） |
+| SET NULL | 外键设为 null | 子记录保留但解除关联 |
+
 ## 未来扩展路径
 
 | 阶段 | 存储方案 | 适用场景 |

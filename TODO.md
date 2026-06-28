@@ -176,16 +176,15 @@
 
 **当前进度**：
 - [x] 页面设计器 — 三栏拖拽基础框架
-- [ ] 数据表编辑器 — 见 #4
-- [ ] 表单编辑器 — 基于数据表自动生成表单
-- [ ] 流程编辑器 — 可视化节点编排
+- [x] 数据表编辑器 — 字段增删改查、从页面同步、来源映射
+- [x] 流程编辑器 — 基于 react-flow-builder 的可视化节点编排（8 种节点类型）
 - [ ] 卡片编辑器 — 组件组合保存为卡片
-- [ ] 自动化编辑器 — ECA 规则配置
+- [x] 自动化编辑器 — ECA 规则配置（完整可视化编辑器）
 - [ ] 运算编辑器 — 表达式/公式编辑
 
 **建议**：先做透页面 + 数据表，再扩展其他。
 
-**状态**：未开始
+**状态**：✅ 流程编辑器已完成
 
 ---
 
@@ -250,7 +249,7 @@
 - MOCK_WORKFLOWS → 从 API 加载流程列表
 - 审批操作 → 调用 API
 
-**状态**：未开始（依赖 #2 API 服务层）
+**状态**：✅ API 已实现 — `workflowApi.ts` 提供完整的流程 API 客户端
 
 ---
 
@@ -381,7 +380,7 @@ _system.db 获取 tenant_id 列表
 | U19 | 完整表单提交流程 (校验→提交→服务端校验→落库→触发流程) | form-engine.md-提交流程 | 无完整流程 |
 | U20 | 按钮触发流程 (triggerWorkflow) | form-engine.md-按钮触发流程 | ActionRegistry 有注册，未对接流程引擎 |
 | U21 | 流程引擎全部功能 | workflow-engine.md | DB 表结构已有，无运行时引擎 |
-| U22 | 自动化引擎全部功能 | automation-engine.md | DB 表结构已有，无运行时引擎 |
+| U22 | 自动化引擎全部功能 | automation-engine.md | ✅ 已完成 — packages/automation/ 包 + server API + 设计器 UI + 81 个测试用例 |
 | U23 | 格式化字段类型注册表 (14 种) | data-engine.md | 无实现 |
 | U24 | 审计日志全部功能 | audit-log.md | DB 表结构已有，无运行时代码 |
 | U25 | 消息中心全部功能 | message-center.md | DB 表结构已有，无运行时代码 |
@@ -414,7 +413,7 @@ _system.db 获取 tenant_id 列表
 | P12 | 联动-选项联动（数据引擎查询） | form-engine.md-联动类型 | 基础选项联动 | 数据引擎查询+模板变量替换 |
 | P13 | 联动-显隐联动（x-reactions） | form-engine.md-联动类型 | 条件表达式求值 | x-reactions 完整集成 |
 | P14 | 异步校验 UI 反馈 | form-engine.md-校验 Level 2 | ValidatorRegistry 支持异步 | loading 状态等 UI 反馈 |
-| P15 | 标准动作类型 | form-runtime-architecture.md | 17 种已实现 | 缺 8 种（condition/executeScript/refreshComponent/showLoading/hideLoading 等） |
+| P15 | 标准动作类型 | form-runtime-architecture.md | 19 种已实现（含 invokeMethod/refreshComponent） | 缺 6 种（condition/executeScript/showLoading/hideLoading 等） |
 | P16 | onChange 完整串联 | form-runtime-architecture.md | 更新值+联动触发 | 校验+用户自定义事件串联 |
 | P17 | AutoFormRenderer 布局模式 | auto-rendering-engine.md | groups 布局 | tabs/steps/sections 三种模式 |
 | P18 | 判别联合渲染 (oneOf/anyOf) | auto-rendering-engine.md | x-discriminator 解析 | 动态切换子表单 UI |

@@ -6,14 +6,13 @@
 
 统一设计器是应用资源的统一设计入口，路由格式：`/designer/:resourceType/:id`。
 
-支持七种资源类型：
+支持六种资源类型：
 
 | 资源类型 | 路由 | 说明 |
 |---------|------|------|
 | 应用 | `/designer/app/:id` | 应用资源概览，展示所有资源列表 |
 | 页面 | `/designer/page/:id` | 三栏可视化页面设计器 |
 | 卡片 | `/designer/card/:id` | 自定义卡片编辑器 |
-| 表单 | `/designer/form/:id` | 数据录入表单编辑器 |
 | 数据表 | `/designer/table/:id` | 数据表结构编辑器 |
 | 流程 | `/designer/workflow/:id` | 流程编排编辑器 |
 | 自动化 | `/designer/automation/:id` | ECA 规则编辑器 |
@@ -624,9 +623,9 @@ name?: string;
 
 #### 实现文件
 
-- `packages/renderer/src/core/expression-type-infer.ts` — 表达式类型推断工具
+- `packages/renderer/src/core/expression-type-infer.ts` — 表达式类型推断工具（含括号平衡算法提取 return 表达式）
 - `packages/renderer/src/components/MonacoEditor.tsx` — Monaco 编辑器包装（暴露格式化/诊断方法）
-- `packages/renderer/src/components/VariableTreeSelector.tsx` — 组件变量树选择器（单选/多选，弹窗覆盖层）
+- `packages/renderer/src/components/VariableTreeSelector.tsx` — 组件变量树选择器（单选/多选，弹窗覆盖层，`env` prop 限定显示的顶层变量，所有节点含父节点均可选中）
 - `packages/renderer/src/components/ExpressionEditor.tsx` — 表达式编辑器（Monaco-based，同步/异步模式，弹窗覆盖层）
 - `packages/renderer/src/components/TypeMismatchModal.tsx` — 类型不匹配确认对话框
 
@@ -1622,6 +1621,29 @@ environmentRegistry.registerAvailableTables({
 />
 ```
 
+**`env` prop — 限定显示的顶层环境变量**：
+
+通过 `env` prop 可以只显示指定的顶层变量节点，不传则显示全部。适用于只需要某个子集的场景（如刷新组件时只需 `$component`）：
+
+```typescript
+// 只显示 $component 节点（多选模式，用于刷新组件选择）
+<VariableTreeSelector
+  visible
+  multiSelect
+  env={['$component']}
+  onChange={handleChange}
+  onClear={handleClear}
+  onClose={handleClose}
+  pageComponents={pageComponents}
+/>
+
+// 显示 $data 和 $component 两个节点
+<VariableTreeSelector
+  env={['$data', '$component']}
+  // ...
+/>
+```
+
 **代码提示效果**：
 
 输入 `$component.` 时显示页面组件列表：
@@ -1947,7 +1969,39 @@ async ({$user, $platform, $route, $component, $data, $table, $computation, $fetc
 - `packages/renderer/src/components/VariableTreeSelector.tsx` — 组件变量树选择器
 - `packages/renderer/src/components/ExpressionEditor.tsx` — formatExpression / getCodeErrors
 
-#### 已知问题
+#### Monaco 格式化修复（2026-06-28）
+
+**问题**：Monaco standalone editor 的 `editor.action.formatDocument` 对 JavaScript 代码片段不生效。
+
+**根因**：缺少 `monaco-editor/esm/vs/language/typescript/monaco.contribution` 的导入。该模块注册了 JavaScript/TypeScript 的格式化提供器，不导入则 `editor.action.formatDocument` 没有可用的格式化器。
+
+**修复**：在 `MonacoEditor.tsx` 中动态导入该模块，并等待加载完成后再创建编辑器：
+
+```typescript
+const tsContributionReady = import('monaco-editor/esm/vs/language/typescript/monaco.contribution');
+
+// useEffect 中等待加载完成后再创建编辑器
+tsContributionReady.then(() => {
+  // 配置 JavaScript 语言服务
+  // 创建编辑器实例
+  // ...
+});
+```
+
+同时配置 `javascriptDefaults` 启用编译器选项：
+
+```typescript
+const tsDefaults = (monaco.languages.typescript as any).javascriptDefaults;
+tsDefaults.setCompilerOptions({
+  target: 99, // ScriptTarget.ESNext
+  module: 99, // ModuleKind.ESNext
+  allowNonTsExtensions: true,
+  noEmit: true,
+  allowJs: true,
+});
+```
+
+**已知问题**：
 
 **Monaco 内置补全干扰**：
 - Monaco Editor 的 JavaScript 语言服务会提供内置补全建议（小扳手图标）
@@ -2004,9 +2058,11 @@ interface ActionContext {
   setFormValue?: (field: string, value: any) => void;         // 设置表单字段值
   setComponentProp?: (componentId: string, propName: string, value: any) => void;  // 设置组件属性
   navigate?: (url: string, params?: Record<string, string>) => void;
-  showModal?: (modalId: string, data?: any) => Promise<any>;
-  closeModal?: (modalId: string, result?: any) => void;
+  showModal?: (resourceType: string, resourceId: string, data?: any) => Promise<any>;
+  closeModal?: () => void;  // 关闭所有弹窗
+  resolveModal?: (result?: any) => void;  // 弹窗自身关闭，返回结果
   apiRequest?: (config: any) => Promise<any>;
+  invokeMethod?: (targetId: string, method: string, params?: any) => Promise<any>;  // 调用组件方法
   refreshComponent?: (targetId: string, propNames?: string[]) => Promise<any>;
 }
 ```
@@ -2033,6 +2089,8 @@ interface ActionContext {
 
 运行时通过 `componentOverrides` 机制将组件属性覆盖合并到 `resolvedProps`，触发 React 重渲染。
 
+**变量多选模式**：`triggerWorkflow` 和 `showModal` 的数据参数支持变量多选，返回格式为 `{ type: "variable", value: { key1: "$data.a", key2: "$data.b" } }`，运行时逐 key 按路径取值合并为对象。
+
 **Form store 同步**：当 `setValues` 设置 `$component.xxx.value` 时，除了更新 `componentOverrides`，还会同步调用 `form.setFieldsValue()` 更新 antd Form store。这是因为 Form.Item 通过 `React.cloneElement` 注入表单 store 的 value，会覆盖 `componentOverrides` 中的值。组件 ID（`node.id`）同时作为 Form.Item 的 `name` prop 和 form store key，保持三者统一。
 
 #### Form 组件注册
@@ -2053,6 +2111,130 @@ formRegistry.unregister(formId);  // 同时清理 antd 实例
 
 **Form.Item name 统一使用组件 ID**：Renderer 渲染时将 `node.id` 注入为 `name` prop（而非 `node.name`），确保 Form.Item 的字段名、form store key、`setValues` 的 component ID 三者一致。
 
+#### invokeMethod 组件方法调用
+
+`invokeMethod` 动作支持命令式调用其他组件的方法，与 `setValue`（声明式属性设置）互补。
+
+**使用场景**：
+
+| 场景 | 示例 |
+|------|------|
+| 表格操作 | 刷新数据、清除选择、滚动到行、跳转页码 |
+| 表单操作 | 校验、重置、提交、获取值 |
+| 弹窗控制 | 打开/关闭 Drawer、Modal |
+| 标签切换 | 切换到指定 Tab 页 |
+| 自定义卡片 | 调用卡片 interface.methods 中定义的业务方法 |
+
+```jsonc
+// 示例：按钮点击 → 刷新表格
+{
+  "action": "invokeMethod",
+  "params": {
+    "target": "table_01",
+    "method": "refresh"
+  }
+}
+
+// 示例：按钮点击 → 校验表单
+{
+  "action": "invokeMethod",
+  "params": {
+    "target": "form_01",
+    "method": "validate"
+  }
+}
+```
+
+**ComponentMethodRegistry 架构**：
+
+```
+PageRenderer
+  ├─ 创建 ComponentMethodRegistry 实例（每页面独立）
+  ├─ 通过 ComponentMethodRegistryContext.Provider 注入组件树
+  │
+  ├─ 预注册（useEffect，组件树渲染前）
+  │   └─ 遍历 schema.components → ComponentRegistration.methods
+  │      注册空壳处理器（console.warn 提示未实现）
+  │      确保事件链中靠前组件能 invokeMethod 到靠后组件
+  │
+  ├─ 内置组件挂载后（可选）
+  │   └─ useComponentMethods() 覆盖空壳为真实实现
+  │
+  └─ 自定义卡片（card:xxx）
+      └─ renderNode 中自动调用 CardRenderer.createMethodInvoker()
+         注册 interface.methods 到 ComponentMethodRegistry
+```
+
+**ComponentMethodRegistry API**：
+
+```typescript
+class ComponentMethodRegistry {
+  /** 注册组件方法（mount 时调用） */
+  register(componentId: string, componentType: string,
+    methods: Record<string, MethodHandler>,
+    meta?: Record<string, MethodMeta>): void;
+
+  /** 注销组件所有方法（unmount 时调用） */
+  unregister(componentId: string): void;
+
+  /** 调用方法 — 找不到时 warn 并返回 undefined */
+  async invoke(componentId: string, methodName: string, params?: any): Promise<any>;
+
+  /** 获取所有已注册方法（设计时/调试用） */
+  listAll(): RegisteredMethod[];
+
+  /** 检查组件是否已注册 */
+  hasComponent(componentId: string): boolean;
+
+  /** 清空所有注册 */
+  clear(): void;
+}
+```
+
+**预注册机制**：`PageRenderer` 在组件树渲染前的 `useEffect` 中，遍历 `schema.components`，从 `ComponentRegistration.methods` 元数据为每个组件注册空壳处理器。这解决了事件链中组件渲染顺序依赖问题 — 组件 A 的 onClick 可以 invokeMethod 到尚未挂载的组件 B。组件 B 挂载后通过 `useComponentMethods` 覆盖空壳为真实实现。
+
+**内置组件方法声明**：
+
+| 组件 | 方法 | 说明 |
+|------|------|------|
+| Table | `refresh` / `clearSelection` / `scrollToRow` / `setPage` | 数据刷新、选择、滚动、分页 |
+| Form | `validate` / `reset` / `submit` / `getValues` | 表单校验、重置、提交、取值 |
+| Drawer | `open` / `close` / `toggle` | 抽屉状态控制 |
+| Modal | `open` / `close` / `toggle` | 弹窗状态控制 |
+| Pagination | `setPage` | 分页跳转 |
+| Tabs | `switchTab` | 标签切换 |
+| Collapse | `expandAll` / `collapseAll` | 折叠面板控制 |
+
+元数据定义在 `packages/renderer/src/libraries/antd/component-methods.ts`，通过 `ComponentRegistration.methods` 注入注册表。运行时实际处理器待逐个组件实现（当前为空壳 warn）。
+
+**设计时**：PropertyPanel 从 `ComponentRegistration.methods` 收集所有组件的可用方法，传给 `EventActionChainEditor` 的 `availableMethods`。设计器 UI 提供目标组件 + 方法的下拉选择。
+
+**运行时**：`invokeMethod` executor 通过 `context.invokeMethod` → `ComponentMethodRegistry.invoke()` 查找并执行方法处理器。
+
+```typescript
+// 组件通过 hook 注册方法（覆盖预注册的空壳）
+useComponentMethods('table_01', 'table', {
+  refresh: () => reload(),
+  clearSelection: () => setSelectedKeys([]),
+}, {
+  refresh: { label: '刷新数据' },
+  clearSelection: { label: '清除选择' },
+});
+
+// ActionContext 注入
+invokeMethod: async (targetId, method, params) => {
+  return methodRegistry.invoke(targetId, method, params);
+}
+```
+
+**返回值处理**：`invokeMethod` 的返回值自动写入 `$result`，后续动作可通过 `$result.xxx` 引用。
+
+**关键实现文件**：
+- `packages/renderer/src/core/ComponentMethodRegistry.ts` — 组件方法注册表
+- `packages/renderer/src/components/ComponentMethodRegistryContext.tsx` — React Context + useComponentMethods hook
+- `packages/renderer/src/libraries/antd/component-methods.ts` — antd 组件方法元数据声明
+- `packages/shared/src/types/registry.ts` — ComponentMethodDef / ComponentMethod 类型定义
+
 #### 事件动作链编排器 (EventActionChainEditor)
 
 事件动作链编排器是设计器中配置组件事件的核心控件，支持可视化编排动作链。
@@ -2064,6 +2246,8 @@ formRegistry.unregister(formId);  // 同时清理 antd 实例
 | 事件管理 | 添加/删除/编辑组件事件，自动从组件 Schema 提取可用事件列表 |
 | 动作编排 | 拖拽排序动作步骤，支持 16 种标准动作类型 |
 | 动作禁用 | 每个动作步骤支持 Switch 开关禁用/启用，禁用后运行时跳过执行，UI 半透明显示 |
+| 弹窗配置 | showModal 支持下拉选择页面/卡片资源，数据参数支持变量多选/表达式 |
+| 流程选择 | triggerWorkflow 支持下拉选择当前应用 + 跨应用暴露的流程 |
 | 条件分支 | 支持 If-Then-Else 条件分支，条件表达式使用 Monaco 编辑器 |
 | 批量赋值 | 通过 VariableTreeSelector 多选赋值目标，每字段支持常量/变量/表达式三种模式 |
 | 页面导航 | navigate/redirect 动作支持平台内页面下拉选择 + 查询参数变量/表达式配置（PropValue 格式） |
@@ -2085,10 +2269,18 @@ interface EventActionChainEditorProps {
   formComponents?: Array<{ id: string; name: string }>;
   pageComponents?: Record<string, { type: string; label?: string }>;
   pageDataSources?: Record<string, { type: string; description?: string }>;
-  appId?: string;                        // 当前应用 ID（用于加载页面列表）
+  appId?: string;                        // 当前应用 ID（用于加载页面列表、流程列表、弹窗资源）
   tenantId?: string;                     // 当前租户 ID（用于拼接路由）
 }
 ```
+
+**内部数据加载**：
+
+| Hook | 数据源 | 用途 |
+|------|--------|------|
+| `useAppPages(appId)` | `GET /api/apps/:appId` → `resources.pages` | navigate/redirect 页面选择 |
+| `useAppWorkflows(appId)` | `GET /api/apps/:appId` + 跨应用 references | triggerWorkflow 流程选择 |
+| `useAppModalResources(appId)` | `GET /api/apps/:appId` → `resources.pages` + `resources.cards` | showModal 资源选择 |
 
 > 📄 平台统一的动作类型注册表详见 [系统字典 — 动作类型字典](system-dictionaries.md#动作类型字典)
 
@@ -2103,13 +2295,65 @@ interface EventActionChainEditorProps {
   ├─ 跳过 disabled === true 的动作步骤
   ├─ 为每个 ActionStep 匹配动作注册表中的处理器
   ├─ 编译条件表达式为可执行函数
-  ├─ navigate/redirect 的 queryParams 解析：
-  │   ├─ 变量模式 → resolveVariablePath 取值
-  │   └─ 表达式模式 → 根据 async 标志动态包裹 `async ({params}) => { body }` 后 safeEvaluate
+  ├─ navigate/redirect 的 queryParams 解析（resolvePropValue）
+  ├─ triggerWorkflow 的 inputData 解析（resolvePropValue）
+  ├─ showModal 的 data 解析（resolvePropValue）
+  ├─ resolvePropValue 统一处理：
+  │   ├─ 单选变量 { type: "variable", value: "$data.xx" } → resolveVariablePath 取值
+  │   ├─ 多选变量 { type: "variable", value: { a: "$data.a" } } → 逐 key 取值合并
+  │   └─ 表达式 { type: "expression", value: "..." } → safeEvaluate 求值
+  ├─ 条件分支特殊处理（见下方）
   └─ 生成: (event, context) => { step1(context); if(cond) step2(context); ... }
         │
         ▼
 绑定到组件: <Component onClick={compiledHandler} />
+```
+
+#### 条件分支运行时执行
+
+条件分支（`action: 'condition'`）不在 ActionRegistry 中执行，由 EventCompiler 在 `executeStep` 中做特殊分支处理：
+
+```
+executeStep(step)
+  │
+  ├─ 1. step.disabled === true → 跳过
+  │
+  ├─ 2. step.condition 存在 → 步骤级前置条件（任何动作均可带）
+  │     ├─ safeEvaluate(step.condition) → falsy → 执行 step.else 或跳过
+  │     └─ truthy → 继续
+  │
+  ├─ 3. step.action === 'condition' → 条件分支动作
+  │     ├─ safeEvaluate(params.condition, {$data, $user, $result, $event})
+  │     ├─ truthy → executeSubChain(params.then)
+  │     └─ falsy → executeSubChain(params.else)
+  │
+  └─ 4. 其他动作 → resolveParams → executor.execute()
+```
+
+**关键细节**：
+
+- 条件表达式使用 `safeEvaluate` 求值（白名单沙箱），上下文包含 `$data`/`$user`/`$result`/`$event` 等环境变量
+- 条件表达式格式为 JS 表达式（如 `$data.status === 'active'`），不使用 `{{xxx}}` 模板语法
+- Then/Else 子链通过 `executeSubChain` 递归执行，子链中的每个步骤独立走完整 `executeStep` 流程（含模板变量解析）
+- `$result` 从上一步骤透传到子链，子链最后一步的返回值成为后续步骤的 `$result`
+- ActionRegistry 中的 `conditionExecutor` 是空壳占位，仅确保 `has('condition')` 不报警告
+- 设计器通过 `excludeActions={['condition']}` 禁止 Then/Else 内嵌套条件分支
+
+**Schema 格式**：
+
+```jsonc
+{
+  "action": "condition",
+  "params": {
+    "condition": "$data.amount > 10000",
+    "then": [
+      { "action": "showMessage", "params": { "type": "success", "content": "大额订单" } }
+    ],
+    "else": [
+      { "action": "showMessage", "params": { "type": "info", "content": "普通订单" } }
+    ]
+  }
+}
 ```
 
 ### 多端适配器接口
@@ -2160,6 +2404,11 @@ interface PlatformAdapter {
 │  │ Event      │  │ Action     │  │ Expression │             │
 │  │ Compiler   │  │ Registry   │  │ Engine     │             │
 │  └────────────┘  └────────────┘  └────────────┘             │
+│  ┌────────────┐  ┌────────────┐                             │
+│  │ 弹框栈管理  │  │ 模态弹窗    │                             │
+│  │ ModalStack │  │ Modal      │                             │
+│  │            │  │ Renderer   │                             │
+│  └────────────┘  └────────────┘                             │
 ├──────────────────────────────────────────────────────────────┤
 │  Web 适配器    │  Mobile 适配器  │  小程序适配器               │
 │  (React)       │  (React Native)│  (Taro/uni-app)            │
@@ -2329,6 +2578,24 @@ await actionContext.refreshComponent('dept_select', ['options', 'value']);
 await actionContext.refreshWithDependencyOrder(['dept_select', 'user_select']);
 ```
 
+#### 设计器配置
+
+设计器中「刷新组件」动作使用 `VariableTreeSelector` 多选模式（`env={['$component']}`），从组件变量树中勾选目标组件，支持多选。组件变量树中所有节点（含父节点组件）均可选中：
+
+- **选中组件节点**（如 `$component.dept_select`）→ 刷新该组件全部属性，写入 `params.targets`
+- **展开组件后选中属性节点**（如 `$component.dept_select.options`）→ 只刷新指定属性，写入 `params.propNames`
+
+```jsonc
+// 数据格式
+{
+  "action": "refreshComponent",
+  "params": {
+    "targets": ["dept_select", "user_select"],   // 组件 ID 列表（多选）
+    "propNames": ["options", "value"]             // 可选：只刷新指定属性
+  }
+}
+```
+
 #### 使用场景
 
 ```jsonc
@@ -2338,13 +2605,22 @@ await actionContext.refreshWithDependencyOrder(['dept_select', 'user_select']);
   "type": "button",
   "events": {
     "onClick": [
-      { "action": "showModal", "params": { "modalId": "add_form" } },
+      { "action": "showModal", "params": { "resourceType": "page", "resourceId": "abc12345", "data": {} } },
       {
         "action": "refreshComponent",
         "condition": "$result.success === true",
-        "params": { "target": "dept_select" }
+        "params": { "targets": ["dept_select"] }
       }
     ]
+  }
+}
+
+// 多组件刷新 + 指定属性
+{
+  "action": "refreshComponent",
+  "params": {
+    "targets": ["dept_select", "user_select"],
+    "propNames": ["options"]
   }
 }
 ```

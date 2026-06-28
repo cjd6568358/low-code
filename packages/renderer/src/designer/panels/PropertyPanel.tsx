@@ -86,6 +86,38 @@ export function PropertyPanel({ registry }: { registry: any }) {
     return components;
   }, [schema.components, registry]);
 
+  // 收集可被 invokeMethod 调用的方法（设计时）
+  // 从 ComponentRegistration.methods 读取，统一处理内置组件和自定义卡片
+  const availableMethods = useMemo(() => {
+    const methods: Array<{
+      componentId: string;
+      componentType: string;
+      methodName: string;
+      label: string;
+      description?: string;
+    }> = [];
+
+    for (const comp of schema.components) {
+      // 跳过当前选中组件（不能调用自己的方法）
+      if (comp.id === selectedComponentId) continue;
+
+      const reg = registry.resolve(comp.type);
+      if (!reg?.methods) continue;
+
+      for (const m of reg.methods) {
+        methods.push({
+          componentId: comp.id,
+          componentType: comp.type,
+          methodName: m.name,
+          label: m.title,
+          description: m.description,
+        });
+      }
+    }
+
+    return methods;
+  }, [schema.components, selectedComponentId, registry]);
+
   // 页面数据源（用于 $data 代码提示）
   const pageDataSources = useMemo((): Record<string, { type: string; description?: string }> => {
     if (!schema.dataSource) return {};
@@ -440,7 +472,7 @@ export function PropertyPanel({ registry }: { registry: any }) {
                     title: prop.title || key,
                   }));
               })()}
-              availableMethods={[]}
+              availableMethods={availableMethods}
               formComponents={schema.components
                 .filter((c) => c.type === 'form')
                 .map((c) => ({ id: c.id, name: c.name || c.id }))}

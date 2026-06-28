@@ -14,6 +14,10 @@ export { FormDataContextManager } from './core/FormDataContext';
 export { FormRegistry } from './core/FormRegistry';
 export { FormRegistryContext, useFormRegistryContext } from './components/FormRegistryContext';
 export type { FormRegistryContextValue } from './components/FormRegistryContext';
+export { ComponentMethodRegistry } from './core/ComponentMethodRegistry';
+export type { MethodHandler, MethodMeta, RegisteredMethod } from './core/ComponentMethodRegistry';
+export { ComponentMethodRegistryContext, useComponentRegistryContext, useComponentMethods } from './components/ComponentMethodRegistryContext';
+export type { ComponentMethodRegistryContextValue } from './components/ComponentMethodRegistryContext';
 export { DataSourceManager } from './core/DataSourceManager';
 export { DependencyTracker } from './core/DependencyTracker';
 export { ComponentRefreshManager } from './core/ComponentRefreshManager';
@@ -73,6 +77,7 @@ export {
   ANTD_MANIFEST,
 } from './libraries/antd';
 export type { AntdComponentMeta } from './libraries/antd';
+export { antdComponentMethods } from './libraries/antd/component-methods';
 export { antdPlatformComponents as antdComponents } from './libraries/antd/components';
 export { antdSchemas as componentSchemas } from './libraries/antd';
 

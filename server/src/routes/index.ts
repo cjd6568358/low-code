@@ -10,6 +10,10 @@ import { createAuthRouter } from './auth.js';
 import { createAppsRouter } from './apps.js';
 import { createTenantsRouter } from './tenants.js';
 import { createHealthRouter } from './health.js';
+import { createWorkflowsRouter } from './workflows.js';
+import { createWorkflowInstancesRouter } from './workflow-instances.js';
+import { createWorkflowTasksRouter } from './workflow-tasks.js';
+import { createAutomationsRouter } from './automations.js';
 
 // Register all routes
 export function registerRoutes(app: Koa): void {
@@ -21,7 +25,7 @@ export function registerRoutes(app: Koa): void {
   app.use(authRouter.allowedMethods());
 
   // App routes (data source: tenants/ file system)
-  const appsRouter = createAppsRouter();
+  const appsRouter = createAppsRouter(manager);
   app.use(appsRouter.routes());
   app.use(appsRouter.allowedMethods());
 
@@ -29,6 +33,24 @@ export function registerRoutes(app: Koa): void {
   const tenantsRouter = createTenantsRouter();
   app.use(tenantsRouter.routes());
   app.use(tenantsRouter.allowedMethods());
+
+  // Workflow routes
+  const workflowsRouter = createWorkflowsRouter();
+  app.use(workflowsRouter.routes());
+  app.use(workflowsRouter.allowedMethods());
+
+  const workflowInstancesRouter = createWorkflowInstancesRouter();
+  app.use(workflowInstancesRouter.routes());
+  app.use(workflowInstancesRouter.allowedMethods());
+
+  const workflowTasksRouter = createWorkflowTasksRouter();
+  app.use(workflowTasksRouter.routes());
+  app.use(workflowTasksRouter.allowedMethods());
+
+  // Automation routes
+  const automationsRouter = createAutomationsRouter();
+  app.use(automationsRouter.routes());
+  app.use(automationsRouter.allowedMethods());
 
   // Health check
   const healthRouter = createHealthRouter();
