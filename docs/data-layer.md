@@ -174,6 +174,42 @@ CREATE TABLE orders (
 
 **同步时机**：保存数据表 Schema JSON 后，自动调用 `TableService.syncTableSchema()` 同步物理表
 
+### 字段类型约束
+
+每个字段可通过 `constraints` 属性配置类型相关的约束：
+
+| 字段类型 | 约束属性 | 说明 |
+|---------|---------|------|
+| `string` | `maxLength`、`minLength`、`pattern`、`format` | format 支持 email/url/phone/idcard |
+| `number` | `min`、`max`、`precision`、`integer` | precision=0 表示整数 |
+| `date` | `format`、`min`、`max` | format 支持 date/datetime |
+| `enum` | `values: Array<{label, value}>` | 枚举值列表 |
+
+### 字段校验规则
+
+每个字段可通过 `validations` 属性配置校验规则列表：
+
+```typescript
+interface ValidationRule {
+  type: 'required' | 'pattern' | 'min' | 'max' | 'minLength' | 'maxLength' | 'custom';
+  value?: string | number;  // 规则值
+  message?: string;         // 自定义错误消息
+}
+```
+
+### 索引管理
+
+`TableSchema.indexes` 字段定义表索引，保存时自动生成 `CREATE INDEX` SQL：
+
+```typescript
+interface TableIndex {
+  id: string;
+  name: string;       // 索引名称
+  columns: string[];  // 关联字段名列表
+  unique: boolean;    // 是否唯一索引
+}
+```
+
 **表结构变更**：采用「重建表」策略（SQLite 限制不支持 DROP COLUMN）：
 1. 创建临时表（新结构）
 2. 复制数据（匹配的列）

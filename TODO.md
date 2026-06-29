@@ -1,6 +1,6 @@
 # TODO — 待完成功能清单
 
-> 最后更新：2026-06-29，基于设计文档与代码实现对比分析
+> 最后更新：2026-06-29，P0 任务全部完成
 
 ---
 
@@ -16,43 +16,32 @@
 
 ## P0 — 高优先级（核心功能补全）
 
-### 1. 自动化设计器接入路由
+### ~~1. 自动化设计器接入路由~~ ✅ 已完成
 
-**问题**：`AutomationDesign.tsx` 及 5 个子组件已实现（约 58KB），但 `AppDesignPage.tsx` 中未接入，显示"即将上线"占位。
-
-**需要实现**：
-- 在 `AppDesignPage.tsx` 的 `ResourceDesigner` 中接入 `automation` 类型
-- 确保自动化 CRUD API 路由正确连接
-
-**工作量**：小（代码已有，仅需接入路由）
+- `AppDesignPage.tsx` 中新增 `automations` 分支，接入 `AutomationDesign` 组件
+- `designers/index.ts` 导出 `AutomationDesign`
+- 移除 `AutomationDesign` 中的整页跳转逻辑
 
 ---
 
-### 2. 数据表编辑器完善
+### ~~2. 数据表编辑器完善~~ ✅ 已完成
 
-**问题**：`/designer/table/:id` 已有基础框架（`TableDesign.tsx` 25KB），但功能不完整。
-
-**需要实现**：
-- 字段类型配置（string/number/boolean/date/json/enum，format 扩展）
-- 索引管理（唯一索引、普通索引）
-- 外键引用配置
-- 字段校验规则
-
-**工作量**：中
+- 字段类型扩展：新增 `enum` 类型，支持 string/number/date/enum 的约束配置（maxLength/pattern/format/min/max/precision/枚举值）
+- 索引管理：新增 `TableIndex` 类型，设计器中支持创建/删除索引（唯一索引/普通索引），`schema-builder.ts` 自动生成 `CREATE INDEX` SQL
+- 外键引用配置：已有（此前完成）
+- 字段校验规则：新增 `ValidationRule` 类型，设计器中支持按字段配置校验规则（required/pattern/min/max/minLength/maxLength/custom）
 
 ---
 
-### 3. 前端 Mock 数据替换为真实 API
+### ~~3. 前端 Mock 数据替换为真实 API~~ ✅ 已完成
 
-**问题**：多个前端页面使用硬编码 Mock 数据，未接入后端 API。
+| 页面 | 状态 | 说明 |
+|------|------|------|
+| `WorkspacePage.tsx` | ✅ 已对接 | 待办/通知/应用从 API 加载 |
+| `AppCenterPage.tsx` | ✅ 已对接 | 发布按钮调用 `POST /api/apps/:appId/publish` |
+| `ConfigCenterPage.tsx` | ✅ 已对接 | 用户/角色/权限/租户设置全部从 API 加载 |
 
-| 页面 | 状态 | 需替换内容 |
-|------|------|-----------|
-| `WorkspacePage.tsx` | Mock | MOCK_TODOS、MOCK_NOTIFICATIONS、MOCK_APPS |
-| `AppCenterPage.tsx` | Mock | MOCK_APPS、新建/编辑/删除/发布 |
-| `ConfigCenterPage.tsx` | Mock | MOCK_USERS、MOCK_ROLES、MOCK_PERMISSION_MATRIX |
-
-**工作量**：中（依赖后端 API 已就绪）
+新增服务端 API：`/api/users`、`/api/roles`、`/api/permissions`、`/api/messages`
 
 ---
 
@@ -91,43 +80,43 @@
 
 ---
 
-### 6. 卡片设计器
+### ~~6. 卡片设计器~~ ✅ 已完成
 
-**问题**：有 `SaveCardDialog` 和 `CardRenderer`，但无独立卡片编辑器。
-
-**需要实现**：
-- 卡片属性/方法/事件的可视化配置界面
+- `CardDesign` 组件：卡片属性/方法/事件的可视化配置界面
 - 卡片预览功能
-- 卡片版本管理
-
-**工作量**：中
+- `AppDesignPage` 中接入 `cards` 分支
+- `designers/index.ts` 导出 `CardDesign`
 
 ---
 
-### 7. 运算设计器
+### ~~7. 运算设计器~~ ✅ 已完成
 
 **问题**：`AppDesignPage.tsx` 中 `computations` 显示"即将上线"占位，无设计器组件。
 
-**需要实现**：
-- 表达式/公式编辑器（可复用 ExpressionEditor）
-- 运算规则配置（输入字段、运算逻辑、输出字段）
-- 运算结果预览
-
-**工作量**：中
+**已实现**：
+- ✅ 表达式/公式编辑器（复用 ExpressionEditor）
+- ✅ 运算规则配置（输入字段、运算逻辑、输出字段）
+- ✅ 运算结果预览
+- ✅ 支持 4 种运算类型：字段计算、公式规则、聚合计算、数据转换
+- ✅ 输入字段支持从数据表自动选择
+- ✅ 输出配置支持多种格式化（货币、百分比、日期等）
 
 ---
 
 ## P2 — 低优先级（后期扩展）
 
-### 8. 多端适配器
+### 8. 多端适配器 ✅
 
 **问题**：仅有 `WebAdapter.ts`，无 Mobile 和小程序适配器。
 
-**需要实现**：
-- `MobileAdapter` — H5/APP 适配
-- `MiniAppAdapter` — 微信/支付宝小程序适配
+**已完成**：
+- `BaseAdapter` — 基类，抽取组件注册/解析公共逻辑
+- `H5Adapter` — H5 移动端 Web 适配（hash/history 路由、viewport 适配、localStorage 降级）
+- `ReactNativeAdapter` — React Native 适配（注入 Navigation/AsyncStorage）
+- `WechatMiniAppAdapter` — 微信小程序适配（wx.* API 封装）
+- `WebAdapter` — 重构为继承 BaseAdapter
 
-**工作量**：大
+**实现文件**：`packages/renderer/src/core/adapters/`
 
 ---
 

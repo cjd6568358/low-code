@@ -15,8 +15,8 @@
 | 卡片 | `/designer/card/:id` | 自定义卡片编辑器 |
 | 数据表 | `/designer/table/:id` | 数据表结构编辑器 |
 | 流程 | `/designer/workflow/:id` | 流程编排编辑器（已实现） |
-| 自动化 | `/designer/automation/:id` | ECA 规则编辑器 |
-| 运算 | `/designer/computation/:id` | 运算规则编辑器 |
+| 自动化 | `/designer/automation/:id` | ECA 规则编辑器（已实现） |
+| 运算 | `/designer/computation/:id` | 运算规则编辑器（已实现） |
 
 ### 页面设计器
 
@@ -678,6 +678,61 @@ AppDesignPage (ResourceDesigner)
 - `ProcessDefinition` — 流程定义，包含 `nodes: FlowNode[]`、`edges: Edge[]`
 - `FlowNode` — 节点联合类型（StartEvent / EndEvent / UserTask / ExclusiveGateway 等）
 - `WorkflowDefinition` — 服务端流程定义，包含 `schema`、`status`、`version` 等元数据
+
+#### react-flow-builder 配置要点
+
+**必须配置的属性：**
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `PopoverComponent` | `React.FC` | 弹出层组件，用于显示"添加节点"菜单。**没有此属性，添加按钮不会显示** |
+| `registerNodes` | `IRegisterNode[]` | 节点类型注册表 |
+| `addableNodeTypes` | `string[]` | 每个节点可添加的子节点类型列表 |
+
+**踩坑记录：**
+
+1. **PopoverComponent 必需**：`react-flow-builder` 不内置弹出层组件，必须提供 `PopoverComponent`（如 antd `Popover`）才能显示添加按钮
+2. **addableNodeTypes 配置**：在 `registerNodes` 中为每个节点类型配置 `addableNodeTypes`，指定该节点下方可添加哪些节点类型
+3. **BPMN 转换**：`useBpmnConverter` 负责 BPMN JSON 与 react-flow-builder 树形结构之间的双向转换
+   - `fromBpmnDocument`：从开始节点递归构建树形结构（`children` 属性）
+   - `toBpmnDocument`：递归遍历树形结构生成 nodes 和 edges
+
+**示例配置：**
+
+```tsx
+// PopoverComponent 定义
+const PopoverComponent: React.FC<any> = ({ visible, onVisibleChange, children, content, ...rest }) => (
+  <Popover open={visible} onOpenChange={onVisibleChange} content={content} trigger="click" {...rest}>
+    {children}
+  </Popover>
+);
+
+// registerNodes 配置
+const registerNodes = [
+  {
+    type: 'start',
+    name: '开始',
+    isStart: true,
+    displayComponent: StartNodeDisplay,
+    addableNodeTypes: ['approval', 'condition', 'parallel', 'timer', 'notify', 'service'],
+  },
+  // ... 其他节点
+];
+
+// FlowBuilder 使用
+<FlowBuilder
+  nodes={nodes}
+  onChange={handleChange}
+  registerNodes={registerNodes}
+  PopoverComponent={PopoverComponent}  // 必须提供
+/>
+```
+
+#### 测试用例
+
+- 测试文件：`packages/renderer/src/workflow/hooks/useBpmnConverter.test.ts`
+- 覆盖场景：简单流程、审批节点、条件分支、循环引用、往返转换
+- 运行命令：`cd packages/renderer && npx vitest run src/workflow/hooks/useBpmnConverter.test.ts`
 
 ## 自定义卡片规范
 
@@ -2425,17 +2480,17 @@ interface PlatformAdapter {
   /** 导航适配 */
   navigate(route: string, params?: Record<string, string>): void;
 
-  /** 存储适配 */
+  /** 存储适配（各平台可返回同步或异步结果） */
   storage: {
-    get(key: string): string | null;
-    set(key: string, value: string): void;
-    remove(key: string): void;
+    get(key: string): string | null | Promise<string | null>;
+    set(key: string, value: string): void | Promise<void>;
+    remove(key: string): void | Promise<void>;
   };
 
   /** 平台 API 适配（网络请求、文件上传等） */
   api: {
     request(config: ApiRequestConfig): Promise<ApiResponse>;
-    upload(file: File, config: UploadConfig): Promise<UploadResult>;
+    upload(file: File | unknown, config: UploadConfig): Promise<UploadResult>;
   };
 }
 ```
@@ -2461,8 +2516,57 @@ interface PlatformAdapter {
 │  └────────────┘  └────────────┘                             │
 ├──────────────────────────────────────────────────────────────┤
 │  Web 适配器    │  Mobile 适配器  │  小程序适配器               │
-│  (React)       │  (React Native)│  (Taro/uni-app)            │
+│  (React)       │  (H5/RN)       │  (微信小程序)               │
 └──────────────────────────────────────────────────────────────┘
+```
+
+#### 适配器类层次
+
+```
+BaseAdapter (abstract, implements PlatformAdapter)
+  ├── WebAdapter          — Web 平台（History API / localStorage / fetch）
+  ├── MobileAdapter       — 移动端基类（abstract）
+  │     ├── H5Adapter     — H5 移动端 Web（hash/history 路由 / viewport 适配）
+  │     └── ReactNativeAdapter — React Native（注入 Navigation/AsyncStorage）
+  └── WechatMiniAppAdapter    — 微信小程序（wx.* API）
+```
+
+#### 各适配器能力对比
+
+| 能力 | WebAdapter | H5Adapter | ReactNativeAdapter | WechatMiniAppAdapter |
+|------|-----------|-----------|-------------------|---------------------|
+| 平台 | `web` | `mobile` | `mobile` | `miniapp` |
+| 导航 | `history.pushState` | `history`/`hash` | `react-navigation` 注入 | `wx.navigateTo`/`switchTab` |
+| 存储 | `localStorage` | `localStorage` + `sessionStorage` 降级 | `AsyncStorage` 注入 | `wx.getStorageSync` |
+| 网络 | `fetch` | `fetch`（可配 apiBaseUrl） | `fetch`（可配 apiBaseUrl） | `wx.request`（Promise 封装） |
+| 上传 | `FormData` + `fetch` | `FormData` + `fetch` | `FormData` + `fetch` | `wx.uploadFile` |
+| 主题 | CSS 变量注入 | CSS 变量 + viewport meta | Appearance API + Context | `wx.setStorageSync` 缓存 |
+| 组件注册 | `registerComponent()` | 同左 | 同左 | 同左 |
+
+#### 使用示例
+
+```typescript
+// Web 环境
+import { WebAdapter } from '@low-code/renderer';
+const webAdapter = new WebAdapter();
+webAdapter.registerComponent('Button', MyButton, 'antd');
+
+// H5 移动端
+import { H5Adapter } from '@low-code/renderer';
+const h5Adapter = new H5Adapter({ routeMode: 'hash', apiBaseUrl: '/api' });
+
+// React Native
+import { ReactNativeAdapter } from '@low-code/renderer';
+const rnAdapter = new ReactNativeAdapter({
+  navigation: navigationRef,      // react-navigation ref
+  storageProvider: AsyncStorage,  // @react-native-async-storage
+  apiBaseUrl: 'https://api.example.com',
+});
+
+// 微信小程序
+import { WechatMiniAppAdapter } from '@low-code/renderer';
+const wxAdapter = new WechatMiniAppAdapter({ apiBaseUrl: 'https://api.example.com' });
+wxAdapter.configureTabBarRoutes(['/pages/index/index', '/pages/my/my']);
 ```
 
 ### 构建产物管理

@@ -155,12 +155,22 @@ export default function AppCenterPage() {
     Modal.confirm({
       title: '确认发布',
       content: '发布后员工即可在应用中心看到该应用，是否继续？',
-      onOk: () => {
-        // TODO: 调用发布 API
-        message.success('应用已发布');
+      onOk: async () => {
+        try {
+          const resp = await fetch(`/api/apps/${appId}/publish`, { method: 'POST' });
+          const data = await resp.json();
+          if (data.success) {
+            message.success('应用已发布');
+            loadApps();
+          } else {
+            message.error(data.error || '发布失败');
+          }
+        } catch {
+          message.error('发布失败');
+        }
       },
     });
-  }, []);
+  }, [loadApps]);
 
   /** 进入应用详情 */
   const handleEnterApp = useCallback((appId: string) => {

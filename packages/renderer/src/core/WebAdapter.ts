@@ -1,31 +1,29 @@
+/**
+ * WebAdapter — Web 平台适配器
+ *
+ * 基于 BaseAdapter 实现 Web 端的平台能力：
+ * - 组件解析：通过 componentMap 注册/查找组件
+ * - 主题：CSS 变量注入到 document.documentElement
+ * - 导航：History API
+ * - 存储：localStorage
+ * - 网络：fetch API
+ */
 import type {
-  PlatformAdapter,
   ThemeConfig,
   ApiRequestConfig,
   ApiResponse,
   UploadConfig,
   UploadResult,
 } from '@low-code/shared';
-import React from 'react';
+import { BaseAdapter } from './adapters/BaseAdapter';
 
 /**
  * Web 平台适配器
+ *
+ * 继承 BaseAdapter 的组件注册/解析能力，实现 Web 特定的平台功能。
  */
-export class WebAdapter implements PlatformAdapter {
-  platform = 'web' as const;
-
-  private componentMap = new Map<string, React.ComponentType<any>>();
-
-  resolveComponent(type: string, library: string): React.ComponentType<any> | null {
-    const key = `${library}:${type}`;
-    return this.componentMap.get(key) || this.componentMap.get(type) || null;
-  }
-
-  /** 注册组件到适配器 */
-  registerComponent(type: string, component: React.ComponentType<any>, library?: string): void {
-    const key = library ? `${library}:${type}` : type;
-    this.componentMap.set(key, component);
-  }
+export class WebAdapter extends BaseAdapter {
+  readonly platform = 'web' as const;
 
   applyTheme(theme: ThemeConfig): void {
     // 注入 CSS 变量
@@ -104,9 +102,9 @@ export class WebAdapter implements PlatformAdapter {
       };
     },
 
-    async upload(file: File, config: UploadConfig): Promise<UploadResult> {
+    async upload(file: File | unknown, config: UploadConfig): Promise<UploadResult> {
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', file as Blob);
 
       const response = await fetch(config.action || '/api/upload', {
         method: 'POST',
@@ -116,8 +114,8 @@ export class WebAdapter implements PlatformAdapter {
       const result = await response.json();
       return {
         url: result.url || result.data?.url || '',
-        name: file.name,
-        size: file.size,
+        name: (file as File).name,
+        size: (file as File).size,
       };
     },
   };

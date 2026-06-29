@@ -3,9 +3,12 @@
  *
  * 展示待办事项、通知中心、快捷入口、个人信息四个区块。
  * 管理员和员工共用，数据内容根据角色略有差异。
+ * 数据从 API 加载，不再使用 Mock。
  */
 
-import { Card, List, Badge, Avatar, Tag, Button, Typography } from 'antd';
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Card, List, Badge, Avatar, Tag, Button, Typography, Spin, App } from 'antd';
 import {
   ClockCircleOutlined,
   BellOutlined,
@@ -15,76 +18,143 @@ import {
   RightOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '../auth/AuthContext';
+import { shortId } from '../utils/resourceId';
 
 const { Text, Title } = Typography;
 
-/** 模拟待办数据 */
-const MOCK_TODOS = [
-  {
-    id: '1',
-    title: '采购申请 - 办公设备采购',
-    applicant: '张三',
-    status: 'pending' as const,
-    createdAt: '2026-06-13 09:30',
-  },
-  {
-    id: '2',
-    title: '请假申请 - 年假 3 天',
-    applicant: '李四',
-    status: 'pending' as const,
-    createdAt: '2026-06-13 10:15',
-  },
-  {
-    id: '3',
-    title: '报销申请 - 出差费用报销',
-    applicant: '王五',
-    status: 'pending' as const,
-    createdAt: '2026-06-12 16:45',
-  },
-];
+/** 待办任务 */
+interface TodoItem {
+  id: string;
+  title: string;
+  applicant: string;
+  status: string;
+  createdAt: string;
+}
 
-/** 模拟通知数据 */
-const MOCK_NOTIFICATIONS = [
-  {
-    id: '1',
-    title: '系统将于今晚 22:00 进行维护升级',
-    type: 'system' as const,
-    time: '10 分钟前',
-    read: false,
-  },
-  {
-    id: '2',
-    title: '您的采购申请已审批通过',
-    type: 'workflow' as const,
-    time: '1 小时前',
-    read: false,
-  },
-  {
-    id: '3',
-    title: '新应用"山水 CRM"已发布',
-    type: 'app' as const,
-    time: '3 小时前',
-    read: true,
-  },
-  {
-    id: '4',
-    title: '本月考勤汇总已生成',
-    type: 'system' as const,
-    time: '昨天',
-    read: true,
-  },
-];
+/** 通知消息 */
+interface NotificationItem {
+  id: number;
+  title: string;
+  category: string;
+  time: string;
+  isRead: boolean;
+}
 
-/** 模拟快捷应用 */
-const MOCK_APPS = [
-  { id: '1', name: '山水 OA', icon: '📋', color: '#4f46e5' },
-  { id: '2', name: '山水 CRM', icon: '🤝', color: '#059669' },
-  { id: '3', name: '项目管理', icon: '📊', color: '#d97706' },
-  { id: '4', name: '人事管理', icon: '👥', color: '#dc2626' },
-];
+/** 快捷应用 */
+interface ShortcutApp {
+  appId: string;
+  name: string;
+  icon: string;
+  color: string;
+}
+
+/** 应用颜色列表 */
+const APP_COLORS = ['#4f46e5', '#059669', '#d97706', '#dc2626', '#7c3aed', '#0891b2'];
+
+/** 格式化相对时间 */
+function formatRelativeTime(dateStr: string): string {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return '刚刚';
+  if (diffMin < 60) return `${diffMin} 分钟前`;
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return `${diffHour} 小时前`;
+  const diffDay = Math.floor(diffHour / 24);
+  if (diffDay < 7) return `${diffDay} 天前`;
+  return dateStr.slice(0, 10);
+}
 
 export default function WorkspacePage() {
   const { user, isAdmin } = useAuth();
+  const { message } = App.useApp();
+  const navigate = useNavigate();
+
+  const [todos, setTodos] = useState<TodoItem[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [apps, setApps] = useState<ShortcutApp[]>([]);
+  const [stats, setStats] = useState({ todoCount: 0, doneCount: 0, unreadCount: 0, appCount: 0 });
+  const [loading, setLoading] = useState(true);
+
+  /** 加载工作台数据 */
+  const loadWorkspaceData = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
+
+    try {
+      // 并行加载待办、通知、应用列表
+      const [todoResp, msgResp, appResp] = await Promise.allSettled([
+        fetch('/api/workflow-tasks?status=pending'),
+        fetch(`/api/messages?recipientId=${user.id}&limit=10`),
+        fetch('/api/apps'),
+      ]);
+
+      // 待办事项
+      if (todoResp.status === 'fulfilled') {
+        const todoData = await todoResp.value.json();
+        const taskList = (todoData.data || []).slice(0, 5).map((t: Record<string, unknown>) => ({
+          id: t.id as string,
+          title: (t.title || t.name || '待办任务') as string,
+          applicant: (t.startedBy || t.assigneeName || '') as string,
+          status: t.status as string,
+          createdAt: (t.createdAt || t.created_at || '') as string,
+        }));
+        setTodos(taskList);
+        setStats((prev) => ({ ...prev, todoCount: todoData.total || taskList.length }));
+      }
+
+      // 通知消息
+      if (msgResp.status === 'fulfilled') {
+        const msgData = await msgResp.value.json();
+        if (msgData.success) {
+          const msgList = (msgData.messages || []).map((m: Record<string, unknown>) => ({
+            id: m.id as number,
+            title: m.title as string,
+            category: (m.category || 'system') as string,
+            time: formatRelativeTime(m.createdAt as string),
+            isRead: m.isRead as boolean,
+          }));
+          setNotifications(msgList);
+          // 计算未读数
+          const unread = msgList.filter((m: NotificationItem) => !m.isRead).length;
+          setStats((prev) => ({ ...prev, unreadCount: unread }));
+        }
+      }
+
+      // 应用列表
+      if (appResp.status === 'fulfilled') {
+        const appData = await appResp.value.json();
+        if (appData.success) {
+          const appList = (appData.apps || []).slice(0, 6).map((a: Record<string, unknown>, i: number) => ({
+            appId: a.appId as string,
+            name: a.name as string,
+            icon: (a.icon || '📦') as string,
+            color: APP_COLORS[i % APP_COLORS.length],
+          }));
+          setApps(appList);
+          setStats((prev) => ({ ...prev, appCount: appData.apps?.length || 0 }));
+        }
+      }
+    } catch {
+      message.error('加载工作台数据失败');
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    loadWorkspaceData();
+  }, [loadWorkspaceData]);
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', marginTop: 100 }}>
+        <Spin size="large" />
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -115,25 +185,25 @@ export default function WorkspacePage() {
       <div style={{ display: 'flex', gap: 16, marginBottom: 24 }}>
         <Card className="stat-card" style={{ flex: 1 }}>
           <div className="stat-value" style={{ color: '#4f46e5' }}>
-            {isAdmin ? 12 : 3}
+            {stats.todoCount}
           </div>
           <div className="stat-label">待办事项</div>
         </Card>
         <Card className="stat-card" style={{ flex: 1 }}>
           <div className="stat-value" style={{ color: '#059669' }}>
-            {isAdmin ? 28 : 5}
+            {stats.doneCount}
           </div>
           <div className="stat-label">本月已办</div>
         </Card>
         <Card className="stat-card" style={{ flex: 1 }}>
           <div className="stat-value" style={{ color: '#d97706' }}>
-            {isAdmin ? 6 : 2}
+            {stats.unreadCount}
           </div>
           <div className="stat-label">未读消息</div>
         </Card>
         <Card className="stat-card" style={{ flex: 1 }}>
           <div className="stat-value" style={{ color: '#dc2626' }}>
-            {isAdmin ? 8 : 4}
+            {stats.appCount}
           </div>
           <div className="stat-label">可用应用</div>
         </Card>
@@ -151,7 +221,7 @@ export default function WorkspacePage() {
             </span>
           }
           extra={
-            <Badge count={MOCK_TODOS.length} style={{ backgroundColor: '#4f46e5' }}>
+            <Badge count={todos.length} style={{ backgroundColor: '#4f46e5' }}>
               <Button type="link" size="small">
                 查看全部
               </Button>
@@ -159,7 +229,8 @@ export default function WorkspacePage() {
           }
         >
           <List
-            dataSource={MOCK_TODOS}
+            dataSource={todos}
+            locale={{ emptyText: '暂无待办' }}
             renderItem={(item) => (
               <List.Item
                 style={{ cursor: 'pointer', padding: '10px 0' }}
@@ -178,7 +249,7 @@ export default function WorkspacePage() {
                   title={item.title}
                   description={
                     <Text type="secondary" style={{ fontSize: 12 }}>
-                      {item.applicant} · {item.createdAt}
+                      {item.applicant} · {formatRelativeTime(item.createdAt)}
                     </Text>
                   }
                 />
@@ -203,32 +274,33 @@ export default function WorkspacePage() {
           }
         >
           <List
-            dataSource={MOCK_NOTIFICATIONS}
+            dataSource={notifications}
+            locale={{ emptyText: '暂无通知' }}
             renderItem={(item) => (
               <List.Item style={{ cursor: 'pointer', padding: '10px 0' }}>
                 <List.Item.Meta
                   avatar={
-                    <Badge dot={!item.read} offset={[-2, 2]}>
+                    <Badge dot={!item.isRead} offset={[-2, 2]}>
                       <Avatar
                         size={36}
                         style={{
                           background:
-                            item.type === 'system'
+                            item.category === 'system'
                               ? '#e6f7ff'
-                              : item.type === 'workflow'
+                              : item.category === 'workflow'
                                 ? '#f6ffed'
                                 : '#fff7e6',
                           color:
-                            item.type === 'system'
+                            item.category === 'system'
                               ? '#1890ff'
-                              : item.type === 'workflow'
+                              : item.category === 'workflow'
                                 ? '#52c41a'
                                 : '#fa8c16',
                         }}
                       >
-                        {item.type === 'system' ? (
+                        {item.category === 'system' ? (
                           <BellOutlined />
-                        ) : item.type === 'workflow' ? (
+                        ) : item.category === 'workflow' ? (
                           <CheckCircleOutlined />
                         ) : (
                           <AppstoreOutlined />
@@ -240,7 +312,7 @@ export default function WorkspacePage() {
                     <Text
                       style={{
                         fontSize: 13,
-                        fontWeight: item.read ? 400 : 600,
+                        fontWeight: item.isRead ? 400 : 600,
                       }}
                     >
                       {item.title}
@@ -267,7 +339,12 @@ export default function WorkspacePage() {
             </span>
           }
           extra={
-            <Button type="link" size="small" icon={<RightOutlined />}>
+            <Button
+              type="link"
+              size="small"
+              icon={<RightOutlined />}
+              onClick={() => navigate(`/${user?.tenantId}/apps`)}
+            >
               全部应用
             </Button>
           }
@@ -279,9 +356,9 @@ export default function WorkspacePage() {
               gap: 12,
             }}
           >
-            {MOCK_APPS.map((app) => (
+            {apps.map((app) => (
               <div
-                key={app.id}
+                key={app.appId}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -293,6 +370,7 @@ export default function WorkspacePage() {
                   transition: 'all 0.2s',
                   border: '1px solid transparent',
                 }}
+                onClick={() => navigate(`/${user?.tenantId}/app/${shortId(app.appId)}`)}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.borderColor = app.color;
                   e.currentTarget.style.background = 'white';
@@ -306,6 +384,19 @@ export default function WorkspacePage() {
                 <span style={{ fontSize: 13, fontWeight: 500 }}>{app.name}</span>
               </div>
             ))}
+            {apps.length === 0 && (
+              <div
+                style={{
+                  gridColumn: 'span 2',
+                  textAlign: 'center',
+                  color: '#bfbfbf',
+                  fontSize: 13,
+                  padding: '24px 0',
+                }}
+              >
+                暂无应用
+              </div>
+            )}
             {/* 发起流程快捷按钮 */}
             <div
               style={{

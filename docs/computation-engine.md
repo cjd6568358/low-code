@@ -414,3 +414,118 @@ interface ValidationResult {
 | **数据引擎** | 格式化字段类型的 `computation` 配置定义该类型支持的运算，运算引擎据此提供类型感知计算 |
 | **渲染引擎** | 条件规则（显隐/禁用）中的表达式由运算引擎求值 |
 | **权限引擎** | 自定义数据权限规则中的条件表达式由运算引擎求值 |
+
+---
+
+## 运算设计器
+
+运算设计器是运算引擎的可视化配置工具，允许用户通过图形界面创建和编辑计算字段/公式规则。
+
+### 功能特性
+
+- **4 种运算类型**：字段计算、公式规则、聚合计算、数据转换
+- **输入字段配置**：支持从数据表自动选择字段，或手动定义变量
+- **表达式编辑器**：复用 ExpressionEditor 组件，支持语法高亮、自动补全、类型推断
+- **输出配置**：支持多种数据类型和格式化选项（货币、百分比、日期等）
+- **预览功能**：实时预览运算结果，支持测试数据输入
+
+### 路由格式
+
+```
+/:tenantId/designer/computations/:computationId
+```
+
+### 数据结构
+
+```typescript
+interface ComputationData {
+  /** 运算 ID */
+  id?: string;
+  /** 应用 ID */
+  appId: string;
+  /** 运算名称 */
+  name: string;
+  /** 运算描述 */
+  description?: string;
+  /** 运算类型：field | formula | aggregation | transform */
+  type: ComputationType;
+  /** 状态：draft | active | disabled */
+  status: ComputationStatus;
+  /** 输入字段列表 */
+  inputs: InputField[];
+  /** 表达式 */
+  expression: string;
+  /** 表达式是否异步 */
+  async?: boolean;
+  /** 输出配置 */
+  output: OutputField;
+  /** 关联的数据表 ID */
+  tableId?: string;
+  /** 元数据 */
+  schemaVersion?: number;
+  version?: number;
+}
+
+interface InputField {
+  /** 变量名（用于表达式引用） */
+  key: string;
+  /** 显示名称 */
+  label: string;
+  /** 字段类型 */
+  fieldType: 'string' | 'number' | 'boolean' | 'date' | 'json';
+  /** 来源表 ID */
+  tableId?: string;
+  /** 来源字段名 */
+  fieldName?: string;
+}
+
+interface OutputField {
+  /** 输出字段名 */
+  name: string;
+  /** 输出类型 */
+  type: 'string' | 'number' | 'boolean' | 'date' | 'json';
+  /** 格式化（如 currency、percentage、date） */
+  format?: string;
+  /** 小数精度（数字类型） */
+  precision?: number;
+  /** 描述 */
+  description?: string;
+}
+```
+
+### 预览 API
+
+```http
+POST /api/computations/preview
+Content-Type: application/json
+
+{
+  "expression": "amount * 0.1",
+  "context": {
+    "amount": 1000
+  },
+  "outputType": "number"
+}
+
+Response:
+{
+  "success": true,
+  "result": 100
+}
+```
+
+### 设计器界面
+
+运算设计器采用卡片式布局，包含以下区域：
+
+1. **基本信息卡片**：运算名称、类型、状态、描述
+2. **输入字段卡片**：变量名、显示名称、字段类型、数据表来源
+3. **表达式卡片**：表达式内容预览、编辑按钮
+4. **输出配置卡片**：字段名、类型、格式化选项
+5. **预览结果卡片**：运算结果展示（调用预览 API 后显示）
+
+### 与其他模块的集成
+
+- **数据表**：输入字段可从数据表自动选择，输出字段可写回数据表
+- **表达式引擎**：复用 ExpressionEditor 组件，支持完整的表达式语法
+- **运算引擎**：预览功能调用服务端运算引擎执行表达式

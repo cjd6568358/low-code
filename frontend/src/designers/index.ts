@@ -9,4 +9,7 @@
 
 export { default as PageDesign } from './PageDesign';
 export { default as TableDesign } from './TableDesign';
+export { default as CardDesign } from './CardDesign';
 export { default as WorkflowDesign } from './WorkflowDesign';
+export { default as AutomationDesign } from './AutomationDesign';
+export { default as ComputationDesign } from './ComputationDesign';

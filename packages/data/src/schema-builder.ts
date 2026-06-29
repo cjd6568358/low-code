@@ -9,7 +9,7 @@
  */
 
 import type { SqliteDb } from './types';
-import type { TableSchema, TableColumn, TableFieldType } from '@low-code/shared';
+import type { TableSchema, TableColumn, TableFieldType, TableIndex } from '@low-code/shared';
 
 // ─── 字段类型映射 ──────────────────────────────────────
 
@@ -20,6 +20,7 @@ const FIELD_TYPE_MAP: Record<TableFieldType, string> = {
   boolean: 'INTEGER',
   date: 'TEXT',
   json: 'TEXT',
+  enum: 'TEXT',
 };
 
 /** 获取 SQLite 列类型 */
@@ -245,6 +246,10 @@ export function executeTableSchema(
     // 新表：直接创建
     const createSQL = generateCreateTableSQL(tableId, schema);
     db.exec(createSQL);
+    // 新表创建索引
+    for (const index of schema.indexes || []) {
+      db.exec(generateCreateIndexSQL(tableId, index));
+    }
     return;
   }
 
@@ -258,8 +263,61 @@ export function executeTableSchema(
         }
       });
     }
+    // 同步索引
+    syncIndexes(db, tableId, schema.indexes || [], oldSchema.indexes || []);
   }
   // 无 oldSchema 且表已存在：跳过（可能是手动建的表）
+}
+
+// ─── 索引管理 ────────────────────────────────────────────
+
+/** 生成单个索引的 CREATE INDEX SQL */
+function generateCreateIndexSQL(tableId: string, index: TableIndex): string {
+  const unique = index.unique ? 'UNIQUE ' : '';
+  const cols = index.columns.map((c) => `[${c}]`).join(', ');
+  return `CREATE ${unique}INDEX IF NOT EXISTS [idx_${tableId}_${index.name}] ON [${tableId}] (${cols});`;
+}
+
+/** 生成 DROP INDEX SQL */
+function generateDropIndexSQL(tableId: string, indexName: string): string {
+  return `DROP INDEX IF EXISTS [idx_${tableId}_${indexName}];`;
+}
+
+/** 同步索引（增删改） */
+function syncIndexes(db: SqliteDb, tableId: string, newIndexes: TableIndex[], oldIndexes: TableIndex[]): void {
+  const oldMap = new Map(oldIndexes.map((i) => [i.id, i]));
+  const newMap = new Map(newIndexes.map((i) => [i.id, i]));
+
+  const toDrop = oldIndexes.filter((i) => !newMap.has(i.id));
+  const toCreate = newIndexes.filter((i) => !oldMap.has(i.id));
+  const toRecreate = newIndexes.filter((i) => {
+    const old = oldMap.get(i.id);
+    if (!old) return false;
+    return (
+      old.name !== i.name ||
+      old.unique !== i.unique ||
+      old.columns.length !== i.columns.length ||
+      old.columns.some((c, idx) => c !== i.columns[idx])
+    );
+  });
+
+  const allSqls: string[] = [];
+
+  for (const idx of toDrop) {
+    allSqls.push(generateDropIndexSQL(tableId, idx.name));
+  }
+  for (const idx of toRecreate) {
+    allSqls.push(generateDropIndexSQL(tableId, oldMap.get(idx.id)!.name));
+  }
+  for (const idx of [...toCreate, ...toRecreate]) {
+    allSqls.push(generateCreateIndexSQL(tableId, idx));
+  }
+
+  if (allSqls.length > 0) {
+    for (const sql of allSqls) {
+      db.exec(sql);
+    }
+  }
 }
 
 // ─── 软删除 ────────────────────────────────────────────

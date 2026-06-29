@@ -164,10 +164,6 @@ export const AutomationDesign: React.FC<AutomationDesignProps> = ({
       if (data.data) {
         message.success('保存成功');
         onSave?.(data.data);
-        if (!ruleId) {
-          // 新建模式，跳转到编辑模式
-          window.location.href = `/designer/automation/${data.data.id}?appId=${appId}`;
-        }
       }
     } catch (error) {
       console.error('Failed to save rule:', error);

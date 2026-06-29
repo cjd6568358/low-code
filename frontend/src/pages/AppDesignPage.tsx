@@ -28,7 +28,7 @@ import {
   PlusOutlined,
   SettingOutlined,
 } from '@ant-design/icons';
-import { PageDesign, TableDesign, WorkflowDesign } from '../designers';
+import { PageDesign, TableDesign, CardDesign, WorkflowDesign, AutomationDesign, ComputationDesign } from '../designers';
 import { PageComponentPicker, type PageComponentPickResult } from '../designers/components/PageComponentPicker';
 import { ThemeConfigPanel, type ThemeConfig } from '../components/ThemeConfigPanel';
 
@@ -86,9 +86,38 @@ function ResourceDesigner({ tenantId, appId, resourceType, resourceId, onSaved }
     return <TableDesign appId={appId} tableId={resourceId} onSaved={onSaved} />;
   }
 
+  // 卡片类型：使用 CardDesign 组件
+  if (resourceType === 'cards') {
+    return <CardDesign appId={appId} cardId={resourceId} onSaved={onSaved} />;
+  }
+
   // 流程类型：使用 WorkflowDesign 组件
   if (resourceType === 'workflows') {
     return <WorkflowDesign appId={appId} workflowId={resourceId} onSaved={onSaved} />;
+  }
+
+  // 自动化类型：使用 AutomationDesign 组件
+  if (resourceType === 'automations') {
+    return (
+      <AutomationDesign
+        appId={appId}
+        ruleId={resourceId}
+        tenantId={tenantId}
+        onSave={(rule) => onSaved?.(rule.name)}
+      />
+    );
+  }
+
+  // 运算类型：使用 ComputationDesign 组件
+  if (resourceType === 'computations') {
+    return (
+      <ComputationDesign
+        appId={appId}
+        computationId={resourceId}
+        tenantId={tenantId}
+        onSave={(computation) => onSaved?.(computation.name)}
+      />
+    );
   }
 
   // 其他类型：占位

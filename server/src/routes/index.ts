@@ -14,7 +14,12 @@ import { createWorkflowsRouter } from './workflows.js';
 import { createWorkflowInstancesRouter } from './workflow-instances.js';
 import { createWorkflowTasksRouter } from './workflow-tasks.js';
 import { createAutomationsRouter } from './automations.js';
+import { createComputationsRouter } from './computations.js';
 import { createQueryRouter } from './query.js';
+import { createUsersRouter } from './users.js';
+import { createRolesRouter } from './roles.js';
+import { createPermissionsRouter } from './permissions.js';
+import { createMessagesRouter } from './messages.js';
 
 // Register all routes
 export function registerRoutes(app: Koa): void {
@@ -52,6 +57,31 @@ export function registerRoutes(app: Koa): void {
   const automationsRouter = createAutomationsRouter();
   app.use(automationsRouter.routes());
   app.use(automationsRouter.allowedMethods());
+
+  // Computation routes
+  const computationsRouter = createComputationsRouter();
+  app.use(computationsRouter.routes());
+  app.use(computationsRouter.allowedMethods());
+
+  // User management routes
+  const usersRouter = createUsersRouter();
+  app.use(usersRouter.routes());
+  app.use(usersRouter.allowedMethods());
+
+  // Role management routes
+  const rolesRouter = createRolesRouter();
+  app.use(rolesRouter.routes());
+  app.use(rolesRouter.allowedMethods());
+
+  // Permission management routes
+  const permissionsRouter = createPermissionsRouter();
+  app.use(permissionsRouter.routes());
+  app.use(permissionsRouter.allowedMethods());
+
+  // Message routes
+  const messagesRouter = createMessagesRouter();
+  app.use(messagesRouter.routes());
+  app.use(messagesRouter.allowedMethods());
 
   // Data query routes
   const queryRouter = createQueryRouter(manager);

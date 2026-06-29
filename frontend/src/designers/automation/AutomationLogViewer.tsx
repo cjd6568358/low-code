@@ -31,7 +31,7 @@ import {
   CloseCircleOutlined,
   ExclamationCircleOutlined,
   ClockCircleOutlined,
-  SkipOutlined,
+  RightOutlined,
 } from '@ant-design/icons';
 
 const { Text, Paragraph } = Typography;
@@ -135,7 +135,7 @@ const getActionStatusIcon = (status: string) => {
     case 'failed':
       return <CloseCircleOutlined style={{ color: '#ff4d4f' }} />;
     case 'skipped':
-      return <SkipOutlined style={{ color: '#999' }} />;
+      return <RightOutlined style={{ color: '#999' }} />;
     case 'retrying':
       return <ClockCircleOutlined style={{ color: '#faad14' }} />;
     default:

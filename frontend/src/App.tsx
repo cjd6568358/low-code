@@ -16,6 +16,7 @@ import WorkflowCenterPage from './pages/WorkflowCenterPage';
 import ConfigCenterPage from './pages/ConfigCenterPage';
 import AppDesignPage from './pages/AppDesignPage';
 import AppDetailPage from './pages/AppDetailPage';
+import WorkflowTestPage from './pages/WorkflowTestPage';
 
 export default function App() {
   return (
@@ -93,6 +94,9 @@ export default function App() {
               }
             />
           </Route>
+
+          {/* 测试页面 */}
+          <Route path="/test/workflow" element={<WorkflowTestPage />} />
 
           {/* Default redirect */}
           <Route path="/" element={<Navigate to="/login" replace />} />

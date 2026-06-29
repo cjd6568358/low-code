@@ -8,6 +8,18 @@ export { EventCompiler } from './core/EventCompiler';
 export { LinkageEngine } from './core/LinkageEngine';
 export { CardRenderer } from './core/CardRenderer';
 export { WebAdapter, webAdapter } from './core/WebAdapter';
+export { BaseAdapter } from './core/adapters/BaseAdapter';
+export { H5Adapter } from './core/adapters/H5Adapter';
+export type { H5AdapterConfig } from './core/adapters/H5Adapter';
+export { ReactNativeAdapter } from './core/adapters/ReactNativeAdapter';
+export type {
+  ReactNativeAdapterConfig,
+  ReactNativeNavigation,
+  AsyncStorageProvider,
+  ThemeNotifier,
+} from './core/adapters/ReactNativeAdapter';
+export { WechatMiniAppAdapter } from './core/adapters/WechatMiniAppAdapter';
+export type { WechatMiniAppAdapterConfig } from './core/adapters/WechatMiniAppAdapter';
 export { PageRenderer } from './core/Renderer';
 export { ValidatorRegistryImpl, ValidationEngine } from './core/ValidationEngine';
 export { FormDataContextManager } from './core/FormDataContext';

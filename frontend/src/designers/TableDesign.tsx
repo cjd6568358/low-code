@@ -15,12 +15,16 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  App, Spin, Button, Input, Select, Switch, Table, Space, Tag, Tooltip, Typography, Popover,
+  App, Spin, Button, Input, Select, Switch, Table, Space, Tag, Tooltip, Typography, Popover, Modal,
 } from 'antd';
 import {
   PlusOutlined, DeleteOutlined, SyncOutlined, SaveOutlined, LinkOutlined, SettingOutlined,
 } from '@ant-design/icons';
-import type { TableSchema, TableColumn, FieldSourceMapping, ForeignKeyReference } from '@low-code/shared';
+import type {
+  TableSchema, TableColumn, FieldSourceMapping, ForeignKeyReference,
+  FieldConstraints, StringFieldConstraints, NumberFieldConstraints,
+  DateFieldConstraints, EnumFieldConstraints, ValidationRule, TableIndex,
+} from '@low-code/shared';
 import { SYSTEM_ID_COLUMN, type TableFieldType } from '@low-code/shared';
 import { PageComponentPicker, type PageComponentPickResult } from './components/PageComponentPicker';
 
@@ -48,6 +52,7 @@ const FIELD_TYPE_OPTIONS: Array<{ label: string; value: TableFieldType }> = [
   { label: '布尔 (boolean)', value: 'boolean' },
   { label: '日期 (date)', value: 'date' },
   { label: 'JSON (json)', value: 'json' },
+  { label: '枚举 (enum)', value: 'enum' },
 ];
 
 /** 字段类型标签颜色 */
@@ -57,6 +62,7 @@ const FIELD_TYPE_COLORS: Record<TableFieldType, string> = {
   boolean: 'orange',
   date: 'purple',
   json: 'default',
+  enum: 'magenta',
 };
 
 // ─── 组件类型中文名 ────────────────────────────────────
@@ -116,6 +122,15 @@ export default function TableDesign({ appId, tableId, schema, onSaved }: TableDe
   // 外键编辑相关状态
   const [otherTables, setOtherTables] = useState<Array<{ tableId: string; name: string; columns: string[] }>>([]);
   const [editingForeignKey, setEditingForeignKey] = useState<string | null>(null); // 正在编辑的列 ID
+
+  // 约束编辑状态
+  const [editingConstraints, setEditingConstraints] = useState<string | null>(null);
+  // 校验编辑状态
+  const [editingValidations, setEditingValidations] = useState<string | null>(null);
+  // 索引编辑状态
+  const [editingIndex, setEditingIndex] = useState<string | null>(null);
+  const [indexModalOpen, setIndexModalOpen] = useState(false);
+  const [indexForm, setIndexForm] = useState<{ name: string; columns: string[]; unique: boolean }>({ name: '', columns: [], unique: false });
 
   // ─── 加载数据表 schema ─────────────────────────────────
   useEffect(() => {
@@ -231,6 +246,61 @@ export default function TableDesign({ appId, tableId, schema, onSaved }: TableDe
       return {
         ...prev,
         columns: prev.columns.filter((col) => col.id !== columnId),
+      };
+    });
+  }, []);
+
+  // ─── 约束管理 ─────────────────────────────────────────
+
+  const updateConstraints = useCallback((columnId: string, constraints: FieldConstraints | undefined) => {
+    setCurrentSchema((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        columns: prev.columns.map((col) =>
+          col.id === columnId ? { ...col, constraints } : col,
+        ),
+      };
+    });
+  }, []);
+
+  // ─── 校验规则管理 ─────────────────────────────────────
+
+  const updateValidations = useCallback((columnId: string, validations: ValidationRule[] | undefined) => {
+    setCurrentSchema((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        columns: prev.columns.map((col) =>
+          col.id === columnId ? { ...col, validations } : col,
+        ),
+      };
+    });
+  }, []);
+
+  // ─── 索引管理 ─────────────────────────────────────────
+
+  const addIndex = useCallback(() => {
+    setCurrentSchema((prev) => {
+      if (!prev) return prev;
+      const newIndex: TableIndex = {
+        id: generateId(),
+        name: indexForm.name || `idx_${Date.now().toString(36)}`,
+        columns: indexForm.columns,
+        unique: indexForm.unique,
+      };
+      return { ...prev, indexes: [...(prev.indexes || []), newIndex] };
+    });
+    setIndexModalOpen(false);
+    setIndexForm({ name: '', columns: [], unique: false });
+  }, [indexForm]);
+
+  const deleteIndex = useCallback((indexId: string) => {
+    setCurrentSchema((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        indexes: (prev.indexes || []).filter((idx) => idx.id !== indexId),
       };
     });
   }, []);
@@ -435,6 +505,331 @@ export default function TableDesign({ appId, tableId, schema, onSaved }: TableDe
       ),
     },
     {
+      title: '约束',
+      key: 'constraints',
+      width: 100,
+      render: (_: unknown, record: TableColumn) => {
+        if (record.system || isReadonly(record)) return null;
+
+        const constraintsContent = (
+          <div style={{ width: 280 }}>
+            {record.fieldType === 'string' && (
+              <>
+                <div style={{ marginBottom: 8 }}>
+                  <Text strong style={{ fontSize: 12 }}>最大长度：</Text>
+                  <Input
+                    size="small"
+                    type="number"
+                    style={{ marginTop: 4 }}
+                    value={(record.constraints as StringFieldConstraints)?.maxLength ?? ''}
+                    placeholder="不限"
+                    onChange={(e) => {
+                      const val = e.target.value ? parseInt(e.target.value, 10) : undefined;
+                      updateConstraints(record.id, {
+                        ...(record.constraints as StringFieldConstraints || {}),
+                        maxLength: val,
+                      });
+                    }}
+                  />
+                </div>
+                <div style={{ marginBottom: 8 }}>
+                  <Text strong style={{ fontSize: 12 }}>正则校验：</Text>
+                  <Input
+                    size="small"
+                    style={{ marginTop: 4, fontFamily: 'monospace' }}
+                    value={(record.constraints as StringFieldConstraints)?.pattern ?? ''}
+                    placeholder="如 ^[a-zA-Z]+$"
+                    onChange={(e) => {
+                      updateConstraints(record.id, {
+                        ...(record.constraints as StringFieldConstraints || {}),
+                        pattern: e.target.value || undefined,
+                      });
+                    }}
+                  />
+                </div>
+                <div style={{ marginBottom: 8 }}>
+                  <Text strong style={{ fontSize: 12 }}>格式：</Text>
+                  <Select
+                    size="small"
+                    style={{ width: '100%', marginTop: 4 }}
+                    value={(record.constraints as StringFieldConstraints)?.format}
+                    placeholder="无"
+                    allowClear
+                    onChange={(val) => {
+                      updateConstraints(record.id, {
+                        ...(record.constraints as StringFieldConstraints || {}),
+                        format: val,
+                      });
+                    }}
+                    options={[
+                      { label: '邮箱 (email)', value: 'email' },
+                      { label: 'URL (url)', value: 'url' },
+                      { label: '手机号 (phone)', value: 'phone' },
+                      { label: '身份证 (idcard)', value: 'idcard' },
+                    ]}
+                  />
+                </div>
+              </>
+            )}
+            {record.fieldType === 'number' && (
+              <>
+                <div style={{ marginBottom: 8 }}>
+                  <Text strong style={{ fontSize: 12 }}>最小值：</Text>
+                  <Input
+                    size="small"
+                    type="number"
+                    style={{ marginTop: 4 }}
+                    value={(record.constraints as NumberFieldConstraints)?.min ?? ''}
+                    placeholder="不限"
+                    onChange={(e) => {
+                      const val = e.target.value ? parseFloat(e.target.value) : undefined;
+                      updateConstraints(record.id, {
+                        ...(record.constraints as NumberFieldConstraints || {}),
+                        min: val,
+                      });
+                    }}
+                  />
+                </div>
+                <div style={{ marginBottom: 8 }}>
+                  <Text strong style={{ fontSize: 12 }}>最大值：</Text>
+                  <Input
+                    size="small"
+                    type="number"
+                    style={{ marginTop: 4 }}
+                    value={(record.constraints as NumberFieldConstraints)?.max ?? ''}
+                    placeholder="不限"
+                    onChange={(e) => {
+                      const val = e.target.value ? parseFloat(e.target.value) : undefined;
+                      updateConstraints(record.id, {
+                        ...(record.constraints as NumberFieldConstraints || {}),
+                        max: val,
+                      });
+                    }}
+                  />
+                </div>
+                <div style={{ marginBottom: 8 }}>
+                  <Text strong style={{ fontSize: 12 }}>小数精度：</Text>
+                  <Input
+                    size="small"
+                    type="number"
+                    style={{ marginTop: 4 }}
+                    value={(record.constraints as NumberFieldConstraints)?.precision ?? ''}
+                    placeholder="0 = 整数"
+                    onChange={(e) => {
+                      const val = e.target.value ? parseInt(e.target.value, 10) : undefined;
+                      updateConstraints(record.id, {
+                        ...(record.constraints as NumberFieldConstraints || {}),
+                        precision: val,
+                      });
+                    }}
+                  />
+                </div>
+              </>
+            )}
+            {record.fieldType === 'date' && (
+              <div style={{ marginBottom: 8 }}>
+                <Text strong style={{ fontSize: 12 }}>日期格式：</Text>
+                <Select
+                  size="small"
+                  style={{ width: '100%', marginTop: 4 }}
+                  value={(record.constraints as DateFieldConstraints)?.format || 'datetime'}
+                  onChange={(val) => {
+                    updateConstraints(record.id, {
+                      ...(record.constraints as DateFieldConstraints || {}),
+                      format: val as 'date' | 'datetime',
+                    });
+                  }}
+                  options={[
+                    { label: '日期 (date)', value: 'date' },
+                    { label: '日期时间 (datetime)', value: 'datetime' },
+                  ]}
+                />
+              </div>
+            )}
+            {record.fieldType === 'enum' && (
+              <div>
+                <Text strong style={{ fontSize: 12 }}>枚举值：</Text>
+                <div style={{ marginTop: 4 }}>
+                  {((record.constraints as EnumFieldConstraints)?.values || []).map((v, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
+                      <Input
+                        size="small"
+                        value={v.label}
+                        placeholder="显示名"
+                        style={{ flex: 1 }}
+                        onChange={(e) => {
+                          const values = [...((record.constraints as EnumFieldConstraints)?.values || [])];
+                          values[i] = { ...values[i], label: e.target.value };
+                          updateConstraints(record.id, { values } as EnumFieldConstraints);
+                        }}
+                      />
+                      <Input
+                        size="small"
+                        value={v.value}
+                        placeholder="值"
+                        style={{ flex: 1 }}
+                        onChange={(e) => {
+                          const values = [...((record.constraints as EnumFieldConstraints)?.values || [])];
+                          values[i] = { ...values[i], value: e.target.value };
+                          updateConstraints(record.id, { values } as EnumFieldConstraints);
+                        }}
+                      />
+                      <Button
+                        type="text"
+                        size="small"
+                        danger
+                        icon={<DeleteOutlined />}
+                        onClick={() => {
+                          const values = ((record.constraints as EnumFieldConstraints)?.values || []).filter((_, idx) => idx !== i);
+                          updateConstraints(record.id, values.length > 0 ? { values } as EnumFieldConstraints : undefined);
+                        }}
+                      />
+                    </div>
+                  ))}
+                  <Button
+                    type="dashed"
+                    size="small"
+                    block
+                    onClick={() => {
+                      const values = [...((record.constraints as EnumFieldConstraints)?.values || []), { label: '', value: '' }];
+                      updateConstraints(record.id, { values } as EnumFieldConstraints);
+                    }}
+                  >
+                    添加枚举值
+                  </Button>
+                </div>
+              </div>
+            )}
+            {!['string', 'number', 'date', 'enum'].includes(record.fieldType) && (
+              <Text type="secondary" style={{ fontSize: 12 }}>该类型无可配置约束</Text>
+            )}
+          </div>
+        );
+
+        const hasConstraints = record.constraints && Object.keys(record.constraints).length > 0;
+
+        return (
+          <Popover
+            content={constraintsContent}
+            title="类型约束"
+            trigger="click"
+            open={editingConstraints === record.id}
+            onOpenChange={(open) => setEditingConstraints(open ? record.id : null)}
+          >
+            <Button
+              type="text"
+              size="small"
+              icon={<SettingOutlined />}
+              style={{ fontSize: 11, color: hasConstraints ? '#4f46e5' : '#8c8c8c' }}
+            />
+          </Popover>
+        );
+      },
+    },
+    {
+      title: '校验',
+      key: 'validations',
+      width: 80,
+      render: (_: unknown, record: TableColumn) => {
+        if (record.system || isReadonly(record)) return null;
+
+        const validations = record.validations || [];
+        const validationsContent = (
+          <div style={{ width: 300 }}>
+            {validations.map((rule, i) => (
+              <div key={i} style={{ display: 'flex', gap: 4, marginBottom: 8, alignItems: 'flex-start' }}>
+                <Select
+                  size="small"
+                  value={rule.type}
+                  style={{ width: 100 }}
+                  onChange={(type) => {
+                    const updated = [...validations];
+                    updated[i] = { ...updated[i], type: type as ValidationRule['type'] };
+                    updateValidations(record.id, updated);
+                  }}
+                  options={[
+                    { label: '必填', value: 'required' },
+                    { label: '正则', value: 'pattern' },
+                    { label: '最小值', value: 'min' },
+                    { label: '最大值', value: 'max' },
+                    { label: '最小长度', value: 'minLength' },
+                    { label: '最大长度', value: 'maxLength' },
+                    { label: '自定义', value: 'custom' },
+                  ]}
+                />
+                {rule.type !== 'required' && (
+                  <Input
+                    size="small"
+                    value={rule.value?.toString() ?? ''}
+                    placeholder="值"
+                    style={{ flex: 1 }}
+                    onChange={(e) => {
+                      const updated = [...validations];
+                      const val = ['min', 'max', 'minLength', 'maxLength'].includes(rule.type)
+                        ? (e.target.value ? Number(e.target.value) : undefined)
+                        : e.target.value || undefined;
+                      updated[i] = { ...updated[i], value: val };
+                      updateValidations(record.id, updated);
+                    }}
+                  />
+                )}
+                <Input
+                  size="small"
+                  value={rule.message ?? ''}
+                  placeholder="错误消息"
+                  style={{ flex: 1 }}
+                  onChange={(e) => {
+                    const updated = [...validations];
+                    updated[i] = { ...updated[i], message: e.target.value || undefined };
+                    updateValidations(record.id, updated);
+                  }}
+                />
+                <Button
+                  type="text"
+                  size="small"
+                  danger
+                  icon={<DeleteOutlined />}
+                  onClick={() => {
+                    const updated = validations.filter((_, idx) => idx !== i);
+                    updateValidations(record.id, updated.length > 0 ? updated : undefined);
+                  }}
+                />
+              </div>
+            ))}
+            <Button
+              type="dashed"
+              size="small"
+              block
+              onClick={() => {
+                const updated = [...validations, { type: 'required' as const, message: '' }];
+                updateValidations(record.id, updated);
+              }}
+            >
+              添加校验规则
+            </Button>
+          </div>
+        );
+
+        return (
+          <Popover
+            content={validationsContent}
+            title="校验规则"
+            trigger="click"
+            open={editingValidations === record.id}
+            onOpenChange={(open) => setEditingValidations(open ? record.id : null)}
+          >
+            <Button
+              type="text"
+              size="small"
+              style={{ fontSize: 11, color: validations.length > 0 ? '#4f46e5' : '#8c8c8c' }}
+            >
+              {validations.length > 0 ? `${validations.length} 条` : '—'}
+            </Button>
+          </Popover>
+        );
+      },
+    },
+    {
       title: '来源',
       dataIndex: 'sourceMapping',
       key: 'source',
@@ -590,7 +985,7 @@ export default function TableDesign({ appId, tableId, schema, onSaved }: TableDe
         />
       ),
     },
-  ], [updateColumn, deleteColumn, otherTables, editingForeignKey]);
+  ], [updateColumn, deleteColumn, otherTables, editingForeignKey, editingConstraints, editingValidations, updateConstraints, updateValidations]);
 
   // ─── 渲染 ────────────────────────────────────────────
 
@@ -674,7 +1069,7 @@ export default function TableDesign({ appId, tableId, schema, onSaved }: TableDe
             rowKey="id"
             pagination={false}
             size="small"
-            scroll={{ x: 900 }}
+            scroll={{ x: 1200 }}
             footer={() => (
               <Button
                 type="dashed"
@@ -687,7 +1082,109 @@ export default function TableDesign({ appId, tableId, schema, onSaved }: TableDe
             )}
           />
         </div>
+
+        {/* 索引管理 */}
+        <div style={{ backgroundColor: '#fff', borderRadius: 6, overflow: 'hidden', boxShadow: '0 1px 2px rgba(0,0,0,0.03)', marginTop: 16 }}>
+          <div style={{ padding: '12px 16px', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Text strong>索引管理</Text>
+            <Button
+              type="primary"
+              size="small"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                setIndexForm({ name: '', columns: [], unique: false });
+                setIndexModalOpen(true);
+              }}
+            >
+              新建索引
+            </Button>
+          </div>
+          <Table
+            dataSource={currentSchema.indexes || []}
+            rowKey="id"
+            pagination={false}
+            size="small"
+            locale={{ emptyText: '暂无索引' }}
+            columns={[
+              {
+                title: '索引名称',
+                dataIndex: 'name',
+                key: 'name',
+                render: (name: string) => <span style={{ fontFamily: 'monospace' }}>{name}</span>,
+              },
+              {
+                title: '关联字段',
+                dataIndex: 'columns',
+                key: 'columns',
+                render: (cols: string[]) => cols.map((c) => <Tag key={c} style={{ margin: 2 }}>{c}</Tag>),
+              },
+              {
+                title: '唯一',
+                dataIndex: 'unique',
+                key: 'unique',
+                width: 80,
+                render: (unique: boolean) => <Tag color={unique ? 'green' : 'default'}>{unique ? '是' : '否'}</Tag>,
+              },
+              {
+                title: '操作',
+                key: 'action',
+                width: 80,
+                render: (_: unknown, record: TableIndex) => (
+                  <Button
+                    type="text"
+                    size="small"
+                    danger
+                    icon={<DeleteOutlined />}
+                    onClick={() => deleteIndex(record.id)}
+                  />
+                ),
+              },
+            ]}
+          />
+        </div>
       </div>
+
+      {/* 新建索引弹窗 */}
+      <Modal
+        title="新建索引"
+        open={indexModalOpen}
+        onOk={addIndex}
+        onCancel={() => setIndexModalOpen(false)}
+        okText="创建"
+        cancelText="取消"
+        okButtonProps={{ disabled: !indexForm.name || indexForm.columns.length === 0 }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 16 }}>
+          <div>
+            <Text strong style={{ display: 'block', marginBottom: 4 }}>索引名称</Text>
+            <Input
+              value={indexForm.name}
+              onChange={(e) => setIndexForm((prev) => ({ ...prev, name: e.target.value }))}
+              placeholder="如 idx_user_email"
+            />
+          </div>
+          <div>
+            <Text strong style={{ display: 'block', marginBottom: 4 }}>关联字段</Text>
+            <Select
+              mode="multiple"
+              style={{ width: '100%' }}
+              value={indexForm.columns}
+              onChange={(columns) => setIndexForm((prev) => ({ ...prev, columns }))}
+              placeholder="选择字段"
+              options={currentSchema.columns
+                .filter((c) => !c.system)
+                .map((c) => ({ label: c.fieldName, value: c.fieldName }))}
+            />
+          </div>
+          <div>
+            <Switch
+              checked={indexForm.unique}
+              onChange={(unique) => setIndexForm((prev) => ({ ...prev, unique }))}
+            />
+            <Text style={{ marginLeft: 8 }}>唯一索引</Text>
+          </div>
+        </div>
+      </Modal>
 
       {/* 页面组件选择器 */}
       <PageComponentPicker

@@ -4,17 +4,18 @@ import type { ThemeConfig } from './theme';
 /** 平台适配器接口 */
 export interface PlatformAdapter {
   platform: 'web' | 'mobile' | 'miniapp';
-  resolveComponent(type: string, library: string): React.ComponentType<any> | null;
+  resolveComponent(type: string, library: string): React.ComponentType | null;
   applyTheme(theme: ThemeConfig): void;
   navigate(route: string, params?: Record<string, string>): void;
+  /** 存储能力 — 各平台可返回同步或异步结果 */
   storage: {
-    get(key: string): string | null;
-    set(key: string, value: string): void;
-    remove(key: string): void;
+    get(key: string): string | null | Promise<string | null>;
+    set(key: string, value: string): void | Promise<void>;
+    remove(key: string): void | Promise<void>;
   };
   api: {
     request(config: ApiRequestConfig): Promise<ApiResponse>;
-    upload(file: File, config: UploadConfig): Promise<UploadResult>;
+    upload(file: File | unknown, config: UploadConfig): Promise<UploadResult>;
   };
 }
 

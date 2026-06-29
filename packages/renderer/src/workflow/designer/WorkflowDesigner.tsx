@@ -6,11 +6,28 @@
  */
 
 import React, { useState, useCallback, useMemo, useRef } from 'react';
+import { Popover } from 'antd';
 import FlowBuilder, {
   NodeContext,
   INode,
   IRegisterNode,
 } from 'react-flow-builder';
+
+/** 自定义 Popover 组件 */
+const PopoverComponent: React.FC<any> = ({ visible, onVisibleChange, children, content, ...rest }) => {
+  return (
+    <Popover
+      open={visible}
+      onOpenChange={onVisibleChange}
+      content={content}
+      trigger="click"
+      placement="rightTop"
+      {...rest}
+    >
+      {children}
+    </Popover>
+  );
+};
 import { StartNodeDisplay } from '../nodes/StartNode';
 import { EndNodeDisplay } from '../nodes/EndNode';
 import { ApprovalNodeDisplay } from '../nodes/ApprovalNode';
@@ -78,6 +95,16 @@ export const WorkflowDesigner: React.FC<WorkflowDesignerProps> = ({
     }
   }, [value]);
 
+  // 可添加的节点类型（排除开始和结束节点）
+  const addableNodeTypes = useMemo(() => [
+    NODE_TYPES.APPROVAL,
+    NODE_TYPES.CONDITION,
+    NODE_TYPES.PARALLEL,
+    NODE_TYPES.TIMER,
+    NODE_TYPES.NOTIFY,
+    NODE_TYPES.SERVICE,
+  ], []);
+
   // 注册节点类型
   const registerNodes: IRegisterNode[] = useMemo(() => [
     {
@@ -85,6 +112,7 @@ export const WorkflowDesigner: React.FC<WorkflowDesignerProps> = ({
       name: '开始',
       isStart: true,
       displayComponent: StartNodeDisplay,
+      addableNodeTypes,
     },
     {
       type: NODE_TYPES.END,
@@ -96,34 +124,40 @@ export const WorkflowDesigner: React.FC<WorkflowDesignerProps> = ({
       type: NODE_TYPES.APPROVAL,
       name: '审批',
       displayComponent: ApprovalNodeDisplay,
+      addableNodeTypes,
     },
     {
       type: NODE_TYPES.CONDITION,
       name: '条件',
       displayComponent: ConditionNodeDisplay,
+      addableNodeTypes,
     },
     {
       type: NODE_TYPES.PARALLEL,
       name: '并行',
       conditionNodeType: NODE_TYPES.CONDITION,
       displayComponent: ParallelNodeDisplay,
+      addableNodeTypes,
     },
     {
       type: NODE_TYPES.TIMER,
       name: '延时',
       displayComponent: TimerNodeDisplay,
+      addableNodeTypes,
     },
     {
       type: NODE_TYPES.NOTIFY,
       name: '通知',
       displayComponent: NotifyNodeDisplay,
+      addableNodeTypes,
     },
     {
       type: NODE_TYPES.SERVICE,
       name: '自动化',
       displayComponent: ServiceNodeDisplay,
+      addableNodeTypes,
     },
-  ], []);
+  ], [addableNodeTypes]);
 
   // 节点变更回调
   const handleChange = useCallback((newNodes: INode[]) => {
@@ -191,6 +225,7 @@ export const WorkflowDesigner: React.FC<WorkflowDesignerProps> = ({
         showArrow
         historyTool
         zoomTool
+        PopoverComponent={PopoverComponent}
       />
 
       {!readonly && (

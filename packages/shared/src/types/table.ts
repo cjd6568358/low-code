@@ -6,7 +6,7 @@
  */
 
 /** 表字段类型 */
-export type TableFieldType = 'string' | 'number' | 'boolean' | 'date' | 'json';
+export type TableFieldType = 'string' | 'number' | 'boolean' | 'date' | 'json' | 'enum';
 
 /** 字段来源映射 — 记录该字段由哪个页面组件属性创建 */
 export interface FieldSourceMapping {
@@ -14,6 +14,63 @@ export interface FieldSourceMapping {
   componentId: string;
   /** 映射的组件属性名（value/visible/disabled/loading） */
   componentProp: string;
+}
+
+/** 字符串字段约束 */
+export interface StringFieldConstraints {
+  /** 最大长度 */
+  maxLength?: number;
+  /** 最小长度 */
+  minLength?: number;
+  /** 正则校验模式 */
+  pattern?: string;
+  /** 格式化类型 */
+  format?: 'email' | 'url' | 'phone' | 'idcard';
+}
+
+/** 数字字段约束 */
+export interface NumberFieldConstraints {
+  /** 最小值 */
+  min?: number;
+  /** 最大值 */
+  max?: number;
+  /** 小数精度（0 表示整数） */
+  precision?: number;
+  /** 是否强制整数 */
+  integer?: boolean;
+}
+
+/** 日期字段约束 */
+export interface DateFieldConstraints {
+  /** 日期格式 */
+  format?: 'date' | 'datetime';
+  /** 最小日期（ISO8601） */
+  min?: string;
+  /** 最大日期（ISO8601） */
+  max?: string;
+}
+
+/** 枚举字段约束 */
+export interface EnumFieldConstraints {
+  /** 枚举值列表 */
+  values: Array<{ label: string; value: string }>;
+}
+
+/** 字段约束 — 按 fieldType 区分 */
+export type FieldConstraints =
+  | StringFieldConstraints
+  | NumberFieldConstraints
+  | DateFieldConstraints
+  | EnumFieldConstraints;
+
+/** 字段校验规则 */
+export interface ValidationRule {
+  /** 规则类型 */
+  type: 'required' | 'pattern' | 'min' | 'max' | 'minLength' | 'maxLength' | 'custom';
+  /** 规则值（pattern 为字符串，min/max/minLength/maxLength 为数字，custom 为表达式） */
+  value?: string | number;
+  /** 自定义错误消息 */
+  message?: string;
 }
 
 /**
@@ -59,6 +116,22 @@ export interface TableColumn {
   sourceMapping?: FieldSourceMapping;
   /** 外键引用（自动推断或手动设置，设置后该字段为外键字段） */
   foreignKey?: ForeignKeyReference;
+  /** 字段类型约束（按 fieldType 区分具体类型） */
+  constraints?: FieldConstraints;
+  /** 字段校验规则列表 */
+  validations?: ValidationRule[];
+}
+
+/** 表索引定义 */
+export interface TableIndex {
+  /** 索引 ID（8位hex） */
+  id: string;
+  /** 索引名称 */
+  name: string;
+  /** 关联字段名列表 */
+  columns: string[];
+  /** 是否唯一索引 */
+  unique: boolean;
 }
 
 /**
@@ -76,6 +149,8 @@ export interface TableSchema {
   version: number;
   /** 表字段列表 */
   columns: TableColumn[];
+  /** 表索引列表 */
+  indexes?: TableIndex[];
   /** 来源页面 ID（从页面创建时设置） */
   sourcePageId?: string;
   createdAt: number;
