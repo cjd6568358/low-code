@@ -1,4 +1,5 @@
 import React, { useMemo, useCallback, useRef, useEffect, useState } from 'react';
+import { message } from 'antd';
 import type {
   PageSchema,
   ComponentNode,
@@ -18,7 +19,7 @@ import { CardRenderer } from './CardRenderer';
 import { ModalStack } from './ModalStack';
 import { ComponentRefreshManager } from './ComponentRefreshManager';
 import { UnifiedDependencyGraph } from './UnifiedDependencyGraph';
-import { ServerVariableResolver } from './ServerVariableResolver';
+import { createTableProxy } from './QueryProxy';
 import { ResolvedComponent } from './ResolvedComponent';
 import { FormRegistry } from './FormRegistry';
 import { ComponentMethodRegistry } from './ComponentMethodRegistry';
@@ -85,12 +86,6 @@ export function PageRenderer(config: RendererConfig) {
     [bindingResolver],
   );
 
-  // 新增：服务端变量解析器
-  const serverVariableResolver = useMemo(
-    () => new ServerVariableResolver(expressionEngine),
-    [],
-  );
-
   // 新增：组件级刷新管理器
   const componentRefreshManager = useMemo(
     () =>
@@ -140,6 +135,15 @@ export function PageRenderer(config: RendererConfig) {
   // 组件属性覆盖（setValues 运行时写入）
   const [componentOverrides, setComponentOverrides] = useState<Record<string, Record<string, any>>>({});
 
+  // 全局加载状态（showLoading/hideLoading 动作使用）
+  const [loadingState, setLoadingState] = useState<{ visible: boolean; message?: string }>({ visible: false });
+  const showLoading = useCallback((message?: string) => {
+    setLoadingState({ visible: true, message });
+  }, []);
+  const hideLoading = useCallback(() => {
+    setLoadingState({ visible: false });
+  }, []);
+
   const setComponentProp = useCallback((componentId: string, propName: string, value: any) => {
     setComponentOverrides((prev) => ({
       ...prev,
@@ -167,11 +171,11 @@ export function PageRenderer(config: RendererConfig) {
         adapter.api.request({ url, method: 'DELETE', ...config }),
     };
 
-    const $table = new Proxy({} as Record<string, any>, {
-      get(_target, prop: string) {
-        return createTableQueryProxy(prop, adapter);
-      },
-    });
+    const appId = context.$route?.params?.appId;
+    const $table = createTableProxy(
+      (config) => adapter.api.request(config),
+      appId,
+    );
 
     return {
       $user: context.$user,
@@ -344,6 +348,15 @@ export function PageRenderer(config: RendererConfig) {
       setFormValue: onFormValueChange,
       setComponentProp,
       navigate: (url, params) => adapter.navigate(url, params),
+      showMessage: (type: string, content: string, duration?: number) => {
+        // 使用 antd message 组件
+        const messageApi = message[type as keyof typeof message];
+        if (messageApi) {
+          messageApi(content, duration ? duration / 1000 : undefined);
+        }
+      },
+      showLoading,
+      hideLoading,
       apiRequest: (config) => adapter.api.request(config),
       showModal: (resourceType: string, resourceId: string, data?: any) => modalStack.open(resourceType, resourceId, data),
       closeModal: () => modalStack.closeAll(),
@@ -364,7 +377,7 @@ export function PageRenderer(config: RendererConfig) {
         return methodRegistry.invoke(targetId, method, params);
       },
     }),
-    [runtimeContext, formRegistry, getActiveFormId, adapter, onFormValueChange, setComponentProp, modalStack, componentRefreshManager, dependencyGraph, methodRegistry],
+    [runtimeContext, formRegistry, getActiveFormId, adapter, onFormValueChange, setComponentProp, showLoading, hideLoading, modalStack, componentRefreshManager, dependencyGraph, methodRegistry],
   );
 
   // 渲染单个组件节点
@@ -709,11 +722,6 @@ async function loadComponentDataSource(
 
         return { success: true, data };
       }
-      case 'server-variable': {
-        // 服务端变量类型需要通过 ServerVariableResolver 解析
-        // 这里简化处理，实际应该使用 ServerVariableResolver
-        return { success: false, error: 'Server variable type not implemented in this context' };
-      }
       default:
         return { success: false, error: `Unknown data source type: ${dataSource.type}` };
     }
@@ -800,74 +808,3 @@ function extractDependenciesFromProps(props: Record<string, any>): string[] {
   return [...new Set(dependencies)];
 }
 
-/** 创建 $table.xxx 链式查询代理 */
-function createTableQueryProxy(tableName: string, adapter: PlatformAdapter): any {
-  const queryChain = {
-    table: tableName,
-    filters: [] as any[],
-    selects: [] as string[],
-    sorts: [] as { field: string; order: 'asc' | 'desc' }[],
-    limitCount: null as number | null,
-    isfirst: false,
-    iscount: false,
-    sumField: null as string | null,
-    avgField: null as string | null,
-  };
-
-  const execute = () =>
-    adapter.api.request({
-      url: '/api/query',
-      method: 'POST',
-      data: {
-        table: queryChain.table,
-        filters: queryChain.filters.length > 0 ? queryChain.filters : undefined,
-        select: queryChain.selects.length > 0 ? queryChain.selects : undefined,
-        sort: queryChain.sorts.length > 0 ? queryChain.sorts : undefined,
-        limit: queryChain.limitCount,
-        first: queryChain.isfirst,
-        count: queryChain.iscount,
-        sum: queryChain.sumField,
-        avg: queryChain.avgField,
-      },
-    }).then((res: any) => res?.data ?? res);
-
-  const proxy: any = {
-    filter(predicate: (record: any) => boolean) {
-      queryChain.filters.push(predicate);
-      return proxy;
-    },
-    select(...fields: string[]) {
-      queryChain.selects.push(...fields);
-      return proxy;
-    },
-    sort(field: string, order: 'asc' | 'desc' = 'asc') {
-      queryChain.sorts.push({ field, order });
-      return proxy;
-    },
-    limit(count: number) {
-      queryChain.limitCount = count;
-      return proxy;
-    },
-    first() {
-      queryChain.isfirst = true;
-      return execute();
-    },
-    count() {
-      queryChain.iscount = true;
-      return execute();
-    },
-    sum(field: string) {
-      queryChain.sumField = field;
-      return execute();
-    },
-    avg(field: string) {
-      queryChain.avgField = field;
-      return execute();
-    },
-    execute() {
-      return execute();
-    },
-  };
-
-  return proxy;
-}

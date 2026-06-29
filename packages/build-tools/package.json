@@ -12,7 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@low-code/shared": "*",
+    "@low-code/shared": "workspace:*",
     "typescript": "^5.4.0",
     "typescript-json-schema": "^0.67.4"
   },

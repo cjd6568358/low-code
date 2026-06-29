@@ -22,7 +22,7 @@ import {
 } from '@ant-design/icons';
 import type { TableSchema, TableColumn, FieldSourceMapping, ForeignKeyReference } from '@low-code/shared';
 import { SYSTEM_ID_COLUMN, type TableFieldType } from '@low-code/shared';
-import { PageComponentPicker, type PageComponentPickResult } from './PageComponentPicker';
+import { PageComponentPicker, type PageComponentPickResult } from './components/PageComponentPicker';
 
 const { Text } = Typography;
 
@@ -111,6 +111,7 @@ export default function TableDesign({ appId, tableId, schema, onSaved }: TableDe
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(!schema);
   const [pickerVisible, setPickerVisible] = useState(false);
+  const [sourcePageName, setSourcePageName] = useState<string | null>(null);
 
   // 外键编辑相关状态
   const [otherTables, setOtherTables] = useState<Array<{ tableId: string; name: string; columns: string[] }>>([]);
@@ -135,6 +136,28 @@ export default function TableDesign({ appId, tableId, schema, onSaved }: TableDe
     })();
     return () => { cancelled = true; };
   }, [appId, tableId, schema]);
+
+  // ─── 加载来源页面名称 ──────────────────────────────────
+  useEffect(() => {
+    const pageId = currentSchema?.sourcePageId;
+    if (!pageId) {
+      setSourcePageName(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const resp = await fetch(`/api/apps/${appId}/pages/${pageId}`);
+        const data = await resp.json();
+        if (!cancelled && data.success && data.resource) {
+          setSourcePageName(data.resource.name || pageId);
+        }
+      } catch {
+        // 静默处理，降级显示 ID
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [appId, currentSchema?.sourcePageId]);
 
   // ─── 加载其他表列表（用于外键选择） ──────────────────────
   useEffect(() => {
@@ -638,7 +661,7 @@ export default function TableDesign({ appId, tableId, schema, onSaved }: TableDe
           />
           {hasSourcePage && (
             <Tag color="blue">
-              来源页面: {currentSchema.sourcePageId}
+              来源页面: {sourcePageName || currentSchema.sourcePageId}
             </Tag>
           )}
         </div>

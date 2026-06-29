@@ -14,7 +14,7 @@
     "@low-code/shared": "workspace:*"
   },
   "devDependencies": {
-    "vitest": "^3.2.1",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vitest": "^3.2.1"
   }
 }

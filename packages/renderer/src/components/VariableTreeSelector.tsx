@@ -1,15 +1,16 @@
 /**
- * VariableTreeSelector — 组件变量树选择器
+ * VariableTreeSelector — 变量树选择弹窗
  *
  * 弹窗模式的变量树选择组件，支持：
  * - 单选/多选模式
  * - 环境变量按需注入（pageId 或 pageComponents）
  * - 类型校验（expectedType 对比）
  * - 搜索过滤
+ * - 仅叶子节点可选（leafOnly）
  */
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { environmentRegistry, type VariableTreeNode } from '../core/EnvironmentRegistry';
+import { environmentRegistry } from '../core/EnvironmentRegistry';
 import {
   resolveVariableType,
   isTypeCompatible,
@@ -18,12 +19,14 @@ import {
   type BaseType,
 } from '../core/expression-type-infer';
 import { TypeMismatchModal } from './TypeMismatchModal';
+import { VariableTree } from './VariableTree';
+import type { VariableTreeMultiValue } from './VariableTree';
 import { fetchPageComponents, type PageComponentDefinition } from '../utils/page-components';
 
 // ─── 类型 ─────────────────────────────────────────────
 
 /** 多选返回值类型 */
-export type VariableTreeSelectorMultiValue = Array<{ type: 'variable'; value: string }>;
+export type VariableTreeSelectorMultiValue = VariableTreeMultiValue;
 
 /** 类型不匹配对话框状态 */
 interface MismatchState {
@@ -62,6 +65,8 @@ export interface VariableTreeSelectorProps {
   expectedType?: string;
   /** 限定显示的顶层环境变量（如 ["$component"]），不传则显示全部 */
   env?: string[];
+  /** 仅叶子节点可选（默认 false） */
+  leafOnly?: boolean;
 }
 
 // ─── 样式常量 ──────────────────────────────────────────
@@ -86,23 +91,6 @@ const modalStyle: React.CSSProperties = {
   width: '600px',
   maxHeight: '90vh',
   overflow: 'auto',
-};
-
-const searchInputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '6px 12px',
-  border: '1px solid #d9d9d9',
-  borderRadius: '4px',
-  marginBottom: '12px',
-  boxSizing: 'border-box',
-};
-
-const treeContainerStyle: React.CSSProperties = {
-  border: '1px solid #e8e8e8',
-  borderRadius: '4px',
-  maxHeight: '300px',
-  overflow: 'auto',
-  padding: '8px',
 };
 
 const selectedVarStyle: React.CSSProperties = {
@@ -242,97 +230,13 @@ function TypeInfoRow({ label, type, style }: { label: string; type: string; styl
   );
 }
 
-/** 变量树节点组件 */
-function VariableTreeNodeComponent({
-  node,
-  onSelect,
-  selectedKey,
-  multiSelect = false,
-  selectedKeys,
-}: {
-  node: VariableTreeNode;
-  onSelect: (key: string) => void;
-  selectedKey: string;
-  multiSelect?: boolean;
-  selectedKeys?: Set<string>;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const hasChildren = node.children.length > 0;
-  const isMultiSelected = multiSelect && selectedKeys?.has(node.key);
-
-  return (
-    <div style={{ paddingLeft: '8px' }}>
-      <div
-        onClick={() => { onSelect(node.key); }}
-        style={{
-          padding: '4px 8px',
-          cursor: 'pointer',
-          borderRadius: '3px',
-          backgroundColor: (multiSelect ? isMultiSelected : selectedKey === node.key)
-            ? '#e6f7ff'
-            : 'transparent',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '4px',
-          fontSize: '13px',
-        }}
-      >
-        {hasChildren && (
-          <span style={{ fontSize: '10px', width: '12px' }} onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}>
-            {expanded ? '▼' : '▶'}
-          </span>
-        )}
-        {multiSelect ? (
-          <span style={{ width: '12px', fontSize: '12px', color: isMultiSelected ? '#1890ff' : '#d9d9d9' }}>
-            {isMultiSelected ? '☑' : '☐'}
-          </span>
-        ) : (
-          !hasChildren && <span style={{ width: '12px' }} />
-        )}
-        <span style={{ fontFamily: 'monospace', color: '#1890ff' }}>{node.label}</span>
-        {node.isCrossApp && node.appName && (
-          <span
-            style={{
-              fontSize: '10px',
-              color: '#fa8c16',
-              backgroundColor: '#fff7e6',
-              padding: '1px 4px',
-              borderRadius: '2px',
-              border: '1px solid #ffd591',
-            }}
-          >
-            {node.appName}
-          </span>
-        )}
-        <span style={{ color: '#999', fontSize: '11px', marginLeft: '4px' }}>
-          {node.description}
-        </span>
-      </div>
-      {expanded && hasChildren && (
-        <div style={{ paddingLeft: '12px' }}>
-          {node.children.map((child) => (
-            <VariableTreeNodeComponent
-              key={child.key}
-              node={child}
-              onSelect={onSelect}
-              selectedKey={selectedKey}
-              multiSelect={multiSelect}
-              selectedKeys={selectedKeys}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── 主组件 ────────────────────────────────────────────
 
 /**
- * 组件变量树选择器
+ * 变量树选择器（弹窗模式）
  *
- * 弹窗模式，展示环境变量树供用户选择变量引用。
- * 支持单选/多选，类型校验，搜索过滤。
+ * 展示环境变量树供用户选择变量引用。
+ * 支持单选/多选，类型校验，搜索过滤，叶子节点约束。
  */
 export function VariableTreeSelector(props: VariableTreeSelectorProps) {
   const {
@@ -349,6 +253,7 @@ export function VariableTreeSelector(props: VariableTreeSelectorProps) {
     pageDataSources = {},
     expectedType,
     env,
+    leafOnly = false,
   } = props;
 
   // ─── 状态 ─────────────────────────────────────────────
@@ -358,7 +263,6 @@ export function VariableTreeSelector(props: VariableTreeSelectorProps) {
     if (value && typeof value === 'object' && 'value' in value) return (value as { value: string }).value;
     return '';
   });
-  const [searchKeyword, setSearchKeyword] = useState('');
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set(initialSelectedKeys));
   const [refreshCounter, setRefreshCounter] = useState(0);
   const [mismatchInfo, setMismatchInfo] = useState<MismatchState | null>(null);
@@ -428,52 +332,11 @@ export function VariableTreeSelector(props: VariableTreeSelectorProps) {
     return isTypeCompatible(expectedType, inferredType);
   }, [expectedType, inferredType]);
 
-  // ─── 派生数据 ─────────────────────────────────────────
-
-  const variableTree = useMemo(
-    () => {
-      const tree = environmentRegistry.generateVariableTree('variable');
-      return env ? tree.filter((node) => env.includes(node.key)) : tree;
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [refreshCounter, env],
-  );
-
-  const filteredTree = useMemo(() => {
-    if (!searchKeyword) return variableTree;
-    const keyword = searchKeyword.toLowerCase();
-    const filterTree = (nodes: VariableTreeNode[]): VariableTreeNode[] =>
-      nodes
-        .map((node) => {
-          const filteredChildren = filterTree(node.children);
-          if (
-            node.label.toLowerCase().includes(keyword) ||
-            node.key.toLowerCase().includes(keyword) ||
-            node.description.toLowerCase().includes(keyword) ||
-            filteredChildren.length > 0
-          ) {
-            return { ...node, children: filteredChildren };
-          }
-          return null;
-        })
-        .filter(Boolean) as VariableTreeNode[];
-    return filterTree(variableTree);
-  }, [variableTree, searchKeyword]);
-
   // ─── 事件处理 ─────────────────────────────────────────
 
   const handleSelectVariable = useCallback((key: string) => {
-    if (multiSelect) {
-      setSelectedKeys((prev) => {
-        const next = new Set(prev);
-        if (next.has(key)) next.delete(key);
-        else next.add(key);
-        return next;
-      });
-    } else {
-      setInputValue(key);
-    }
-  }, [multiSelect]);
+    setInputValue(key);
+  }, []);
 
   /** 类型校验 */
   const validateType = useCallback(
@@ -536,35 +399,21 @@ export function VariableTreeSelector(props: VariableTreeSelectorProps) {
       <div style={modalStyle}>
         <h3 style={{ marginTop: 0, marginBottom: '16px' }}>
           选择变量
-          <span style={{ color: '#ff4d4f', fontSize: '12px', marginLeft: '8px' }}>
-            (⚠️ 不支持 $table/$computation/$fetch/$workflow)
-          </span>
         </h3>
 
-        <input
-          value={searchKeyword}
-          onChange={(e) => setSearchKeyword(e.target.value)}
-          placeholder="搜索变量..."
-          style={searchInputStyle}
+        {/* 变量树（复用 VariableTree 组件） */}
+        <VariableTree
+          multiSelect={multiSelect}
+          selectedKey={inputValue}
+          onSelect={handleSelectVariable}
+          selectedKeys={selectedKeys}
+          onSelectionChange={setSelectedKeys}
+          leafOnly={leafOnly}
+          env={env}
+          searchable
+          showSelectAll
+          refreshKey={refreshCounter}
         />
-
-        <div style={treeContainerStyle}>
-          {filteredTree.map((node) => (
-            <VariableTreeNodeComponent
-              key={node.key}
-              node={node}
-              onSelect={handleSelectVariable}
-              selectedKey={inputValue}
-              multiSelect={multiSelect}
-              selectedKeys={selectedKeys}
-            />
-          ))}
-          {filteredTree.length === 0 && (
-            <div style={{ padding: '16px', textAlign: 'center', color: '#999' }}>
-              未找到匹配的变量
-            </div>
-          )}
-        </div>
 
         {/* 单选已选变量 */}
         {!multiSelect && inputValue && (

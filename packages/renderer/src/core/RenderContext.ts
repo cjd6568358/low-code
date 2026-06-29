@@ -25,6 +25,7 @@ import type {
   WorkflowContext,
   EnvironmentContext,
 } from '@low-code/shared';
+import { createQueryProxy } from './QueryProxy';
 
 /** 认证服务接口 */
 export interface AuthService {
@@ -52,7 +53,7 @@ export interface DataSourceManager {
 /** 服务端变量解析器接口 */
 export interface ServerVariableResolver {
   /** 创建服务端变量代理 */
-  createProxy(): ServerVariableProxy;
+  createProxy(appId?: string): ServerVariableProxy;
 }
 
 /** 运算引擎接口 */
@@ -280,12 +281,20 @@ export function createDefaultRenderContextBuilder(): RenderContextBuilder {
       },
     },
     serverVariableResolver: {
-      createProxy() {
+      createProxy(appId?: string) {
+        const apiRequest = async (config: { url: string; method: string; data?: any }) => {
+          const response = await fetch(config.url, {
+            method: config.method,
+            headers: { 'Content-Type': 'application/json' },
+            body: config.data ? JSON.stringify(config.data) : undefined,
+          });
+          if (!response.ok) throw new Error(`Request failed: ${response.statusText}`);
+          return response.json();
+        };
         return new Proxy({} as ServerVariableProxy, {
           get(_target, prop) {
             if (typeof prop === 'string') {
-              // 返回链式查询代理
-              return createQueryProxy(prop);
+              return createQueryProxy(prop, apiRequest, appId);
             }
             return undefined;
           },
@@ -342,87 +351,4 @@ export function createDefaultRenderContextBuilder(): RenderContextBuilder {
   });
 }
 
-/**
- * 创建查询代理（用于 $table.xxx 的链式调用）
- */
-function createQueryProxy(tableName: string): any {
-  const queryChain = {
-    table: tableName,
-    filters: [] as any[],
-    selects: [] as string[],
-    sorts: [] as any[],
-    limitCount: null as number | null,
-    isfirst: false,
-    iscount: false,
-    sumField: null as string | null,
-    avgField: null as string | null,
-  };
 
-  const proxy: any = {
-    filter(predicate: (record: any) => boolean) {
-      queryChain.filters.push(predicate);
-      return proxy;
-    },
-    select(...fields: string[]) {
-      queryChain.selects.push(...fields);
-      return proxy;
-    },
-    sort(field: string, order: 'asc' | 'desc' = 'asc') {
-      queryChain.sorts.push({ field, order });
-      return proxy;
-    },
-    limit(count: number) {
-      queryChain.limitCount = count;
-      return proxy;
-    },
-    first() {
-      queryChain.isfirst = true;
-      return executeQuery(queryChain);
-    },
-    count() {
-      queryChain.iscount = true;
-      return executeQuery(queryChain);
-    },
-    sum(field: string) {
-      queryChain.sumField = field;
-      return executeQuery(queryChain);
-    },
-    avg(field: string) {
-      queryChain.avgField = field;
-      return executeQuery(queryChain);
-    },
-    execute() {
-      return executeQuery(queryChain);
-    },
-  };
-
-  return proxy;
-}
-
-/**
- * 执行查询（发送到后端）
- */
-async function executeQuery(queryChain: any): Promise<any> {
-  const response = await fetch('/api/query', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      table: queryChain.table,
-      filters: queryChain.filters.length > 0 ? queryChain.filters : undefined,
-      select: queryChain.selects.length > 0 ? queryChain.selects : undefined,
-      sort: queryChain.sorts.length > 0 ? queryChain.sorts : undefined,
-      limit: queryChain.limitCount,
-      first: queryChain.isfirst,
-      count: queryChain.iscount,
-      sum: queryChain.sumField,
-      avg: queryChain.avgField,
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Query failed: ${response.statusText}`);
-  }
-
-  const result = await response.json();
-  return result.data;
-}

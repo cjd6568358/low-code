@@ -86,7 +86,8 @@
 
 - **应用资源概览**（`/designer/app/:id`）：展示应用内所有资源（页面/数据表/流程等），点击进入对应资源编辑器
 - **页面设计器**（`/designer/page/:id`）：三栏布局，左侧基础组件面板 / 中间设计区+预览 / 右侧属性配置面板，预览支持 Web / Mobile 切换
-- **其他资源编辑器**（`/designer/card|form|table|workflow|automation|computation/:id`）：各资源专属编辑器（待实现）
+- **流程设计器**（`/designer/workflow/:id`）：基于 react-flow-builder 的可视化流程编排，支持 8 种节点类型（开始/结束/审批/条件/并行/延时/通知/自动化），BPMN JSON Schema 导入导出，支持保存/发布
+- **其他资源编辑器**（`/designer/card|form|table|automation|computation/:id`）：各资源专属编辑器（待实现）
 
 - **拖拽开发**：基于 DND 实现可视化页面搭建，支持面板→画布添加、画布内拖拽排序，拖拽时显示阴影效果和蓝色放置标准线
 - **组件库配置**：默认使用 Ant Design（66 个全量组件），设计器中不可切换。左侧组件面板展示当前组件库的全部可用组件，按 antd 官方分类组织（通用/布局/导航/数据录入/数据展示/反馈）
@@ -326,7 +327,7 @@ low-code/
 │   └── src/
 │       ├── auth/                      # 认证（AuthContext、ProtectedRoute、mockAuth）
 │       ├── components/                # 通用组件（PermissionGuard、PageRuntime）
-│       ├── designers/                 # 资源设计器（PageDesign、CardDesign、TableDesign、...）
+│       ├── designers/                 # 资源设计器（PageDesign、TableDesign、WorkflowDesign、AutomationDesign）
 │       ├── layouts/                   # 布局（MainLayout 侧边栏+顶栏）
 │       ├── pages/                     # 页面（LoginPage、WorkspacePage、AppCenterPage、WorkflowCenterPage、ConfigCenterPage、AppDesignPage）
 │       └── styles/                    # 全局样式
@@ -433,3 +434,6 @@ yarn test
 ## 📄 License
 
 MIT
+sk-c16jjwa3jyk2y5kj1srt01hh62xhamqgyxolf2oij3ktmukx
+
+sk-cgrh1lxmczoqqa0j9yaei6rf58ofc7pqoahw5hbyerj8r4s5

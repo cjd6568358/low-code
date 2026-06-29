@@ -8,6 +8,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@low-code/shared": "*"
+    "@low-code/shared": "workspace:*"
   }
 }

@@ -12,6 +12,7 @@ export default defineConfig({
       '@low-code/renderer': path.resolve(__dirname, '../packages/renderer/src'),
       '@low-code/auto-rendering': path.resolve(__dirname, '../packages/auto-rendering/src'),
       '@low-code/data': path.resolve(__dirname, '../packages/data/src'),
+      '@low-code/workflow-bpmn': path.resolve(__dirname, '../packages/workflow-bpmn/src'),
     },
   },
   server: {

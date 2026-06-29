@@ -12,7 +12,8 @@
       "@low-code/computation": ["../packages/computation/src"],
       "@low-code/renderer": ["../packages/renderer/src"],
       "@low-code/auto-rendering": ["../packages/auto-rendering/src"],
-      "@low-code/data": ["../packages/data/src"]
+      "@low-code/data": ["../packages/data/src"],
+      "@low-code/workflow-bpmn": ["../packages/workflow-bpmn/src"]
     }
   },
   "include": ["src"],

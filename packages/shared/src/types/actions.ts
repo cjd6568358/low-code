@@ -31,6 +31,10 @@ export interface FormRegistryLike {
   setFieldValue?(fieldName: string, value: any, formId?: string): void;
   /** 执行表单重置（调用 Form 组件注册的重置处理器） */
   resetForm?(formId: string, values: Record<string, any>): void;
+  /** 校验表单（调用 antd Form.validateFields） */
+  validateForm?(formId?: string, fields?: string[]): Promise<{ valid: boolean; errors: Record<string, string[]> }>;
+  /** 清除表单校验状态（调用 antd Form.setFields） */
+  clearValidate?(formId?: string, fields?: string[]): void;
 }
 
 /** 动作执行上下文 */
@@ -48,6 +52,10 @@ export interface ActionContext {
   setComponentProp?: (componentId: string, propName: string, value: any) => void;
   navigate?: (url: string, params?: Record<string, string>) => void;
   showMessage?: (type: string, content: string, duration?: number) => void;
+  /** 显示全局加载状态 */
+  showLoading?: (message?: string) => void;
+  /** 隐藏全局加载状态 */
+  hideLoading?: () => void;
   /** 打开弹窗（加载页面/卡片资源） */
   showModal?: (resourceType: string, resourceId: string, data?: any) => Promise<any>;
   /** 关闭所有弹窗 */

@@ -20,9 +20,11 @@ export {
   softDeleteRecord,
   restoreRecord,
   queryRecords,
+  queryRecordsAdvanced,
   insertRecord,
   updateRecord,
 } from './schema-builder';
+export type { AdvancedQueryOptions } from './schema-builder';
 
 // 类型
 export type {

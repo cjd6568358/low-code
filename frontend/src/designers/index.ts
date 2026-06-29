@@ -9,3 +9,4 @@
 
 export { default as PageDesign } from './PageDesign';
 export { default as TableDesign } from './TableDesign';
+export { default as WorkflowDesign } from './WorkflowDesign';

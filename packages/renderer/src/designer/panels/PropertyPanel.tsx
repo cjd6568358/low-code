@@ -17,6 +17,20 @@ import type { JSONSchema7 } from '@low-code/shared';
 // 注册 antd 控件到自动渲染引擎
 registerAntdControls(controlRegistry);
 
+/**
+ * 提取变量绑定值
+ *
+ * 只有绑定对象 { type: 'variable', value: '...' } 才提取 value，
+ * 普通常量（string/number/boolean）返回空字符串，避免被当作变量路径。
+ */
+function extractVariableValue(val: unknown): string {
+  if (val && typeof val === 'object' && 'type' in val && 'value' in val) {
+    const binding = val as { type: string; value: string };
+    if (binding.type === 'variable') return binding.value;
+  }
+  return '';
+}
+
 /** 属性面板 — 右侧（严格按文档实现） */
 export function PropertyPanel({ registry }: { registry: any }) {
   const { state, dispatch, appId, tenantId } = useDesigner();
@@ -305,13 +319,14 @@ export function PropertyPanel({ registry }: { registry: any }) {
             {bindingTarget && bindingMode === 'variable' && (
               <VariableTreeSelector
                 visible={true}
-                value={typeof selectedNode.props[bindingTarget] === 'object' ? selectedNode.props[bindingTarget]?.value : selectedNode.props[bindingTarget] || ''}
+                value={extractVariableValue(selectedNode.props[bindingTarget])}
                 onChange={(val) => handlePropsChange({ [bindingTarget]: val })}
                 onClear={() => handlePropsChange({ [bindingTarget]: undefined })}
                 onClose={() => setBindingTarget(null)}
                 pageComponents={pageComponents}
                 pageDataSources={pageDataSources}
                 expectedType={expectedFieldType}
+                leafOnly
               />
             )}
             {bindingTarget && bindingMode === 'expression' && (
@@ -367,13 +382,14 @@ export function PropertyPanel({ registry }: { registry: any }) {
             {bindingTarget && bindingMode === 'variable' && (
               <VariableTreeSelector
                 visible={true}
-                value={typeof selectedNode.props[bindingTarget] === 'object' ? selectedNode.props[bindingTarget]?.value : selectedNode.props[bindingTarget] || ''}
+                value={extractVariableValue(selectedNode.props[bindingTarget])}
                 onChange={(val) => handlePropsChange({ [bindingTarget]: val })}
                 onClear={() => handlePropsChange({ [bindingTarget]: undefined })}
                 onClose={() => setBindingTarget(null)}
                 pageComponents={pageComponents}
                 pageDataSources={pageDataSources}
                 expectedType={expectedFieldType}
+                leafOnly
               />
             )}
             {bindingTarget && bindingMode === 'expression' && (
@@ -432,13 +448,14 @@ export function PropertyPanel({ registry }: { registry: any }) {
               {bindingTarget && bindingMode === 'variable' && (
                 <VariableTreeSelector
                   visible={true}
-                  value={typeof selectedNode.props[bindingTarget] === 'object' ? selectedNode.props[bindingTarget]?.value : selectedNode.props[bindingTarget] || ''}
+                  value={extractVariableValue(selectedNode.props[bindingTarget])}
                   onChange={(val) => handlePropsChange({ [bindingTarget]: val })}
                   onClear={() => handlePropsChange({ [bindingTarget]: undefined })}
                   onClose={() => setBindingTarget(null)}
                   pageComponents={pageComponents}
                   pageDataSources={pageDataSources}
                   expectedType={expectedFieldType}
+                  leafOnly
                 />
               )}
               {bindingTarget && bindingMode === 'expression' && (
@@ -734,7 +751,7 @@ function PageSettingsPanel({
         {bindingTarget && bindingMode === 'variable' && (
           <VariableTreeSelector
             visible={true}
-            value={typeof (schema.watermark as any)?.[bindingTarget] === 'object' ? (schema.watermark as any)?.[bindingTarget]?.value : (schema.watermark as any)?.[bindingTarget] || ''}
+            value={extractVariableValue((schema.watermark as any)?.[bindingTarget])}
             onChange={(val) => {
               handleWatermarkChange({ [`watermark.${bindingTarget}`]: val });
               setBindingTarget(null);
@@ -748,6 +765,7 @@ function PageSettingsPanel({
             onClose={() => setBindingTarget(null)}
             pageComponents={pageComponents}
             pageDataSources={pageDataSources}
+            leafOnly
           />
         )}
         {bindingTarget && bindingMode === 'expression' && (

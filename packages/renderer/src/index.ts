@@ -22,7 +22,7 @@ export { DataSourceManager } from './core/DataSourceManager';
 export { DependencyTracker } from './core/DependencyTracker';
 export { ComponentRefreshManager } from './core/ComponentRefreshManager';
 export { UnifiedDependencyGraph } from './core/UnifiedDependencyGraph';
-export { ServerVariableResolver } from './core/ServerVariableResolver';
+export { createQueryProxy, createTableProxy, parseFilterToCondition } from './core/QueryProxy';
 export { ReactiveEnvContext } from './core/ReactiveEnvContext';
 export { useBindings } from './hooks/useBindings';
 export { DependencyGraphImpl, dependencyGraph as expressionDependencyGraph, extractDependencies } from './core/DependencyGraph';
@@ -42,7 +42,7 @@ export type {
   PlatformAdapter as RenderPlatformAdapter,
   RouterService,
   DataSourceManager as RenderDataSourceManager,
-  ServerVariableResolver as RenderServerVariableResolver,
+  ServerVariableResolver as RenderServerVariableResolver, // 接口（非类），定义在 RenderContext.ts
   ComputationEngineService,
   FetchService,
   WorkflowService,
@@ -68,6 +68,8 @@ export { MonacoEditor } from './components/MonacoEditor';
 export type { MonacoEditorProps, CompletionItem } from './components/MonacoEditor';
 export { SelectableTree } from './components/SelectableTree';
 export type { SelectableTreeProps, TreeNodeData, SelectedKeys, SelectedKeysChange } from './components/SelectableTree';
+export { VariableTree } from './components/VariableTree';
+export type { VariableTreeProps, VariableTreeMultiValue } from './components/VariableTree';
 export { ResolvedComponent } from './core/ResolvedComponent';
 export type { ResolvedComponentProps } from './core/ResolvedComponent';
 
@@ -101,6 +103,10 @@ export type { ExpressionEditorProps } from './components/ExpressionEditor';
 export { TypeMismatchModal } from './components/TypeMismatchModal';
 export { StyleEditor } from './designer/panels/StyleEditor';
 export { DataSourcePanel } from './designer/panels/DataSourcePanel';
+
+// Workflow（流程设计器）
+export { WorkflowDesigner } from './workflow/designer/WorkflowDesigner';
+export type { WorkflowDesignerProps } from './workflow/designer/WorkflowDesigner';
 
 // Re-export shared types for convenience
 export type {
@@ -141,7 +147,4 @@ export type {
   DependencyEdge,
   ChangeImpactAnalysis,
 } from './core/UnifiedDependencyGraph';
-export type {
-  ServerVariableParseResult,
-  ServerVariableUIConfig,
-} from './core/ServerVariableResolver';
+

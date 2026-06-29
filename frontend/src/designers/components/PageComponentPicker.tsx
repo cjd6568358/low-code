@@ -22,8 +22,8 @@ import {
   type FieldSourceMapping,
   type TableFieldType,
 } from '@low-code/shared';
-import { SelectableTree } from '@low-code/renderer';
-import type { TreeNodeData } from '@low-code/renderer';
+import { VariableTree } from '@low-code/renderer';
+import type { VariableTreeNode } from '@low-code/renderer';
 
 const { Text } = Typography;
 
@@ -140,11 +140,11 @@ function extractComponentProps(page: PageSchema): ComponentPropEntry[] {
 }
 
 /**
- * 构建组件属性树（TreeNodeData）
+ * 构建组件属性树（VariableTreeNode）
  *
  * 结构：组件实例 → 属性叶子（无类型分组）
  */
-function buildComponentPropTree(entries: ComponentPropEntry[]): TreeNodeData[] {
+function buildComponentPropTree(entries: ComponentPropEntry[]): VariableTreeNode[] {
   // 按组件 ID 分组
   const compMap = new Map<string, ComponentPropEntry[]>();
   for (const entry of entries) {
@@ -152,7 +152,7 @@ function buildComponentPropTree(entries: ComponentPropEntry[]): TreeNodeData[] {
     compMap.get(entry.componentId)!.push(entry);
   }
 
-  const tree: TreeNodeData[] = [];
+  const tree: VariableTreeNode[] = [];
   for (const [compId, compEntries] of compMap) {
     const first = compEntries[0];
     const requiredTag = first.componentRequired ? ' · 必填' : '';
@@ -164,6 +164,7 @@ function buildComponentPropTree(entries: ComponentPropEntry[]): TreeNodeData[] {
         key: entry.key,
         label: entry.propName,
         description: `${entry.propType} — ${entry.propDescription}`,
+        children: [],
       })),
     });
   }
@@ -391,14 +392,12 @@ export function PageComponentPicker({
         <div style={panelStyle}>
           {/* 左侧：组件属性树 */}
           <div style={leftPanelStyle}>
-            <SelectableTree
+            <VariableTree
               data={componentTree}
+              multiSelect
               selectedKeys={selectedKeys}
-              onChange={setSelectedKeys}
-              searchable
-              searchPlaceholder="搜索组件或属性..."
-              showSelectAll
-              countText={(sel, total) => `已选 ${sel} / ${total} 个属性`}
+              onSelectionChange={setSelectedKeys}
+              leafOnly
             />
           </div>
 

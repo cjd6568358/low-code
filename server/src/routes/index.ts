@@ -14,6 +14,7 @@ import { createWorkflowsRouter } from './workflows.js';
 import { createWorkflowInstancesRouter } from './workflow-instances.js';
 import { createWorkflowTasksRouter } from './workflow-tasks.js';
 import { createAutomationsRouter } from './automations.js';
+import { createQueryRouter } from './query.js';
 
 // Register all routes
 export function registerRoutes(app: Koa): void {
@@ -51,6 +52,11 @@ export function registerRoutes(app: Koa): void {
   const automationsRouter = createAutomationsRouter();
   app.use(automationsRouter.routes());
   app.use(automationsRouter.allowedMethods());
+
+  // Data query routes
+  const queryRouter = createQueryRouter(manager);
+  app.use(queryRouter.routes());
+  app.use(queryRouter.allowedMethods());
 
   // Health check
   const healthRouter = createHealthRouter();

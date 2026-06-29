@@ -173,6 +173,66 @@ export class FormRegistry {
   }
 
   /**
+   * 校验表单
+   *
+   * 调用 antd Form 的 validateFields 方法，返回校验结果。
+   *
+   * @param formId - 指定表单 ID，不传则使用活跃表单
+   * @param fields - 指定校验的字段列表，不传则校验全部
+   * @returns 校验结果，包含 valid 和 errors
+   */
+  async validateForm(formId?: string, fields?: string[]): Promise<{ valid: boolean; errors: Record<string, string[]> }> {
+    const targetFormId = formId ?? this.getActiveFormId();
+    if (!targetFormId) return { valid: true, errors: {} };
+
+    const formInstance = this.antdForms.get(targetFormId);
+    if (!formInstance) return { valid: true, errors: {} };
+
+    try {
+      await formInstance.validateFields(fields as any);
+      return { valid: true, errors: {} };
+    } catch (errorInfo: any) {
+      // antd validateFields reject 时返回 { errorFields: [{ name, errors }] }
+      const errors: Record<string, string[]> = {};
+      if (errorInfo?.errorFields) {
+        for (const field of errorInfo.errorFields) {
+          const fieldName = Array.isArray(field.name) ? field.name.join('.') : String(field.name);
+          errors[fieldName] = field.errors || [];
+        }
+      }
+      return { valid: false, errors };
+    }
+  }
+
+  /**
+   * 清除表单校验状态
+   *
+   * 调用 antd Form 的 setFields 方法清除指定字段的校验错误。
+   *
+   * @param formId - 指定表单 ID，不传则使用活跃表单
+   * @param fields - 指定清除的字段列表，不传则清除全部
+   */
+  clearValidate(formId?: string, fields?: string[]): void {
+    const targetFormId = formId ?? this.getActiveFormId();
+    if (!targetFormId) return;
+
+    const formInstance = this.antdForms.get(targetFormId);
+    if (!formInstance) return;
+
+    if (fields && fields.length > 0) {
+      // 清除指定字段的校验状态
+      const fieldsData = fields.map((name) => ({ name, errors: [] }));
+      formInstance.setFields(fieldsData);
+    } else {
+      // 清除全部字段的校验状态
+      // 使用 setFields 清除所有字段的 errors
+      const allValues = formInstance.getFieldsValue();
+      const fieldsData = Object.keys(allValues).map((name) => ({ name, errors: [] }));
+      formInstance.setFields(fieldsData);
+    }
+  }
+
+  /**
    * 清空所有注册
    */
   clear(): void {

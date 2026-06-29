@@ -190,6 +190,49 @@ CREATE TABLE orders (
 | CASCADE | 级联删除引用记录 | 父记录删除时子记录也无意义（如评论） |
 | SET NULL | 外键设为 null | 子记录保留但解除关联 |
 
+## 数据查询 API
+
+### 查询路由
+
+```
+POST /api/apps/:appId/query
+```
+
+接受 `ServerVariableQuery` 结构体，返回查询结果。
+
+**请求体结构**：
+```typescript
+{
+  table: string;          // 表 ID
+  select?: string[];      // 选择字段（为空时 SELECT *）
+  where?: Record<string, any>;  // MongoDB 风格过滤条件
+  orderBy?: Record<string, 'asc' | 'desc'>;  // 排序
+  limit?: number;         // 限制数量
+  offset?: number;        // 偏移量
+  aggregate?: { type: 'count' | 'sum' | 'avg' | 'min' | 'max'; field?: string };
+  memoryFilter?: string;  // JS 内存过滤函数字符串（降级方案）
+}
+```
+
+**where 支持的操作符**：
+| 操作符 | SQL 等价 | 示例 |
+|--------|---------|------|
+| `{ field: value }` | `field = ?` | `{ status: 'active' }` |
+| `$ne` | `!=` | `{ status: { $ne: 'deleted' } }` |
+| `$gt` | `>` | `{ age: { $gt: 18 } }` |
+| `$lt` | `<` | `{ age: { $lt: 60 } }` |
+| `$gte` | `>=` | `{ score: { $gte: 60 } }` |
+| `$lte` | `<=` | `{ score: { $lte: 100 } }` |
+| `$like` | `LIKE` | `{ name: { $like: '%张%' } }` |
+| `$in` | `IN` | `{ role: { $in: ['admin', 'user'] } }` |
+
+### 核心函数
+
+`queryRecordsAdvanced`（`packages/data/src/schema-builder.ts`）：
+- 支持 SELECT 投影、WHERE 过滤、ORDER BY 排序、LIMIT/OFFSET 分页、聚合函数
+- 列名白名单校验（防止 SQL 注入）
+- 内存过滤降级（复杂 JS 函数 → SQL 查全表 + JS 过滤，上限 10000 条）
+
 ## 未来扩展路径
 
 | 阶段 | 存储方案 | 适用场景 |

@@ -28,8 +28,8 @@ import {
   PlusOutlined,
   SettingOutlined,
 } from '@ant-design/icons';
-import { PageDesign, TableDesign } from '../designers';
-import { PageComponentPicker, type PageComponentPickResult } from '../designers/PageComponentPicker';
+import { PageDesign, TableDesign, WorkflowDesign } from '../designers';
+import { PageComponentPicker, type PageComponentPickResult } from '../designers/components/PageComponentPicker';
 import { ThemeConfigPanel, type ThemeConfig } from '../components/ThemeConfigPanel';
 
 const { Sider, Content } = Layout;
@@ -84,6 +84,11 @@ function ResourceDesigner({ tenantId, appId, resourceType, resourceId, onSaved }
   // 数据表类型：使用 TableDesign 组件
   if (resourceType === 'tables') {
     return <TableDesign appId={appId} tableId={resourceId} onSaved={onSaved} />;
+  }
+
+  // 流程类型：使用 WorkflowDesign 组件
+  if (resourceType === 'workflows') {
+    return <WorkflowDesign appId={appId} workflowId={resourceId} onSaved={onSaved} />;
   }
 
   // 其他类型：占位

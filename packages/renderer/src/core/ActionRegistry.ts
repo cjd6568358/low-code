@@ -51,30 +51,6 @@ const navigateExecutor: ActionExecutor = {
   },
 };
 
-/** 返回上一页 */
-const goBackExecutor: ActionExecutor = {
-  async execute() {
-    window.history.back();
-  },
-};
-
-/** 刷新页面 */
-const refreshExecutor: ActionExecutor = {
-  async execute() {
-    window.location.reload();
-  },
-};
-
-/** 设置单个字段值 */
-const setValueExecutor: ActionExecutor = {
-  async execute(params, context) {
-    const { target, value } = params;
-    if (context.setFormValue && target) {
-      context.setFormValue(target, value);
-    }
-  },
-};
-
 /** 批量设值 */
 const setValuesExecutor: ActionExecutor = {
   async execute(params, context) {
@@ -129,19 +105,6 @@ function resolveVariablePath(path: string, renderContext: Record<string, any>): 
   return current;
 }
 
-/** 重置值 */
-const resetValueExecutor: ActionExecutor = {
-  async execute(params, context) {
-    const { target, formId } = params;
-    if (context.setFormValue && target) {
-      const activeId = formId ?? context.formRegistry?.getActiveFormId();
-      const manager = activeId ? context.formRegistry?.get(activeId) : undefined;
-      const initial = manager?.getInitialValues()?.[target];
-      context.setFormValue(target, initial ?? undefined);
-    }
-  },
-};
-
 /** 重置表单 */
 const resetFormExecutor: ActionExecutor = {
   async execute(params, context) {
@@ -150,7 +113,7 @@ const resetFormExecutor: ActionExecutor = {
     if (!activeId) return;
     // 重置处理器内部使用 initialValuesRef（闭包捕获的初始值快照），
     // 通过 FormRegistry 调用 Form 组件注册的重置处理器
-    context.formRegistry?.resetForm(activeId, {});
+    context.formRegistry?.resetForm?.(activeId, {});
   },
 };
 
@@ -158,9 +121,12 @@ const resetFormExecutor: ActionExecutor = {
 const validateFormExecutor: ActionExecutor = {
   async execute(params, context) {
     const { formId, fields } = params;
-    // 实际校验逻辑需要对接 Form 组件的 validate 方法
-    // 目前返回成功，后续通过 formRegistry 扩展实现
-    return { valid: true, errors: {} };
+    if (!context.formRegistry?.validateForm) {
+      console.warn('[validateForm] formRegistry.validateForm not available');
+      return { valid: true, errors: {} };
+    }
+    const activeId = formId ?? context.formRegistry.getActiveFormId();
+    return context.formRegistry.validateForm(activeId, fields);
   },
 };
 
@@ -168,8 +134,12 @@ const validateFormExecutor: ActionExecutor = {
 const clearValidateExecutor: ActionExecutor = {
   async execute(params, context) {
     const { formId, fields } = params;
-    // 实际清除逻辑需要对接 Form 组件的 clearValidate 方法
-    // 目前为空操作，后续通过 formRegistry 扩展实现
+    if (!context.formRegistry?.clearValidate) {
+      console.warn('[clearValidate] formRegistry.clearValidate not available');
+      return;
+    }
+    const activeId = formId ?? context.formRegistry.getActiveFormId();
+    context.formRegistry.clearValidate(activeId, fields);
   },
 };
 
@@ -268,15 +238,20 @@ const refreshComponentExecutor: ActionExecutor = {
 
 /** 显示加载 */
 const showLoadingExecutor: ActionExecutor = {
-  async execute(_params, _context) {
-    // 占位实现
+  async execute(params, context) {
+    const { message } = params;
+    if (context.showLoading) {
+      context.showLoading(message);
+    }
   },
 };
 
 /** 隐藏加载 */
 const hideLoadingExecutor: ActionExecutor = {
-  async execute(_params, _context) {
-    // 占位实现
+  async execute(_params, context) {
+    if (context.hideLoading) {
+      context.hideLoading();
+    }
   },
 };
 
@@ -307,7 +282,7 @@ const triggerWorkflowExecutor: ActionExecutor = {
   async execute(params, context) {
     const { workflowId, inputData } = params;
 
-    // 获取 appId：优先从 params，其次从 context
+    // 获取 appId：优先从 params，其次从 renderContext
     let appId = params.appId;
     let actualWorkflowId = workflowId;
 
@@ -318,9 +293,10 @@ const triggerWorkflowExecutor: ActionExecutor = {
       actualWorkflowId = refWfId;
     }
 
-    // 从 context 中获取 appId（如果 params 中没有）
-    if (!appId && context.$app) {
-      appId = (context.$app as any).id || (context.$app as any).appId;
+    // 从 renderContext 中获取 appId（如果 params 中没有）
+    if (!appId) {
+      const route = context.renderContext?.$route;
+      appId = route?.params?.appId;
     }
 
     if (!appId) {
@@ -329,14 +305,15 @@ const triggerWorkflowExecutor: ActionExecutor = {
     }
 
     if (context.apiRequest) {
+      const user = context.renderContext?.$user;
       return context.apiRequest({
         url: `/api/workflows/${actualWorkflowId}/trigger`,
         method: 'POST',
         params: { appId },
         data: {
           ...inputData,
-          startedBy: context.$user?.id,
-          startedByName: context.$user?.name,
+          startedBy: user?.id,
+          startedByName: user?.name,
         },
       });
     }
@@ -384,14 +361,10 @@ export function createDefaultActionRegistry(): ActionRegistryImpl {
 
   // Navigation
   registry.register('navigate', navigateExecutor);
-  registry.register('openPage', navigateExecutor);
-  registry.register('goBack', goBackExecutor);
-  registry.register('refresh', refreshExecutor);
+  registry.register('redirect', navigateExecutor);
 
   // Data
-  registry.register('setValue', setValueExecutor);
   registry.register('setValues', setValuesExecutor);
-  registry.register('resetValue', resetValueExecutor);
   registry.register('resetForm', resetFormExecutor);
   registry.register('submit', submitExecutor);
   registry.register('apiCall', apiCallExecutor);

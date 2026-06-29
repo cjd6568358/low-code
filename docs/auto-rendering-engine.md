@@ -272,7 +272,7 @@ interface ControlProps {
 | 表单引擎 | `SubFormConfigurator` | 子表单配置器 |
 | 权限引擎 | `PermissionMatrix` | 权限矩阵编辑器 |
 | 权限引擎 | `DataScopeSelector` | 数据范围选择器 |
-| 内建 | `VariableTreeSelector` | 组件变量树选择器（自动渲染引擎内建，无需注册） |
+| 内建 | `VariableTreeSelector` | 变量树选择弹窗（内部使用 `VariableTree`，自动渲染引擎内建，无需注册） |
 | 内建 | `ExpressionEditor` | 表达式编辑器（自动渲染引擎内建，无需注册） |
 | 内建 | `CodeEditor` | 代码编辑器 Monaco（自动渲染引擎内建，无需注册） |
 

@@ -289,7 +289,7 @@ class EnvironmentRegistryImpl {
       return {
         name: id,
         type: 'ComponentState',
-        description: `${info.label || info.type} (${id})`,
+        description: `${info.label || info.type}`,
         properties: subProps,
       };
     });

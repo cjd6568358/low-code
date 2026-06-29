@@ -90,11 +90,9 @@ export interface ComponentNode {
 /** 组件级数据源配置 */
 export interface ComponentDataSource {
   /** 数据源类型 */
-  type: 'api' | 'server-variable';
+  type: 'api';
   /** API 类型配置 */
   api?: ComponentApiConfig;
-  /** 服务端变量表达式（如 $table.user.filter(...)） */
-  serverVariable?: string;
   /** 目标属性（数据源结果注入到哪个 props） */
   targetProp: string;
   /** 是否自动加载（默认 true） */

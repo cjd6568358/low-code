@@ -232,8 +232,6 @@ export class ComponentRefreshManager {
       switch (dataSource.type) {
         case 'api':
           return await this.loadApiDataSource(dataSource, context);
-        case 'server-variable':
-          return await this.loadServerVariableDataSource(dataSource, context);
         default:
           return { success: false, error: `Unknown data source type: ${dataSource.type}` };
       }
@@ -276,80 +274,6 @@ export class ComponentRefreshManager {
     const data = dataPath ? this.extractDataByPath(response, dataPath) : response;
 
     return { success: true, data };
-  }
-
-  /**
-   * 加载服务端变量类型的数据源
-   */
-  private async loadServerVariableDataSource(
-    dataSource: ComponentDataSource,
-    context: RenderContext,
-  ): Promise<{ success: boolean; data?: any; error?: string }> {
-    if (!dataSource.serverVariable) {
-      return { success: false, error: 'Server variable expression is required' };
-    }
-
-    // 解析服务端变量表达式，转换为 API 请求
-    const query = this.parseServerVariable(dataSource.serverVariable, context);
-
-    // 发送查询请求
-    const response = await this.callbacks.apiRequest({
-      url: '/api/query',
-      method: 'POST',
-      data: query,
-    });
-
-    return { success: true, data: response };
-  }
-
-  /**
-   * 解析服务端变量表达式
-   * 支持语法：$table.user.filter(record=>record.id==$user.id).name
-   */
-  private parseServerVariable(expression: string, context: RenderContext): any {
-    // 简单实现：解析 $table.xxx 语法
-    // 实际应该使用更完善的解析器
-    const match = expression.match(/^\$table\.(\w+)(.*)$/);
-    if (!match) {
-      throw new Error(`Invalid server variable expression: ${expression}`);
-    }
-
-    const tableName = match[1];
-    const restExpression = match[2];
-
-    // 构建查询对象
-    const query: any = {
-      table: tableName,
-      select: [],
-      where: {},
-    };
-
-    // 解析链式调用
-    const filterMatch = restExpression.match(/\.filter\(record=>record\.(\w+)==([^)]+)\)/);
-    if (filterMatch) {
-      const field = filterMatch[1];
-      const valueExpr = filterMatch[2];
-
-      // 解析值表达式（如 $user.id）
-      const value = this.resolveTemplate(valueExpr.trim(), context);
-      query.where[field] = value;
-    }
-
-    // 解析 select 字段
-    const selectMatch = restExpression.match(/\.select\(([^)]+)\)/);
-    if (selectMatch) {
-      query.select = selectMatch[1]
-        .split(',')
-        .map((s: string) => s.trim().replace(/['"]/g, ''));
-    }
-
-    // 解析字段选择（如 .name）
-    const fieldMatch = restExpression.match(/\.(\w+)$/);
-    if (fieldMatch && !['filter', 'select', 'sort', 'limit'].includes(fieldMatch[1])) {
-      query.select = [fieldMatch[1]];
-    }
-
-    return query;
   }
 
   /**
