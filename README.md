@@ -436,6 +436,3 @@ yarn test
 ## 📄 License
 
 MIT
-sk-c16jjwa3jyk2y5kj1srt01hh62xhamqgyxolf2oij3ktmukx
-
-sk-cgrh1lxmczoqqa0j9yaei6rf58ofc7pqoahw5hbyerj8r4s5
