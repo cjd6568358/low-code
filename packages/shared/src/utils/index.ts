@@ -1,1 +1,2 @@
-export { get, set, isValidPath } from './path';
+export { get, set, isValidPath } from './path.js';
+export { generateHexId, generateNodeId } from './id.js';

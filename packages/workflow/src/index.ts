@@ -1,7 +1,12 @@
 /**
  * @low-code/workflow
- * 流程引擎核心包
+ * 流程引擎核心包（含 BPMN Schema 定义）
  */
+
+// ===== BPMN Schema 层（原 @low-code/workflow-bpmn）=====
+export * from './schema';
+
+// ===== 运行时引擎层 =====
 
 // 引擎主类
 export { WorkflowEngine, WorkflowError, WorkflowErrorCode } from './engine/WorkflowEngine';

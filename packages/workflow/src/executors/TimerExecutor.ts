@@ -2,7 +2,7 @@
  * 延时节点执行器
  */
 
-import type { FlowNode } from '@low-code/workflow-bpmn';
+import type { FlowNode } from '../schema';
 import { NodeExecutorBase } from './NodeExecutorBase';
 import type { ExecutionContext, ExecutionResult } from '../types/execution';
 

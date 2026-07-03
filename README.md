@@ -348,8 +348,7 @@ low-code/
 │   ├── auto-rendering/                # 自动渲染引擎
 │   ├── data/                          # 数据引擎（SQLite koffi FFI）
 │   ├── build-tools/                   # 构建工具（TS → JSON Schema 编译器）
-│   ├── workflow-bpmn/                 # BPMN 2.0 类型定义、校验器、序列化器
-│   └── workflow/                      # 流程引擎核心（WorkflowEngine、StateMachine、SnapshotEngine）
+│   └── workflow/                      # 流程引擎核心（含 BPMN Schema 定义、WorkflowEngine、StateMachine、SnapshotEngine）
 │
 ├── tenants/                           # 租户数据（每租户独立目录）
 │   └── tenant_{uuid}/                 # 目录名带前缀，uuid 为 8 位 hex

@@ -2,8 +2,8 @@
  * 结束事件执行器
  */
 
-import type { EndEvent } from '@low-code/workflow-bpmn';
-import { isEndEvent } from '@low-code/workflow-bpmn';
+import type { EndEvent } from '../schema';
+import { isEndEvent } from '../schema';
 import { NodeExecutorBase } from './NodeExecutorBase';
 import type { ExecutionContext, ExecutionResult } from '../types/execution';
 

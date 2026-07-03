@@ -13,7 +13,7 @@
       "@low-code/renderer": ["../packages/renderer/src"],
       "@low-code/auto-rendering": ["../packages/auto-rendering/src"],
       "@low-code/data": ["../packages/data/src"],
-      "@low-code/workflow-bpmn": ["../packages/workflow-bpmn/src"]
+      "@low-code/workflow": ["../packages/workflow/src"]
     }
   },
   "include": ["src"],

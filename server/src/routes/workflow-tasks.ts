@@ -7,16 +7,10 @@
 
 import fs from 'fs';
 import path from 'path';
-import crypto from 'crypto';
 import KoaRouter from '@koa/router';
 import { TENANTS_DIR } from '../config/index.js';
 import { WorkflowService } from '../services/WorkflowService.js';
 import { WorkflowError } from '@low-code/workflow';
-
-/** 生成 8 位 hex UUID */
-function generateUuid(): string {
-  return crypto.randomBytes(4).toString('hex');
-}
 
 /** 获取第一个活跃租户 ID */
 function getFirstTenantId(): string | null {

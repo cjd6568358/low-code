@@ -5,8 +5,8 @@
  * 提供角色查询和继承链解析能力。
  */
 
-import type { Role, BuiltinRoleId } from '../types/permission';
-import { BUILTIN_ROLES, DEPARTMENT_DEFAULT_PERMISSIONS } from '../types/permission';
+import type { Role, BuiltinRoleId } from '../types/permission.js';
+import { BUILTIN_ROLES, DEPARTMENT_DEFAULT_PERMISSIONS } from '../types/permission.js';
 
 /** 角色注册表接口 */
 export interface RoleRegistry {

@@ -16,9 +16,9 @@ import type {
   MenuPermissionConfig,
   ButtonPermissionConfig,
   BuiltinRoleId,
-} from '../types/permission';
-import { DEPARTMENT_DEFAULT_PERMISSIONS } from '../types/permission';
-import type { RoleRegistry } from './RoleRegistry';
+} from '../types/permission.js';
+import { DEPARTMENT_DEFAULT_PERMISSIONS } from '../types/permission.js';
+import type { RoleRegistry } from './RoleRegistry.js';
 
 // ─── 有效权限（合并后的扁平权限列表） ──────────────────
 

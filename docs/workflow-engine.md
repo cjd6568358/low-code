@@ -609,7 +609,7 @@ const diff = await snapshotService.diff(snapshotId1, snapshotId2);
 
 | 模块 | 包 | 状态 | 说明 |
 |------|-----|------|------|
-| BPMN Schema | `@low-code/workflow-bpmn` | ✅ 完成 | BPMN 2.0 类型定义、校验器、序列化器 |
+| BPMN Schema | `@low-code/workflow` (schema/) | ✅ 完成 | BPMN 2.0 类型定义、校验器、序列化器 |
 | 流程引擎 | `@low-code/workflow` | ✅ 完成 | WorkflowEngine、StateMachine、SnapshotEngine |
 | 节点执行器 | `@low-code/workflow` | ✅ 完成 | Start/End/UserTask/Gateway/Timer/Service |
 | 服务端 API | `server/src/routes` | ✅ 完成 | 流程定义、实例、任务 CRUD |
@@ -619,15 +619,27 @@ const diff = await snapshotService.diff(snapshotId1, snapshotId2);
 
 ### API 端点
 
+**基本 CRUD（统一走 apps 路由）：**
+
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/workflows?appId=xxx` | 获取流程定义列表 |
-| GET | `/api/workflows/:id?appId=xxx` | 获取单个流程定义 |
-| POST | `/api/workflows` | 创建流程定义 |
-| PUT | `/api/workflows/:id?appId=xxx` | 更新流程定义 |
-| DELETE | `/api/workflows/:id?appId=xxx` | 删除流程定义 |
+| GET | `/api/apps/:appId/workflows` | 获取流程定义列表 |
+| GET | `/api/apps/:appId/workflows/:id` | 获取单个流程定义 |
+| POST | `/api/apps/:appId/workflows` | 创建流程定义 |
+| PUT | `/api/apps/:appId/workflows/:id` | 更新流程定义 |
+| DELETE | `/api/apps/:appId/workflows/:id` | 删除流程定义 |
+
+**流程特有操作：**
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
 | POST | `/api/workflows/:id/publish?appId=xxx` | 发布流程定义 |
 | POST | `/api/workflows/:id/trigger?appId=xxx` | 触发流程实例 |
+
+**流程实例：**
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
 | GET | `/api/workflow-instances?appId=xxx` | 获取实例列表 |
 | GET | `/api/workflow-instances/:id?appId=xxx` | 获取单个实例 |
 | POST | `/api/workflow-instances/:id/terminate?appId=xxx` | 终止流程 |

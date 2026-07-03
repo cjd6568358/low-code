@@ -10,7 +10,7 @@ import type {
   ProcessInstanceStatus,
   TaskStatus,
   SnapshotType,
-} from '@low-code/workflow-bpmn';
+} from '../schema';
 
 /** 引擎配置 */
 export interface WorkflowEngineConfig {

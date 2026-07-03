@@ -9,7 +9,7 @@ import type {
   ProcessDefinition,
   ApprovalTask,
   WorkflowSnapshot,
-} from '@low-code/workflow-bpmn';
+} from '../schema';
 import type { InstanceRecord, TaskRecord, SnapshotRecord, CheckpointRecord } from './engine';
 
 /** 执行上下文 */

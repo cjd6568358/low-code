@@ -9,11 +9,12 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import { DatabaseManager } from '../src/database';
+import { generateHexId, RESOURCE_TYPES } from '@low-code/shared';
 import type { SqliteDb } from '../src/types';
 
 /**
- * Generate unique 8-char hex ID (no prefix in ID itself)
- * Prefix is only added when creating directory names or DB records.
+ * 生成唯一 8 位 hex ID（查库去重）
+ * 前缀仅在创建目录名或 DB 记录时由调用方拼接。
  */
 function generateUniqueId(
   db: SqliteDb,
@@ -23,7 +24,7 @@ function generateUniqueId(
   let id: string;
   let attempts = 0;
   do {
-    id = crypto.randomBytes(4).toString('hex');
+    id = generateHexId();
     attempts++;
     if (attempts > 100) {
       throw new Error(`Failed to generate unique ID for ${table}.${column} after 100 attempts`);
@@ -32,7 +33,7 @@ function generateUniqueId(
   return id;
 }
 
-/** Add prefix for directory/file names */
+/** 拼接资源前缀 */
 function withPrefix(id: string, prefix: string): string {
   return `${prefix}_${id}`;
 }
@@ -48,7 +49,7 @@ function hashPassword(password: string): string {
 
 /** 简易 ID 生成（不查库，用于非唯一性资源） */
 function makeId(prefix: string): string {
-  return `${prefix}_${crypto.randomBytes(4).toString('hex')}`;
+  return `${prefix}_${generateHexId()}`;
 }
 
 /** 用户数据（ID 在 main 中动态生成） */
@@ -84,7 +85,7 @@ async function main() {
   const sysDb = manager.getSystemDb();
 
   // 2. Generate tenant UUID and create tenant (directory + tenant.json + database)
-  const tenantUuid = crypto.randomBytes(4).toString('hex');
+  const tenantUuid = generateHexId();
   const TENANT_ID = withPrefix(tenantUuid, 'tenant'); // tenant_xxxxxxxx
   console.log(`🏢 创建租户：${TENANT_NAME} (${TENANT_ID})...`);
 
@@ -166,7 +167,7 @@ async function main() {
   // 7. 创建租户 Schema 目录
   console.log('📁 创建应用 Schema 目录...');
   const tenantSchemaDir = path.resolve(__dirname, '../../../tenants', TENANT_ID, 'apps', APP_ID);
-  const schemaDirs = ['pages', 'cards', 'forms', 'tables', 'workflows', 'automations', 'computations'];
+  const schemaDirs = [...RESOURCE_TYPES];
   for (const dir of schemaDirs) {
     fs.mkdirSync(path.join(tenantSchemaDir, dir), { recursive: true });
   }

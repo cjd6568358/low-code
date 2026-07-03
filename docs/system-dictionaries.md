@@ -252,6 +252,20 @@
 
 ## 📦 应用管理相关
 
+### 资源类型字典 (resource_types)
+
+> **代码定义**：此字典已迁移至代码，唯一数据源为 `packages/shared/src/config/resource-types.ts`。
+> 不再使用 JSON 文件，修改资源类型请直接编辑该 TS 文件。
+
+| value | label | singular | icon |
+|-------|-------|----------|------|
+| pages | 页面 | page | FileOutlined |
+| cards | 卡片 | card | FormOutlined |
+| tables | 数据表 | table | TableOutlined |
+| workflows | 流程 | workflow | NodeIndexOutlined |
+| automations | 自动化 | automation | ThunderboltOutlined |
+| computations | 运算 | computation | CalculatorOutlined |
+
 ### 应用状态字典 (app_statuses)
 
 | code | name | 说明 |

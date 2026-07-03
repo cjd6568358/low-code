@@ -213,11 +213,6 @@ const previewBoxStyle: React.CSSProperties = {
 
 // ─── 工具函数 ──────────────────────────────────────────────
 
-/** 生成 8 位 hex ID */
-function generateId(): string {
-  return crypto.randomUUID().slice(0, 8);
-}
-
 /** 获取字段类型中文名 */
 function getFieldTypeName(fieldType: TableFieldType): string {
   const names: Record<TableFieldType, string> = {

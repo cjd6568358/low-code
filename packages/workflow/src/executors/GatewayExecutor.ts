@@ -11,12 +11,12 @@ import type {
   SequenceFlow,
   FlowNode,
   Edge,
-} from '@low-code/workflow-bpmn';
+} from '../schema';
 import {
   isExclusiveGateway,
   isParallelGateway,
   isInclusiveGateway,
-} from '@low-code/workflow-bpmn';
+} from '../schema';
 import { NodeExecutorBase } from './NodeExecutorBase';
 import type {
   ExecutionContext,

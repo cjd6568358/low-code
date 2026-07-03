@@ -8,16 +8,11 @@
 
 import fs from 'fs';
 import path from 'path';
-import crypto from 'crypto';
 import KoaRouter from '@koa/router';
 import { TENANTS_DIR } from '../config/index.js';
 import type { DatabaseManager } from '@low-code/data';
 import { TableService } from '../services/TableService.js';
-
-/** Generate 8-char hex UUID (no prefix) */
-function generateUuid(): string {
-  return crypto.randomBytes(4).toString('hex');
-}
+import { generateHexId, RESOURCE_TYPES } from '@low-code/shared';
 
 /** Add prefix for directory/file names */
 function withPrefix(uuid: string, prefix: string): string {
@@ -77,9 +72,6 @@ function resourceIdFromFilename(filename: string): string {
   return stripPrefix(filename.replace('.json', ''));
 }
 
-/** 资源类型列表 */
-const RESOURCE_TYPES = ['pages', 'cards', 'tables', 'workflows', 'automations', 'computations'] as const;
-
 /**
  * 从文件读取资源内容（带前缀文件名）
  *
@@ -111,7 +103,7 @@ function scanAllResources(appDir: string): Map<string, Map<string, any>> {
       const files = fs.readdirSync(typeDir).filter((f) => f.endsWith('.json'));
       for (const f of files) {
         const content = readResourceFile(typeDir, f);
-        if (content) {
+        if (content && !content._deleted) {
           const id = content[`${type.slice(0, -1)}Id`] || content.id || resourceIdFromFilename(f);
           resourceMap.set(id, content);
         }
@@ -268,13 +260,13 @@ export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
       return;
     }
 
-    const uuid = generateUuid();
+    const uuid = generateHexId();
     const appId = withPrefix(uuid, 'app'); // directory name: app_xxxxxxxx
     const now = Date.now();
 
     // Create directory
     const appDir = path.join(TENANTS_DIR, targetTenantId, 'apps', appId);
-    const resourceDirs = ['pages', 'cards', 'tables', 'workflows', 'automations', 'computations'];
+    const resourceDirs = [...RESOURCE_TYPES];
     for (const dir of resourceDirs) {
       fs.mkdirSync(path.join(appDir, dir), { recursive: true });
     }
@@ -482,7 +474,7 @@ export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
     const { appId, resourceType } = ctx.params;
 
     // 验证资源类型
-    const validTypes = ['pages', 'cards', 'tables', 'workflows', 'automations', 'computations'];
+    const validTypes = [...RESOURCE_TYPES];
     if (!validTypes.includes(resourceType)) {
       ctx.status = 400;
       ctx.body = { success: false, error: `无效的资源类型: ${resourceType}` };
@@ -529,17 +521,15 @@ export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
 
   /**
    * POST /api/apps/:appId/:resourceType
-   * 创建资源（页面、卡片、表单、数据表等）
+   * 创建资源（页面、卡片、表单、数据表、流程等）
    *
-   * 请求体：{ name: string, layout?: LayoutConfig }
+   * 请求体：{ name: string, [key: string]: any }
    * 响应：{ success: true, resource: { id, name } }
    */
   router.post('/:appId/:resourceType', async (ctx) => {
     const { appId, resourceType } = ctx.params;
-    const { name, layout } = ctx.request.body as {
-      name?: string;
-      layout?: { type: 'grid' | 'flex'; columns?: number; gap?: number; vertical?: boolean; wrap?: boolean; justify?: string; align?: string };
-    };
+    const body = ctx.request.body as Record<string, any>;
+    const { name, layout, description, schema, ...rest } = body;
 
     if (!name) {
       ctx.status = 400;
@@ -548,7 +538,7 @@ export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
     }
 
     // 验证资源类型
-    const validTypes = ['pages', 'cards', 'tables', 'workflows', 'automations', 'computations'];
+    const validTypes = [...RESOURCE_TYPES];
     if (!validTypes.includes(resourceType)) {
       ctx.status = 400;
       ctx.body = { success: false, error: `无效的资源类型: ${resourceType}` };
@@ -563,8 +553,8 @@ export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
     }
 
     const [, appDir] = found;
-    const uuid = generateUuid();
-    const prefix = resourceType.slice(0, -1); // pages → page, tables → table
+    const uuid = generateHexId();
+    const prefix = resourceType.slice(0, -1); // pages → page, tables → table, workflows → workflow
     const filename = `${prefix}_${uuid}.json`;
     const resourceDir = path.join(appDir, resourceType);
 
@@ -580,6 +570,7 @@ export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
       createdAt: now,
       updatedAt: now,
       references: {},
+      ...rest,
     };
 
     // 设置资源 ID 字段
@@ -588,7 +579,6 @@ export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
 
     // 页面类型：添加布局配置
     if (resourceType === 'pages') {
-      resourceContent.name = name;
       resourceContent.layout = layout || { type: 'grid', columns: 24, gap: 16 };
       resourceContent.components = [];
     }
@@ -596,6 +586,24 @@ export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
     // 数据表类型：添加空字段列表
     if (resourceType === 'tables') {
       resourceContent.columns = [];
+    }
+
+    // 流程类型：添加描述和 schema
+    if (resourceType === 'workflows') {
+      if (description) resourceContent.description = description;
+      if (schema) resourceContent.schema = schema;
+      resourceContent.status = 'DRAFT';
+    }
+
+    // 自动化类型：添加触发器和动作
+    if (resourceType === 'automations') {
+      if (description) resourceContent.description = description;
+      resourceContent.status = 'draft';
+      resourceContent.trigger = body.trigger || {};
+      resourceContent.condition = body.condition || null;
+      resourceContent.actions = body.actions || [];
+      resourceContent.throttle = body.throttle || null;
+      resourceContent.effectiveTime = body.effectiveTime || null;
     }
 
     // 写入文件
@@ -618,7 +626,7 @@ export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
   router.get('/:appId/:resourceType/:resourceId', async (ctx) => {
     const { appId, resourceType, resourceId } = ctx.params;
 
-    const validTypes = ['pages', 'cards', 'tables', 'workflows', 'automations', 'computations'];
+    const validTypes = [...RESOURCE_TYPES];
     if (!validTypes.includes(resourceType)) {
       ctx.status = 400;
       ctx.body = { success: false, error: `无效的资源类型: ${resourceType}` };
@@ -661,7 +669,7 @@ export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
     const updates = ctx.request.body as Record<string, any>;
 
     // 验证资源类型
-    const validTypes = ['pages', 'cards', 'tables', 'workflows', 'automations', 'computations'];
+    const validTypes = [...RESOURCE_TYPES];
     if (!validTypes.includes(resourceType)) {
       ctx.status = 400;
       ctx.body = { success: false, error: `无效的资源类型: ${resourceType}` };
@@ -751,13 +759,13 @@ export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
 
   /**
    * DELETE /api/apps/:appId/:resourceType/:resourceId
-   * 删除资源（软删除：标记 _deleted，物理文件和表保留）
+   * 删除资源（硬删除：物理删除文件）
    */
   router.delete('/:appId/:resourceType/:resourceId', async (ctx) => {
     const { appId, resourceType, resourceId } = ctx.params;
 
     // 验证资源类型
-    const validTypes = ['pages', 'cards', 'tables', 'workflows', 'automations', 'computations'];
+    const validTypes = [...RESOURCE_TYPES];
     if (!validTypes.includes(resourceType)) {
       ctx.status = 400;
       ctx.body = { success: false, error: `无效的资源类型: ${resourceType}` };
@@ -782,13 +790,9 @@ export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
       return;
     }
 
-    // 软删除：标记 _deleted，不删除物理文件
+    // 硬删除：物理删除文件
     try {
-      const content = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-      content._deleted = true;
-      content._deletedAt = Date.now();
-      content.updatedAt = Date.now();
-      fs.writeFileSync(filePath, JSON.stringify(content, null, 2));
+      fs.unlinkSync(filePath);
     } catch {
       ctx.status = 500;
       ctx.body = { success: false, error: '删除失败' };

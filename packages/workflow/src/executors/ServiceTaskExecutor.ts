@@ -3,7 +3,7 @@
  * 处理自动化节点（API 调用、数据操作等）
  */
 
-import type { ServiceTask, FlowNode } from '@low-code/workflow-bpmn';
+import type { ServiceTask, FlowNode } from '../schema';
 import { NodeExecutorBase } from './NodeExecutorBase';
 import type { ExecutionContext, ExecutionResult } from '../types/execution';
 

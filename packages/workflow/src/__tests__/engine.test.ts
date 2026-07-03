@@ -24,8 +24,9 @@ import type {
   DefinitionRecord,
   SnapshotRecord,
 } from '../index';
-import type { BpmnDocument, ProcessDefinition } from '@low-code/workflow-bpmn';
-import { createEmptyBpmnDocument, generateId } from '@low-code/workflow-bpmn';
+import type { BpmnDocument, ProcessDefinition } from '../schema';
+import { createEmptyBpmnDocument } from '../schema';
+import { generateHexId } from '@low-code/shared';
 
 // Mock 数据库适配器
 function createMockDb(): DatabaseAdapter {
@@ -49,7 +50,7 @@ function createMockDb(): DatabaseAdapter {
 function createMockSnapshotService(): SnapshotService {
   return {
     capture: vi.fn(async (params) => ({
-      id: generateId(),
+      id: generateHexId(),
       instanceId: params.instanceId,
       nodeId: params.nodeId,
       nodeName: params.nodeName,

@@ -31,6 +31,7 @@ import {
 import { PageDesign, TableDesign, CardDesign, WorkflowDesign, AutomationDesign, ComputationDesign } from '../designers';
 import { PageComponentPicker, type PageComponentPickResult } from '../designers/components/PageComponentPicker';
 import { ThemeConfigPanel, type ThemeConfig } from '../components/ThemeConfigPanel';
+import { RESOURCE_TYPES as EXPOSED_RESOURCE_KEYS, RESOURCE_META_MAP, generateHexId } from '@low-code/shared';
 
 const { Sider, Content } = Layout;
 
@@ -54,14 +55,21 @@ interface OpenTab {
 
 // ─── 配置 ──────────────────────────────────────────────────
 
-const RESOURCE_TYPES = [
-  { key: 'pages', label: '页面', singular: 'page', icon: <FileOutlined /> },
-  { key: 'cards', label: '卡片', singular: 'card', icon: <AppstoreOutlined /> },
-  { key: 'tables', label: '数据表', singular: 'table', icon: <TableOutlined /> },
-  { key: 'workflows', label: '流程', singular: 'workflow', icon: <NodeIndexOutlined /> },
-  { key: 'automations', label: '自动化', singular: 'automation', icon: <ThunderboltOutlined /> },
-  { key: 'computations', label: '运算', singular: 'computation', icon: <CalculatorOutlined /> },
-] as const;
+/** 图标名称 → React 元素映射 */
+const ICON_REGISTRY: Record<string, React.ReactNode> = {
+  FileOutlined: <FileOutlined />,
+  FormOutlined: <AppstoreOutlined />,
+  TableOutlined: <TableOutlined />,
+  NodeIndexOutlined: <NodeIndexOutlined />,
+  ThunderboltOutlined: <ThunderboltOutlined />,
+  CalculatorOutlined: <CalculatorOutlined />,
+};
+
+/** 资源类型列表 — 从系统字典派生，图标从注册表解析 */
+const RESOURCE_TYPES = EXPOSED_RESOURCE_KEYS.map((key) => {
+  const meta = RESOURCE_META_MAP[key];
+  return { key, label: meta.label, singular: meta.singular, icon: ICON_REGISTRY[meta.icon] };
+});
 
 /** 资源类型 key → 配置映射 */
 const RESOURCE_TYPE_MAP = Object.fromEntries(RESOURCE_TYPES.map((r) => [r.key, r]));
@@ -307,7 +315,7 @@ export default function AppDesignPage() {
         const tableSchema = loadData.resource;
         tableSchema.sourcePageId = result.pageId;
         tableSchema.columns = result.fields.map((field) => ({
-          id: crypto.randomUUID().slice(0, 8),
+          id: generateHexId(),
           fieldName: field.fieldName,
           fieldType: field.fieldType,
           required: field.required,
@@ -411,184 +419,184 @@ export default function AppDesignPage() {
         >
           {/* 撑满包裹层（antd Sider 的 .ant-layout-sider-children 不自带 height:100%） */}
           <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-          {/* 应用信息 + 返回 */}
-          <div
-            style={{
-              height: 48,
-              display: 'flex',
-              alignItems: 'center',
-              padding: siderCollapsed ? '0 12px' : '0 12px',
-              gap: siderCollapsed ? 0 : 8,
-              borderBottom: '1px solid #f0f0f0',
-              flexShrink: 0,
-              justifyContent: siderCollapsed ? 'center' : 'flex-start',
-            }}
-          >
-            <Button
-              type="text"
-              icon={<ArrowLeftOutlined />}
-              size="small"
-              onClick={() => navigate(-1)}
-            />
-            {!siderCollapsed && (
-              <span style={{ flex: 1, fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {appName}
-              </span>
-            )}
-          </div>
-
-          {/* 垂直 Tabs — 资源分类 */}
-          <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
-            {/* 左侧 Tab 栏 */}
-            <div style={{
-              width: 48,
-              flexShrink: 0,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              padding: '8px 0',
-              gap: 2,
-              overflowY: 'auto',
-            }}>
-              {RESOURCE_TYPES.map((rt) => {
-                const isActive = activeGroup === rt.key;
-                const count = (resources[rt.key] || []).length;
-                return (
-                  <Dropdown
-                    key={rt.key}
-                    trigger={['contextMenu']}
-                    menu={{
-                      items: [{
-                        key: 'new',
-                        icon: <PlusOutlined />,
-                        label: `新建${rt.label}`,
-                        onClick: () => handleContextMenu(rt.key),
-                      }],
-                    }}
-                  >
-                    <div
-                      onClick={() => setActiveGroup(rt.key)}
-                      style={{
-                        width: 48,
-                        padding: '6px 0',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: 'pointer',
-                        borderRadius: 6,
-                        color: isActive ? '#4f46e5' : '#595959',
-                        background: isActive ? '#f0f0ff' : 'transparent',
-                        position: 'relative',
-                        transition: 'all 0.15s',
-                        gap: 2,
-                      }}
-                    >
-                      <span style={{ fontSize: 16, lineHeight: 1 }}>{rt.icon}</span>
-                      <span style={{ fontSize: 10, lineHeight: 1 }}>{rt.label}</span>
-                      {count > 0 && (
-                        <span style={{
-                          position: 'absolute',
-                          top: 4,
-                          right: 4,
-                          fontSize: 8,
-                          color: isActive ? '#4f46e5' : '#8c8c8c',
-                          lineHeight: 1,
-                        }}>
-                          {count}
-                        </span>
-                      )}
-                    </div>
-                  </Dropdown>
-                );
-              })}
-              {/* 应用设置（底部） */}
-              <div style={{ marginTop: 'auto', paddingTop: 8 }}>
-                <div
-                  onClick={handleEditMeta}
-                  title="应用设置"
-                  style={{
-                    width: 40,
-                    height: 40,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    borderRadius: 6,
-                    fontSize: 16,
-                    color: '#595959',
-                    transition: 'all 0.15s',
-                  }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = '#f5f5f5'; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-                >
-                  <SettingOutlined />
-                </div>
-              </div>
-            </div>
-
-            {/* 右侧资源列表 */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
-              <div style={{
+            {/* 应用信息 + 返回 */}
+            <div
+              style={{
+                height: 48,
                 display: 'flex',
-                justifyContent: 'space-between',
                 alignItems: 'center',
-                marginBottom: 8,
-                paddingLeft: 4,
-              }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: '#262626' }}>
-                  {RESOURCE_TYPE_MAP[activeGroup]?.label || activeGroup}
+                padding: siderCollapsed ? '0 12px' : '0 12px',
+                gap: siderCollapsed ? 0 : 8,
+                borderBottom: '1px solid #f0f0f0',
+                flexShrink: 0,
+                justifyContent: siderCollapsed ? 'center' : 'flex-start',
+              }}
+            >
+              <Button
+                type="text"
+                icon={<ArrowLeftOutlined />}
+                size="small"
+                onClick={() => navigate(-1)}
+              />
+              {!siderCollapsed && (
+                <span style={{ flex: 1, fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {appName}
                 </span>
-                <Button
-                  type="text"
-                  size="small"
-                  icon={<PlusOutlined />}
-                  onClick={() => handleContextMenu(activeGroup)}
-                />
-              </div>
-              {(resources[activeGroup] || []).map((res) => {
-                const tabKey = `${activeGroup}:${res.id}`;
-                const isActive = activeTabKey === tabKey;
-                return (
-                  <Dropdown
-                    key={res.id}
-                    trigger={['contextMenu']}
-                    menu={{
-                      items: [
-                        { key: 'open', label: '打开', onClick: () => handleClick(activeGroup, res.id, res.name) },
-                        { key: 'delete', icon: <DeleteOutlined />, label: '删除', danger: true, onClick: () => handleDeleteResource(activeGroup, res.id, res.name) },
-                      ],
-                    }}
-                  >
-                    <div
-                      onClick={() => handleClick(activeGroup, res.id, res.name)}
-                      style={{
-                        padding: '8px 12px',
-                        cursor: 'pointer',
-                        fontSize: 13,
-                        color: isActive ? '#4f46e5' : '#595959',
-                        background: isActive ? '#f0f0ff' : 'transparent',
-                        borderRadius: 6,
-                        marginBottom: 2,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        borderLeft: isActive ? '2px solid #4f46e5' : '2px solid transparent',
-                      }}
-                    >
-                      {res.name}
-                    </div>
-                  </Dropdown>
-                );
-              })}
-              {(resources[activeGroup] || []).length === 0 && (
-                <div style={{ textAlign: 'center', color: '#bfbfbf', fontSize: 12, padding: '24px 0' }}>
-                  暂无资源，右键或点击 + 新建
-                </div>
               )}
             </div>
-          </div>
+
+            {/* 垂直 Tabs — 资源分类 */}
+            <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
+              {/* 左侧 Tab 栏 */}
+              <div style={{
+                width: 48,
+                flexShrink: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                padding: '8px 0',
+                gap: 2,
+                overflowY: 'auto',
+              }}>
+                {RESOURCE_TYPES.map((rt) => {
+                  const isActive = activeGroup === rt.key;
+                  const count = (resources[rt.key] || []).length;
+                  return (
+                    <Dropdown
+                      key={rt.key}
+                      trigger={['contextMenu']}
+                      menu={{
+                        items: [{
+                          key: 'new',
+                          icon: <PlusOutlined />,
+                          label: `新建${rt.label}`,
+                          onClick: () => handleContextMenu(rt.key),
+                        }],
+                      }}
+                    >
+                      <div
+                        onClick={() => setActiveGroup(rt.key)}
+                        style={{
+                          width: 48,
+                          padding: '6px 0',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          borderRadius: 6,
+                          color: isActive ? '#4f46e5' : '#595959',
+                          background: isActive ? '#f0f0ff' : 'transparent',
+                          position: 'relative',
+                          transition: 'all 0.15s',
+                          gap: 2,
+                        }}
+                      >
+                        <span style={{ fontSize: 16, lineHeight: 1 }}>{rt.icon}</span>
+                        <span style={{ fontSize: 10, lineHeight: 1 }}>{rt.label}</span>
+                        {count > 0 && (
+                          <span style={{
+                            position: 'absolute',
+                            top: 4,
+                            right: 4,
+                            fontSize: 8,
+                            color: isActive ? '#4f46e5' : '#8c8c8c',
+                            lineHeight: 1,
+                          }}>
+                            {count}
+                          </span>
+                        )}
+                      </div>
+                    </Dropdown>
+                  );
+                })}
+                {/* 应用设置（底部） */}
+                <div style={{ marginTop: 'auto', paddingTop: 8 }}>
+                  <div
+                    onClick={handleEditMeta}
+                    title="应用设置"
+                    style={{
+                      width: 40,
+                      height: 40,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      borderRadius: 6,
+                      fontSize: 16,
+                      color: '#595959',
+                      transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = '#f5f5f5'; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                  >
+                    <SettingOutlined />
+                  </div>
+                </div>
+              </div>
+
+              {/* 右侧资源列表 */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: 8,
+                  paddingLeft: 4,
+                }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: '#262626' }}>
+                    {RESOURCE_TYPE_MAP[activeGroup]?.label || activeGroup}
+                  </span>
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<PlusOutlined />}
+                    onClick={() => handleContextMenu(activeGroup)}
+                  />
+                </div>
+                {(resources[activeGroup] || []).map((res) => {
+                  const tabKey = `${activeGroup}:${res.id}`;
+                  const isActive = activeTabKey === tabKey;
+                  return (
+                    <Dropdown
+                      key={res.id}
+                      trigger={['contextMenu']}
+                      menu={{
+                        items: [
+                          { key: 'open', label: '打开', onClick: () => handleClick(activeGroup, res.id, res.name) },
+                          { key: 'delete', icon: <DeleteOutlined />, label: '删除', danger: true, onClick: () => handleDeleteResource(activeGroup, res.id, res.name) },
+                        ],
+                      }}
+                    >
+                      <div
+                        onClick={() => handleClick(activeGroup, res.id, res.name)}
+                        style={{
+                          padding: '8px 12px',
+                          cursor: 'pointer',
+                          fontSize: 13,
+                          color: isActive ? '#4f46e5' : '#595959',
+                          background: isActive ? '#f0f0ff' : 'transparent',
+                          borderRadius: 6,
+                          marginBottom: 2,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          borderLeft: isActive ? '2px solid #4f46e5' : '2px solid transparent',
+                        }}
+                      >
+                        {res.name}
+                      </div>
+                    </Dropdown>
+                  );
+                })}
+                {(resources[activeGroup] || []).length === 0 && (
+                  <div style={{ textAlign: 'center', color: '#bfbfbf', fontSize: 12, padding: '24px 0' }}>
+                    暂无资源，右键或点击 + 新建
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </Sider>
 
@@ -786,8 +794,13 @@ export default function AppDesignPage() {
         width={520}
       >
         <Tabs
-          defaultActiveKey="theme"
+          defaultActiveKey="basic"
           items={[
+            {
+              key: 'basic',
+              label: '基本信息',
+              children: <p style={{ color: '#8c8c8c' }}>基本信息配置即将上线</p>,
+            },
             {
               key: 'theme',
               label: '主题',
@@ -797,12 +810,7 @@ export default function AppDesignPage() {
                   onChange={setAppTheme}
                 />
               ),
-            },
-            {
-              key: 'basic',
-              label: '基本信息',
-              children: <p style={{ color: '#8c8c8c' }}>基本信息配置即将上线</p>,
-            },
+            }
           ]}
         />
       </Modal>

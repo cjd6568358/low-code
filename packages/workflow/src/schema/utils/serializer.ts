@@ -2,6 +2,7 @@
  * BPMN 2.0 JSON 序列化器
  */
 
+import { generateHexId, generateNodeId } from '@low-code/shared';
 import type { BpmnDocument, ProcessDefinition } from '../types/bpmn';
 import type { FlowNode, Edge } from '../types/nodes';
 
@@ -42,7 +43,7 @@ export function normalizeBpmnDocument(data: any): BpmnDocument {
  */
 function normalizeStandardBpmn(data: any): BpmnDocument {
   const doc: BpmnDocument = {
-    id: data.id || generateId(),
+    id: data.id || generateHexId(),
     name: data.name,
     targetNamespace: data.targetNamespace,
     processes: [],
@@ -66,7 +67,7 @@ function normalizeStandardBpmn(data: any): BpmnDocument {
  */
 function normalizeSimplifiedBpmn(data: any): BpmnDocument {
   return {
-    id: data.id || generateId(),
+    id: data.id || generateHexId(),
     name: data.name,
     targetNamespace: data.targetNamespace,
     processes: (data.processes || []).map(normalizeProcess),
@@ -79,7 +80,7 @@ function normalizeSimplifiedBpmn(data: any): BpmnDocument {
  */
 function normalizeProcess(data: any): ProcessDefinition {
   return {
-    id: data.id || generateId(),
+    id: data.id || generateHexId(),
     name: data.name,
     isExecutable: data.isExecutable ?? true,
     processType: data.processType || 'None',
@@ -94,7 +95,7 @@ function normalizeProcess(data: any): ProcessDefinition {
  */
 function normalizeNode(data: any): FlowNode {
   const node: any = {
-    id: data.id || generateId(),
+    id: data.id || generateHexId(),
     $type: data.$type || data.type,
     name: data.name,
     incoming: data.incoming || [],
@@ -117,7 +118,7 @@ function normalizeNode(data: any): FlowNode {
  */
 function normalizeEdge(data: any): Edge {
   const edge: any = {
-    id: data.id || generateId(),
+    id: data.id || generateHexId(),
     $type: data.$type || data.type || 'bpmn:SequenceFlow',
     name: data.name,
     sourceRef: data.sourceRef,
@@ -144,10 +145,10 @@ function normalizeEdge(data: any): Edge {
  */
 function normalizeCollaboration(data: any): any {
   return {
-    id: data.id || generateId(),
+    id: data.id || generateHexId(),
     name: data.name,
     participants: (data.participants || []).map((p: any) => ({
-      id: p.id || generateId(),
+      id: p.id || generateHexId(),
       name: p.name,
       processRef: p.processRef,
     })),
@@ -175,7 +176,7 @@ export function toStandardBpmn(doc: BpmnDocument): any {
       ],
       laneSets: process.lanes?.length ? [{
         $type: 'bpmn:LaneSet',
-        id: generateId(),
+        id: generateNodeId('lane', []),
         lanes: process.lanes,
       }] : undefined,
     });
@@ -253,30 +254,18 @@ function edgeToStandard(edge: Edge): any {
 }
 
 /**
- * 生成唯一 ID
- */
-export function generateId(): string {
-  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-  let result = '';
-  for (let i = 0; i < 8; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
-}
-
-/**
  * 创建空的 BpmnDocument
  */
 export function createEmptyBpmnDocument(name?: string): BpmnDocument {
-  const startId = generateId();
-  const endId = generateId();
-  const flowId = generateId();
+  const startId = generateNodeId('node', []);
+  const endId = generateNodeId('node', [startId]);
+  const flowId = generateNodeId('flow', []);
 
   return {
-    id: generateId(),
+    id: generateHexId(),
     name: name || '新建流程',
     processes: [{
-      id: generateId(),
+      id: generateHexId(),
       name: name || '新建流程',
       isExecutable: true,
       nodes: [

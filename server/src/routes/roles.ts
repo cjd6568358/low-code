@@ -5,16 +5,11 @@
  * 数据存储在 tenant SQLite 数据库的 roles/user_roles 表。
  */
 
-import crypto from 'crypto';
 import KoaRouter from '@koa/router';
 import { getDbManager } from '../config/db.js';
 import { TENANTS_DIR } from '../config/index.js';
+import { generateHexId } from '@low-code/shared';
 import fs from 'fs';
-
-/** 生成 8 位 hex UUID */
-function generateUuid(): string {
-  return crypto.randomBytes(4).toString('hex');
-}
 
 /** 获取第一个活跃租户 ID */
 function getFirstTenantId(): string | null {
@@ -110,7 +105,7 @@ export function createRolesRouter(): KoaRouter {
 
     const manager = getDbManager();
     const db = manager.getTenantDb(tenantId);
-    const roleId = 'role-' + generateUuid();
+    const roleId = 'role-' + generateHexId();
 
     try {
       db.prepare(`

@@ -5,7 +5,7 @@
  */
 
 import React, { useMemo } from 'react';
-import type { BpmnDocument } from '@low-code/workflow-bpmn';
+import type { BpmnDocument } from '@low-code/workflow';
 
 /** 流程图展示属性 */
 export interface FlowChartProps {

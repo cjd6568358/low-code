@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import type { BpmnDocument, FlowNode, Edge } from '@low-code/workflow-bpmn';
+import type { BpmnDocument, FlowNode, Edge } from '@low-code/workflow';
 import type { INode } from 'react-flow-builder';
 
 /**

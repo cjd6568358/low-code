@@ -2,8 +2,8 @@
  * 开始事件执行器
  */
 
-import type { StartEvent } from '@low-code/workflow-bpmn';
-import { isStartEvent } from '@low-code/workflow-bpmn';
+import type { StartEvent } from '../schema';
+import { isStartEvent } from '../schema';
 import { NodeExecutorBase } from './NodeExecutorBase';
 import type { ExecutionContext, ExecutionResult } from '../types/execution';
 

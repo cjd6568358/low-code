@@ -17,10 +17,7 @@ import {
   SendOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '../auth/AuthContext';
-import { shortId } from '../utils/resourceId';
-
-/** 可暴露/可引用的资源类型 */
-type ExposableResourceType = 'pages' | 'cards' | 'forms' | 'tables' | 'workflows' | 'automations' | 'computations';
+import type { ExposableResourceType } from '@low-code/shared';
 
 /** 应用数据结构 - 与 tenants/{id}/apps/{id}/app.json 一致 */
 interface AppItem {
@@ -174,7 +171,7 @@ export default function AppCenterPage() {
 
   /** 进入应用详情 */
   const handleEnterApp = useCallback((appId: string) => {
-    navigate(`/${tenantId}/app/${shortId(appId)}`);
+    navigate(`/${tenantId}/app/${appId}`);
   }, [navigate]);
 
   if (loading) {
@@ -248,7 +245,7 @@ export default function AppCenterPage() {
                   <Dropdown
                     menu={{
                       items: [
-                        { key: 'edit', icon: <EditOutlined />, label: '编辑', onClick: () => navigate(`/${tenantId}/designer/app/${shortId(app.appId)}`) },
+                        { key: 'edit', icon: <EditOutlined />, label: '编辑', onClick: () => navigate(`/${tenantId}/designer/app/${app.appId}`) },
                         ...(app.status === 'draft'
                           ? [{ key: 'publish', icon: <SendOutlined />, label: '发布', onClick: () => handlePublish(app.appId) }]
                           : []),

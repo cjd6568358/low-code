@@ -2,7 +2,7 @@
  * 节点执行器基类
  */
 
-import type { FlowNode, Edge } from '@low-code/workflow-bpmn';
+import type { FlowNode, Edge } from '../schema';
 import type {
   NodeExecutor,
   ExecutionContext,

@@ -1,17 +1,18 @@
 /**
- * @low-code/workflow-bpmn
- * BPMN 2.0 JSON Schema 类型定义包
+ * @low-code/workflow/schema
+ * BPMN 2.0 JSON Schema 类型定义
+ * 原 @low-code/workflow-bpmn 包合并至此
  */
 
 // Schema 类型
-export * from './schema/base';
-export * from './schema/events';
-export * from './schema/events-def';
-export * from './schema/tasks';
-export * from './schema/gateways';
-export * from './schema/flows';
-export * from './schema/extensions';
-export * from './schema/process';
+export * from './base';
+export * from './events';
+export * from './events-def';
+export * from './tasks';
+export * from './gateways';
+export * from './flows';
+export * from './extensions';
+export * from './process';
 
 // 业务类型（排除与 schema 重复的类型）
 export type {
@@ -101,8 +102,10 @@ export {
   deserializeBpmnDocument,
   normalizeBpmnDocument,
   toStandardBpmn,
-  generateId,
   createEmptyBpmnDocument,
   cloneBpmnDocument,
   mergeBpmnDocuments,
 } from './utils/serializer';
+
+// 重新导出共享工具（原 workflow-bpmn 从 @low-code/shared 导入）
+export { generateHexId } from '@low-code/shared';

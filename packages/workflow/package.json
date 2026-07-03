@@ -8,6 +8,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@low-code/workflow-bpmn": "1.0.0"
+    "@low-code/shared": "1.0.0"
   }
 }

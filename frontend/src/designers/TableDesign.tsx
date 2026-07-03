@@ -25,7 +25,7 @@ import type {
   FieldConstraints, StringFieldConstraints, NumberFieldConstraints,
   DateFieldConstraints, EnumFieldConstraints, ValidationRule, TableIndex,
 } from '@low-code/shared';
-import { SYSTEM_ID_COLUMN, type TableFieldType } from '@low-code/shared';
+import { SYSTEM_ID_COLUMN, generateHexId, type TableFieldType } from '@low-code/shared';
 import { PageComponentPicker, type PageComponentPickResult } from './components/PageComponentPicker';
 
 const { Text } = Typography;
@@ -39,10 +39,6 @@ interface TableDesignProps {
   onSaved?: (name: string) => void;
 }
 
-/** 生成 8 位 hex ID */
-function generateId(): string {
-  return crypto.randomUUID().slice(0, 8);
-}
 
 // ─── 字段类型选项 ──────────────────────────────────────
 
@@ -63,16 +59,6 @@ const FIELD_TYPE_COLORS: Record<TableFieldType, string> = {
   date: 'purple',
   json: 'default',
   enum: 'magenta',
-};
-
-// ─── 组件类型中文名 ────────────────────────────────────
-
-const COMPONENT_TYPE_NAMES: Record<string, string> = {
-  input: '输入框', textarea: '文本域', number: '数字输入', select: '选择器',
-  radio: '单选框', checkbox: '复选框', switch: '开关', datepicker: '日期选择',
-  timepicker: '时间选择', rate: '评分', slider: '滑块', upload: '上传',
-  treeselect: '树选择', cascader: '级联选择', colorpicker: '颜色选择',
-  mentions: '提及', autocomplete: '自动完成',
 };
 
 /** 系统字段或同步字段均为只读 */
@@ -231,7 +217,7 @@ export default function TableDesign({ appId, tableId, schema, onSaved }: TableDe
     setCurrentSchema((prev) => {
       if (!prev) return prev;
       const newCol: TableColumn = {
-        id: generateId(),
+        id: generateHexId(),
         fieldName: `field_${prev.columns.length + 1}`,
         fieldType: 'string',
         required: false,
@@ -284,7 +270,7 @@ export default function TableDesign({ appId, tableId, schema, onSaved }: TableDe
     setCurrentSchema((prev) => {
       if (!prev) return prev;
       const newIndex: TableIndex = {
-        id: generateId(),
+        id: generateHexId(),
         name: indexForm.name || `idx_${Date.now().toString(36)}`,
         columns: indexForm.columns,
         unique: indexForm.unique,
@@ -341,7 +327,7 @@ export default function TableDesign({ appId, tableId, schema, onSaved }: TableDe
         };
 
         return {
-          id: generateId(),
+          id: generateHexId(),
           fieldName: name,
           fieldType: field.fieldType,
           required: field.required,
@@ -421,7 +407,7 @@ export default function TableDesign({ appId, tableId, schema, onSaved }: TableDe
       title: '字段名',
       dataIndex: 'fieldName',
       key: 'fieldName',
-      width: 180,
+      width: 140,
       render: (val: string, record: TableColumn) => isReadonly(record) ? (
         <span style={{ fontFamily: 'monospace', color: '#8c8c8c' }}>{val}</span>
       ) : (
@@ -437,7 +423,7 @@ export default function TableDesign({ appId, tableId, schema, onSaved }: TableDe
       title: '类型',
       dataIndex: 'fieldType',
       key: 'fieldType',
-      width: 140,
+      width: 100,
       render: (val: TableFieldType, record: TableColumn) => {
         if (record.system) return <Tag color="green" style={{ margin: 0 }}>number (自增)</Tag>;
         if (record.sourceMapping) {
@@ -476,7 +462,7 @@ export default function TableDesign({ appId, tableId, schema, onSaved }: TableDe
       title: '默认值',
       dataIndex: 'defaultValue',
       key: 'defaultValue',
-      width: 140,
+      width: 100,
       render: (val: string | undefined, record: TableColumn) => isReadonly(record) ? (
         <Text type="secondary" style={{ fontSize: 11 }}>{record.system ? '自增' : (val || '—')}</Text>
       ) : (
@@ -507,7 +493,7 @@ export default function TableDesign({ appId, tableId, schema, onSaved }: TableDe
     {
       title: '约束',
       key: 'constraints',
-      width: 100,
+      width: 80,
       render: (_: unknown, record: TableColumn) => {
         if (record.system || isReadonly(record)) return null;
 
@@ -850,7 +836,7 @@ export default function TableDesign({ appId, tableId, schema, onSaved }: TableDe
       title: '外键',
       dataIndex: 'foreignKey',
       key: 'foreignKey',
-      width: 140,
+      width: 100,
       render: (val: ForeignKeyReference | undefined, record: TableColumn) => {
         if (record.system) return null;
 
@@ -1069,7 +1055,7 @@ export default function TableDesign({ appId, tableId, schema, onSaved }: TableDe
             rowKey="id"
             pagination={false}
             size="small"
-            scroll={{ x: 1200 }}
+            scroll={{ x: 1000 }}
             footer={() => (
               <Button
                 type="dashed"

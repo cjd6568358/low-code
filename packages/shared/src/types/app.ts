@@ -7,16 +7,11 @@
  * - expose 说"我暴露了什么"
  * - references 说"我引用了谁的什么"
  * 两者都按资源类型分组，key 即类型，value 为 ID 列表。
+ *
+ * 资源类型枚举见 config/resource-types.ts（唯一数据源）。
  */
 
-/** 应用内可暴露/可引用的资源类型（对应 tenants/{id}/apps/{id}/ 下的子目录） */
-export type ExposableResourceType =
-  | 'pages'
-  | 'cards'
-  | 'tables'
-  | 'workflows'
-  | 'automations'
-  | 'computations';
+import type { ExposableResourceType } from '../config/resource-types.js';
 
 /**
  * 应用元数据 — 与 tenants/{id}/apps/{id}/app.json 一一对应

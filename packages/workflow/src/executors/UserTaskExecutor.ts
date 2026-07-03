@@ -2,8 +2,8 @@
  * 用户任务执行器（审批节点）
  */
 
-import type { UserTask } from '@low-code/workflow-bpmn';
-import { isUserTask } from '@low-code/workflow-bpmn';
+import type { UserTask } from '../schema';
+import { isUserTask } from '../schema';
 import { NodeExecutorBase } from './NodeExecutorBase';
 import type {
   ExecutionContext,

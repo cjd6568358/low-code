@@ -62,6 +62,8 @@ This file provides guidance to Claude Code when working with this repository.
 - **API 接口**：裸 ID（如 `GET /api/apps/80e88653`）
 - 代码通过动态拼接 `{type}_{id}` 访问文件系统，服务端兼容裸 ID 和带前缀 ID
 - **禁止**在 API 响应或前端代码中使用带前缀的资源 ID
+- **物理资源 ID**：统一使用 `generateHexId()`（`@low-code/shared`），生成 8 位 hex
+- **资源内部节点 ID**：统一使用 `generateNodeId(prefix, existingIds)`（`@low-code/shared`），生成 `node_01`、`rule_02` 格式
 
 ### 设计器 DnD 开发规范
 - **禁止用 `disabled` 禁用组件交互** — disabled 会吞掉鼠标事件，用 `pointer-events: none` 包裹
@@ -75,6 +77,7 @@ This file provides guidance to Claude Code when working with this repository.
 - 每个包必须有 `src/index.ts` barrel exports
 - 跨包引用用 `@low-code/{pkg}`，不直接引用子路径
 - 类型引用用 `import type`
+- **ESM 规范**：包内相对路径 import 必须带 `.js` 扩展名（如 `from './utils/index.js'`），目录导入写 `./types/index.js` 而非 `./types`
 
 ### React
 - 函数组件 + Hooks，不用 class 组件

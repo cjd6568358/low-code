@@ -1,5 +1,106 @@
 # Bug 修复记录
 
+## 2026-07-03
+
+### 流程设计器默认节点格式错误及结束节点缺失
+
+**现象**：
+1. 流程设计器初始化时没有显示开始和结束节点
+2. 结束节点放在了开始节点的 children 里，导致格式不符合 react-flow-builder 要求
+
+**根因**：
+1. **格式错误**：没有参考官方 demo，自创了 children 嵌套格式。官方 demo 要求平级数组 + `path` 属性
+2. **结束节点缺失**：`react-flow-builder` 库内部会过滤 `isEnd` 节点，不在 + 号菜单中显示。结束节点必须在初始数据中提供
+
+**修复**：
+1. **默认节点格式**：改为官方 demo 的平级数组格式
+2. **初始数据**：当 `value` 为空或 `processes` 为空时，使用默认的 `开始 -> 结束` 节点结构
+
+**涉及文件**：
+- `packages/renderer/src/workflow/designer/WorkflowDesigner.tsx`
+
+**教训**：
+- 拿到官方示例后，必须逐字段对照，不要脑补格式
+
+---
+
+### 资源删除后刷新又出现
+
+**现象**：流程、自动化等资源删除后，刷新页面又出现了
+
+**根因**：删除接口使用软删除（标记 `_deleted: true`），但扫描接口没有过滤 `_deleted` 标记
+
+**修复**：
+1. `workflows.ts`：`scanWorkflows` 和 `GET /:id` 添加 `_deleted` 过滤
+2. `automations.ts`：`scanRules` 和 `GET /:id` 添加 `_deleted` 过滤
+3. `apps.ts`：`scanAllResources` 添加 `_deleted` 过滤
+
+**涉及文件**：
+- `server/src/routes/workflows.ts`
+- `server/src/routes/automations.ts`
+- `server/src/routes/apps.ts`
+
+---
+
+## 2026-07-02 (续)
+
+### 流程设计器弹窗闪烁及节点重置
+
+**现象**：
+1. 点击 + 号选择节点类型后，弹窗一闪而过，无法正常添加节点
+2. 添加节点后节点消失，被重置为初始状态
+
+**根因**：
+1. **弹窗闪烁**：自定义 `PopoverComponent` 包装组件与 `react-flow-builder` 内部状态管理冲突。官方 demo 要求直接使用 antd `Popover` 组件，不做任何包装
+2. **节点重置**：`onChange` 回调触发父组件更新 `value`，`useEffect` 检测到 `value` 变化后重新初始化节点，形成循环
+
+**修复**：
+1. **PopoverComponent**：直接使用 `Popover` 组件，不做包装：`PopoverComponent={Popover}`
+2. **状态同步**：使用 `useRef` 标记内部更新，避免 `useEffect` 循环重置：
+   ```tsx
+   const isInternalUpdate = useRef(false);
+
+   useEffect(() => {
+     if (value && !isInternalUpdate.current) {
+       setNodes(fromBpmnDocument(value));
+     }
+     isInternalUpdate.current = false;
+   }, [value]);
+
+   const handleChange = useCallback((newNodes) => {
+     setNodes(newNodes);
+     isInternalUpdate.current = true;
+     onChange?.(toBpmnDocument(newNodes));
+   }, [onChange]);
+   ```
+
+**涉及文件**：
+- `packages/renderer/src/workflow/designer/WorkflowDesigner.tsx`
+
+**教训**：
+- 官方文档和 demo 是最权威的参考，不要自作主张"优化"
+- React 受控组件的 `onChange` → `value` 循环是常见陷阱，必须用 ref 标记内部更新
+
+---
+
+## 2026-07-02
+
+### 页面设计器开启水印报错
+
+**现象**：页面设计器点击开启水印后，控制台报错 `InvalidStateError: Failed to execute 'drawImage' on 'CanvasRenderingContext2D': The image argument is a canvas element with a width or height of 0.`
+
+**根因**：水印启用但未配置 `content` 或 `image` 时，antd Watermark 组件仍尝试渲染，导致内部 canvas 尺寸为 0。
+
+**修复**：
+1. **DesignCanvas.tsx**：水印启用但无 content/image 时，提供默认文案 `'水印'`
+2. **PageRuntime.tsx**：运行时同样补充默认文案兜底
+
+**涉及文件**：
+- `packages/renderer/src/designer/panels/DesignCanvas.tsx`
+- `frontend/src/components/PageRuntime.tsx`
+
+---
+
 ## 2026-06-29 (续)
 
 ### 流程设计器添加按钮不显示

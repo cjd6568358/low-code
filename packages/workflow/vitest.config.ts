@@ -8,7 +8,6 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@low-code/workflow-bpmn': resolve(__dirname, '../workflow-bpmn/src'),
       '@low-code/workflow': resolve(__dirname, './src'),
     },
   },

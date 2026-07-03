@@ -69,18 +69,14 @@ export interface WorkflowDefinition {
  * 获取流程定义列表
  */
 export async function getWorkflows(appId: string): Promise<WorkflowDefinition[]> {
-  return request<WorkflowDefinition[]>('/workflows', {
-    params: { appId },
-  });
+  return request<WorkflowDefinition[]>(`/apps/${appId}/workflows`);
 }
 
 /**
  * 获取单个流程定义
  */
 export async function getWorkflow(appId: string, workflowId: string): Promise<WorkflowDefinition> {
-  return request<WorkflowDefinition>(`/workflows/${workflowId}`, {
-    params: { appId },
-  });
+  return request<WorkflowDefinition>(`/apps/${appId}/workflows/${workflowId}`);
 }
 
 /**
@@ -91,9 +87,9 @@ export async function createWorkflow(appId: string, data: {
   description?: string;
   schema?: any;
 }): Promise<WorkflowDefinition> {
-  return request<WorkflowDefinition>('/workflows', {
+  return request<WorkflowDefinition>(`/apps/${appId}/workflows`, {
     method: 'POST',
-    body: { appId, ...data },
+    body: data,
   });
 }
 
@@ -105,9 +101,8 @@ export async function updateWorkflow(appId: string, workflowId: string, data: {
   description?: string;
   schema?: any;
 }): Promise<WorkflowDefinition> {
-  return request<WorkflowDefinition>(`/workflows/${workflowId}`, {
+  return request<WorkflowDefinition>(`/apps/${appId}/workflows/${workflowId}`, {
     method: 'PUT',
-    params: { appId },
     body: data,
   });
 }
@@ -116,9 +111,8 @@ export async function updateWorkflow(appId: string, workflowId: string, data: {
  * 删除流程定义
  */
 export async function deleteWorkflow(appId: string, workflowId: string): Promise<void> {
-  return request<void>(`/workflows/${workflowId}`, {
+  return request<void>(`/apps/${appId}/workflows/${workflowId}`, {
     method: 'DELETE',
-    params: { appId },
   });
 }
 

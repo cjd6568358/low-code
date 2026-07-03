@@ -92,7 +92,7 @@ export const AutomationDesign: React.FC<AutomationDesignProps> = ({
   appId,
   ruleId,
   tenantId,
-  apiBase = '/api/automations',
+  apiBase = `/api/apps/${appId}/automations`,
   onBack,
   onSave,
 }) => {
@@ -114,7 +114,7 @@ export const AutomationDesign: React.FC<AutomationDesignProps> = ({
 
     setLoading(true);
     try {
-      const response = await fetch(`${apiBase}/${ruleId}?appId=${appId}`);
+      const response = await fetch(`${apiBase}/${ruleId}`);
       const data = await response.json();
 
       if (data.data) {
@@ -150,7 +150,7 @@ export const AutomationDesign: React.FC<AutomationDesignProps> = ({
         appId,
       };
 
-      const url = ruleId ? `${apiBase}/${ruleId}?appId=${appId}` : `${apiBase}?appId=${appId}`;
+      const url = ruleId ? `${apiBase}/${ruleId}` : apiBase;
       const method = ruleId ? 'PUT' : 'POST';
 
       const response = await fetch(url, {
@@ -181,7 +181,7 @@ export const AutomationDesign: React.FC<AutomationDesignProps> = ({
     const action = newStatus === 'enabled' ? 'enable' : 'disable';
 
     try {
-      const response = await fetch(`${apiBase}/${ruleId}/${action}?appId=${appId}`, {
+      const response = await fetch(`/api/automations/${ruleId}/${action}?appId=${appId}`, {
         method: 'POST',
       });
 

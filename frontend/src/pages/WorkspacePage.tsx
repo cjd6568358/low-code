@@ -18,7 +18,6 @@ import {
   RightOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '../auth/AuthContext';
-import { shortId } from '../utils/resourceId';
 
 const { Text, Title } = Typography;
 
@@ -370,7 +369,7 @@ export default function WorkspacePage() {
                   transition: 'all 0.2s',
                   border: '1px solid transparent',
                 }}
-                onClick={() => navigate(`/${user?.tenantId}/app/${shortId(app.appId)}`)}
+                onClick={() => navigate(`/${user?.tenantId}/app/${app.appId}`)}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.borderColor = app.color;
                   e.currentTarget.style.background = 'white';

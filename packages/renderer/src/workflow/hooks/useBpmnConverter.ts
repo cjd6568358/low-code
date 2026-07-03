@@ -6,7 +6,7 @@
 
 import { useCallback } from 'react';
 import type { INode } from 'react-flow-builder';
-import type { BpmnDocument, ProcessDefinition, FlowNode, Edge } from '@low-code/workflow-bpmn';
+import type { BpmnDocument, ProcessDefinition, FlowNode, Edge } from '@low-code/workflow';
 
 /** 节点类型映射 */
 const NODE_TYPE_MAP: Record<string, string> = {

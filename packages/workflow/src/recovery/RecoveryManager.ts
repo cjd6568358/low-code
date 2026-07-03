@@ -3,6 +3,7 @@
  * 负责异常中断流程的恢复
  */
 
+import { generateHexId } from '@low-code/shared';
 import type { DatabaseAdapter, InstanceRecord, CheckpointRecord } from '../types/engine';
 import type { WorkflowEngine } from '../engine/WorkflowEngine';
 import type { ExecutionContext } from '../types/execution';
@@ -323,7 +324,7 @@ export class RecoveryManager {
     checkpoint: CheckpointRecord
   ): RecoveryRecord {
     return {
-      id: this.generateId(),
+      id: generateHexId(),
       instanceId,
       status: 'pending',
       checkpoint,
@@ -337,17 +338,5 @@ export class RecoveryManager {
   private async saveRecoveryRecord(record: RecoveryRecord): Promise<void> {
     // 这里可以将恢复记录保存到数据库
     // 目前只保存在内存中
-  }
-
-  /**
-   * 生成 ID
-   */
-  private generateId(): string {
-    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-    let result = '';
-    for (let i = 0; i < 8; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return result;
   }
 }

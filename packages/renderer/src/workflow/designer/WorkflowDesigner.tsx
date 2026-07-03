@@ -12,22 +12,6 @@ import FlowBuilder, {
   INode,
   IRegisterNode,
 } from 'react-flow-builder';
-
-/** 自定义 Popover 组件 */
-const PopoverComponent: React.FC<any> = ({ visible, onVisibleChange, children, content, ...rest }) => {
-  return (
-    <Popover
-      open={visible}
-      onOpenChange={onVisibleChange}
-      content={content}
-      trigger="click"
-      placement="rightTop"
-      {...rest}
-    >
-      {children}
-    </Popover>
-  );
-};
 import { StartNodeDisplay } from '../nodes/StartNode';
 import { EndNodeDisplay } from '../nodes/EndNode';
 import { ApprovalNodeDisplay } from '../nodes/ApprovalNode';
@@ -38,7 +22,8 @@ import { NotifyNodeDisplay } from '../nodes/NotifyNode';
 import { ServiceNodeDisplay } from '../nodes/ServiceNode';
 import { NodeConfigDrawer } from '../config/NodeConfigDrawer';
 import { useBpmnConverter } from '../hooks/useBpmnConverter';
-import type { BpmnDocument, FlowNode } from '@low-code/workflow-bpmn';
+import type { BpmnDocument, FlowNode } from '@low-code/workflow';
+import { generateNodeId } from '@low-code/shared';
 
 /** 流程设计器属性 */
 export interface WorkflowDesignerProps {
@@ -88,14 +73,38 @@ export const WorkflowDesigner: React.FC<WorkflowDesignerProps> = ({
   const { fromBpmnDocument, toBpmnDocument } = useBpmnConverter();
 
   // 初始化：从 BPMN JSON 转换为 react-flow-builder 格式
-  React.useEffect(() => {
-    if (value) {
-      const converted = fromBpmnDocument(value);
-      setNodes(converted);
-    }
-  }, [value]);
+  // 使用 ref 跟踪是否是内部更新，避免循环
+  const isInternalUpdate = useRef(false);
 
-  // 可添加的节点类型（排除开始和结束节点）
+  /** 默认节点：开始 -> 结束 */
+  const defaultNodes: INode[] = useMemo(() => [
+    {
+      id: generateNodeId('node', []),
+      type: NODE_TYPES.START,
+      name: '开始',
+      path: ['0'],
+    },
+    {
+      id: generateNodeId('node', ['node_01']),
+      type: NODE_TYPES.END,
+      name: '结束',
+      path: ['1'],
+    },
+  ], []);
+
+  React.useEffect(() => {
+    if (!isInternalUpdate.current) {
+      if (value && value.processes && value.processes.length > 0) {
+        const converted = fromBpmnDocument(value);
+        setNodes(converted.length > 0 ? converted : defaultNodes);
+      } else {
+        setNodes(defaultNodes);
+      }
+    }
+    isInternalUpdate.current = false;
+  }, [value, defaultNodes]);
+
+  // 可添加的节点类型（排除开始节点）
   const addableNodeTypes = useMemo(() => [
     NODE_TYPES.APPROVAL,
     NODE_TYPES.CONDITION,
@@ -103,6 +112,7 @@ export const WorkflowDesigner: React.FC<WorkflowDesignerProps> = ({
     NODE_TYPES.TIMER,
     NODE_TYPES.NOTIFY,
     NODE_TYPES.SERVICE,
+    NODE_TYPES.END,
   ], []);
 
   // 注册节点类型
@@ -162,6 +172,7 @@ export const WorkflowDesigner: React.FC<WorkflowDesignerProps> = ({
   // 节点变更回调
   const handleChange = useCallback((newNodes: INode[]) => {
     setNodes(newNodes);
+    isInternalUpdate.current = true;
 
     // 转换为 BPMN JSON 并通知父组件
     if (onChange) {
@@ -220,12 +231,12 @@ export const WorkflowDesigner: React.FC<WorkflowDesignerProps> = ({
         registerNodes={registerNodes}
         readonly={readonly}
         layout="vertical"
-        spaceX={50}
-        spaceY={50}
+        spaceX={16}
+        spaceY={16}
         showArrow
         historyTool
         zoomTool
-        PopoverComponent={PopoverComponent}
+        PopoverComponent={Popover}
       />
 
       {!readonly && (

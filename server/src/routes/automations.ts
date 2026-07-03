@@ -8,15 +8,10 @@
 
 import fs from 'fs';
 import path from 'path';
-import crypto from 'crypto';
 import KoaRouter from '@koa/router';
 import { TENANTS_DIR } from '../config/index.js';
 import { getDbManager } from '../config/db.js';
-
-/** 生成 8 位 hex UUID */
-function generateUuid(): string {
-  return crypto.randomBytes(4).toString('hex');
-}
+import { generateHexId } from '@low-code/shared';
 
 /** 从文件名提取裸 ID */
 function stripPrefix(id: string): string {
@@ -68,7 +63,7 @@ function scanRules(tenantId: string, appId: string): Record<string, unknown>[] {
           return null;
         }
       })
-      .filter((meta) => meta !== null);
+      .filter((meta) => meta !== null && !meta._deleted);
   } catch {
     return [];
   }
@@ -105,190 +100,12 @@ function deleteRuleFile(tenantId: string, appId: string, ruleId: string): boolea
 export function createAutomationsRouter(): KoaRouter {
   const router = new KoaRouter({ prefix: '/api/automations' });
 
-  // GET /api/automations - 获取规则列表
-  router.get('/', async (ctx) => {
-    const tenantId = getFirstTenantId();
-    if (!tenantId) {
-      ctx.status = 404;
-      ctx.body = { error: '没有找到租户' };
-      return;
-    }
-
-    const appId = ctx.query.appId as string;
-    if (!appId) {
-      ctx.status = 400;
-      ctx.body = { error: '缺少 appId 参数' };
-      return;
-    }
-
-    const rules = scanRules(tenantId, appId);
-
-    // 支持状态过滤
-    const status = ctx.query.status as string;
-    const filtered = status ? rules.filter(r => r.status === status) : rules;
-
-    ctx.body = { data: filtered };
-  });
-
-  // GET /api/automations/:id - 获取单个规则
-  router.get('/:id', async (ctx) => {
-    const tenantId = getFirstTenantId();
-    if (!tenantId) {
-      ctx.status = 404;
-      ctx.body = { error: '没有找到租户' };
-      return;
-    }
-
-    const appId = ctx.query.appId as string;
-    if (!appId) {
-      ctx.status = 400;
-      ctx.body = { error: '缺少 appId 参数' };
-      return;
-    }
-
-    const ruleId = ctx.params.id;
-    const rule = readRuleFile(tenantId, appId, ruleId);
-
-    if (!rule) {
-      ctx.status = 404;
-      ctx.body = { error: '自动化规则不存在' };
-      return;
-    }
-
-    ctx.body = { data: rule };
-  });
-
-  // POST /api/automations - 创建规则
-  router.post('/', async (ctx) => {
-    const tenantId = getFirstTenantId();
-    if (!tenantId) {
-      ctx.status = 404;
-      ctx.body = { error: '没有找到租户' };
-      return;
-    }
-
-    const body = ctx.request.body as Record<string, unknown>;
-    const { appId, name, description, trigger, condition, actions, throttle, effectiveTime } = body;
-
-    if (!appId) {
-      ctx.status = 400;
-      ctx.body = { error: '缺少 appId' };
-      return;
-    }
-
-    if (!name) {
-      ctx.status = 400;
-      ctx.body = { error: '缺少规则名称' };
-      return;
-    }
-
-    if (!trigger) {
-      ctx.status = 400;
-      ctx.body = { error: '缺少触发器配置' };
-      return;
-    }
-
-    if (!actions || !Array.isArray(actions) || actions.length === 0) {
-      ctx.status = 400;
-      ctx.body = { error: '缺少动作配置' };
-      return;
-    }
-
-    const id = generateUuid();
-    const now = new Date().toISOString();
-
-    const rule = {
-      id,
-      appId,
-      name,
-      description: description || '',
-      status: 'draft',
-      trigger,
-      condition: condition || null,
-      actions,
-      throttle: throttle || null,
-      effectiveTime: effectiveTime || null,
-      createdBy: 'system',
-      createdAt: now,
-      updatedBy: 'system',
-      updatedAt: now,
-      schemaVersion: 1,
-      version: 1,
-    };
-
-    writeRuleFile(tenantId, appId as string, rule);
-
-    ctx.status = 201;
-    ctx.body = { data: rule };
-  });
-
-  // PUT /api/automations/:id - 更新规则
-  router.put('/:id', async (ctx) => {
-    const tenantId = getFirstTenantId();
-    if (!tenantId) {
-      ctx.status = 404;
-      ctx.body = { error: '没有找到租户' };
-      return;
-    }
-
-    const appId = ctx.query.appId as string;
-    if (!appId) {
-      ctx.status = 400;
-      ctx.body = { error: '缺少 appId 参数' };
-      return;
-    }
-
-    const ruleId = ctx.params.id;
-    const existing = readRuleFile(tenantId, appId, ruleId);
-
-    if (!existing) {
-      ctx.status = 404;
-      ctx.body = { error: '自动化规则不存在' };
-      return;
-    }
-
-    const body = ctx.request.body as Record<string, unknown>;
-    const updated = {
-      ...existing,
-      ...body,
-      id: existing.id, // 保持原有 ID
-      appId: existing.appId, // 保持原有 appId
-      updatedAt: new Date().toISOString(),
-      version: ((existing.version as number) || 1) + 1,
-    };
-
-    writeRuleFile(tenantId, appId, updated);
-
-    ctx.body = { data: updated };
-  });
-
-  // DELETE /api/automations/:id - 删除规则
-  router.delete('/:id', async (ctx) => {
-    const tenantId = getFirstTenantId();
-    if (!tenantId) {
-      ctx.status = 404;
-      ctx.body = { error: '没有找到租户' };
-      return;
-    }
-
-    const appId = ctx.query.appId as string;
-    if (!appId) {
-      ctx.status = 400;
-      ctx.body = { error: '缺少 appId 参数' };
-      return;
-    }
-
-    const ruleId = ctx.params.id;
-    const deleted = deleteRuleFile(tenantId, appId, ruleId);
-
-    if (!deleted) {
-      ctx.status = 404;
-      ctx.body = { error: '自动化规则不存在' };
-      return;
-    }
-
-    ctx.body = { success: true };
-  });
+  // 注意：基本 CRUD 操作已统一到 apps 路由
+  // GET    /api/apps/:appId/automations          - 获取列表
+  // GET    /api/apps/:appId/automations/:id       - 获取单个
+  // POST   /api/apps/:appId/automations          - 创建
+  // PUT    /api/apps/:appId/automations/:id       - 更新
+  // DELETE /api/apps/:appId/automations/:id       - 删除
 
   // POST /api/automations/:id/enable - 启用规则
   router.post('/:id/enable', async (ctx) => {

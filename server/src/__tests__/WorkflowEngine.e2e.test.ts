@@ -11,7 +11,7 @@ import os from 'os';
 import { WorkflowEngine, WorkflowError } from '@low-code/workflow';
 import { FileDatabaseAdapter } from '../services/FileDatabaseAdapter.js';
 import { FileSnapshotService } from '../services/FileSnapshotService.js';
-import type { BpmnDocument } from '@low-code/workflow-bpmn';
+import type { BpmnDocument } from '@low-code/workflow';
 
 /** 创建测试用流程定义 */
 function createApprovalWorkflow(): BpmnDocument {

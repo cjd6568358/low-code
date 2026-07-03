@@ -15,7 +15,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { App, Spin, Button, Tag, Space } from 'antd';
 import { SaveOutlined, SendOutlined } from '@ant-design/icons';
 import { WorkflowDesigner } from '@low-code/renderer';
-import type { BpmnDocument } from '@low-code/workflow-bpmn';
+import type { BpmnDocument } from '@low-code/workflow';
 
 /** 服务端返回的流程定义结构 */
 interface WorkflowDefinition {
@@ -64,7 +64,7 @@ export default function WorkflowDesign({ appId, workflowId, onSaved }: WorkflowD
     let cancelled = false;
     (async () => {
       try {
-        const resp = await fetch(`/api/workflows/${workflowId}?appId=${appId}`);
+        const resp = await fetch(`/api/apps/${appId}/workflows/${workflowId}`);
         const data = await resp.json();
         if (!cancelled && data.data) {
           setWorkflow(data.data);
@@ -89,7 +89,7 @@ export default function WorkflowDesign({ appId, workflowId, onSaved }: WorkflowD
     if (!schema || !workflow) return;
     setSaving(true);
     try {
-      const resp = await fetch(`/api/workflows/${workflowId}?appId=${appId}`, {
+      const resp = await fetch(`/api/apps/${appId}/workflows/${workflowId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ schema }),

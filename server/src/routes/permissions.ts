@@ -5,16 +5,11 @@
  * 数据存储在 tenant SQLite 数据库的 permissions 表。
  */
 
-import crypto from 'crypto';
 import KoaRouter from '@koa/router';
 import { getDbManager } from '../config/db.js';
 import { TENANTS_DIR } from '../config/index.js';
+import { generateHexId } from '@low-code/shared';
 import fs from 'fs';
-
-/** 生成 8 位 hex UUID */
-function generateUuid(): string {
-  return crypto.randomBytes(4).toString('hex');
-}
 
 /** 获取第一个活跃租户 ID */
 function getFirstTenantId(): string | null {
@@ -211,7 +206,7 @@ export function createPermissionsRouter(): KoaRouter {
 
     const manager = getDbManager();
     const db = manager.getTenantDb(tenantId);
-    const permId = 'perm-' + generateUuid();
+    const permId = 'perm-' + generateHexId();
 
     try {
       db.prepare(`
@@ -321,7 +316,7 @@ export function createPermissionsRouter(): KoaRouter {
 
       for (const perm of body.permissions) {
         if (perm.allowed) {
-          const permId = 'perm-' + generateUuid();
+          const permId = 'perm-' + generateHexId();
           insertStmt.run(permId, body.roleId, perm.resourceType, perm.resourceId, 'read,execute');
         }
       }

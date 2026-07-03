@@ -4,6 +4,7 @@
  * 负责将自动化规则的执行结果记录到数据库。
  */
 
+import { generateHexId } from '@low-code/shared';
 import type {
   AutomationExecutionLog,
   ExecutionEventInfo,
@@ -41,7 +42,7 @@ export class ExecutionLogger {
     status: ExecutionLogStatus;
     totalDurationMs: number;
   }): Promise<AutomationExecutionLog> {
-    const id = this.generateId();
+    const id = generateHexId();
     const now = new Date().toISOString();
 
     const log: AutomationExecutionLog = {
@@ -216,17 +217,5 @@ export class ExecutionLogger {
       totalDurationMs: row.total_duration_ms,
       createdAt: row.created_at,
     };
-  }
-
-  /**
-   * 生成唯一 ID
-   */
-  private generateId(): string {
-    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-    let result = '';
-    for (let i = 0; i < 8; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return `log_${result}`;
   }
 }

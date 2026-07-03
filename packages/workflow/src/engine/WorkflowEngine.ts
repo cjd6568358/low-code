@@ -3,6 +3,7 @@
  * 负责流程实例的生命周期管理
  */
 
+import { generateHexId } from '@low-code/shared';
 import type {
   BpmnDocument,
   ProcessDefinition,
@@ -11,7 +12,7 @@ import type {
   ProcessInstance,
   ApprovalTask,
   WorkflowSnapshot,
-} from '@low-code/workflow-bpmn';
+} from '../schema';
 import {
   isStartEvent,
   isEndEvent,
@@ -24,7 +25,7 @@ import {
   isBoundaryEvent,
   validateBpmnDocument,
   deserializeBpmnDocument,
-} from '@low-code/workflow-bpmn';
+} from '../schema';
 import type {
   WorkflowEngineConfig,
   DatabaseAdapter,
@@ -1029,7 +1030,7 @@ export class WorkflowEngine {
    * 创建流程实例
    */
   private async createInstance(data: Partial<InstanceRecord>): Promise<InstanceRecord> {
-    const id = this.generateId();
+    const id = generateHexId();
     const now = new Date().toISOString();
 
     const instance: InstanceRecord = {
@@ -1152,7 +1153,7 @@ export class WorkflowEngine {
     dueDate?: string;
     formData?: Record<string, unknown>;
   }): Promise<TaskRecord> {
-    const id = this.generateId();
+    const id = generateHexId();
     const now = new Date().toISOString();
 
     const task: TaskRecord = {
@@ -1281,18 +1282,6 @@ export class WorkflowEngine {
         );
       }
     }
-  }
-
-  /**
-   * 生成 ID
-   */
-  private generateId(): string {
-    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-    let result = '';
-    for (let i = 0; i < 8; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return result;
   }
 
   /**

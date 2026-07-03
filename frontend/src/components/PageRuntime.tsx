@@ -200,6 +200,10 @@ export default function PageRuntime({ appId, pageId }: PageRuntimeProps) {
         resolvedWatermark[key] = rawValue;
       }
     }
+    // 水印启用但无 content/image 时，提供默认文案避免 antd canvas 0 尺寸报错
+    if (resolvedWatermark && !resolvedWatermark.content && !resolvedWatermark.image) {
+      resolvedWatermark.content = '水印';
+    }
   }
 
   const layoutContent = (

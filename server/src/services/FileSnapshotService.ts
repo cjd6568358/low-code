@@ -7,7 +7,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import crypto from 'crypto';
+import { generateHexId } from '@low-code/shared';
 import type { SnapshotService, CaptureSnapshotParams, SnapshotRecord, SnapshotDiff, FieldChange } from '@low-code/workflow';
 
 /**
@@ -26,7 +26,7 @@ export class FileSnapshotService implements SnapshotService {
    * 捕获快照
    */
   async capture(params: CaptureSnapshotParams): Promise<SnapshotRecord> {
-    const id = this.generateId();
+    const id = generateHexId();
     const now = new Date().toISOString();
 
     // 计算变更字段
@@ -270,12 +270,5 @@ export class FileSnapshotService implements SnapshotService {
     }
 
     return changes;
-  }
-
-  /**
-   * 生成 ID
-   */
-  private generateId(): string {
-    return crypto.randomBytes(4).toString('hex');
   }
 }

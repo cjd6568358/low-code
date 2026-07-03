@@ -9,12 +9,8 @@ import crypto from 'crypto';
 import KoaRouter from '@koa/router';
 import { getDbManager } from '../config/db.js';
 import { TENANTS_DIR } from '../config/index.js';
+import { generateHexId } from '@low-code/shared';
 import fs from 'fs';
-
-/** 生成 8 位 hex UUID */
-function generateUuid(): string {
-  return crypto.randomBytes(4).toString('hex');
-}
 
 /** 获取第一个活跃租户 ID */
 function getFirstTenantId(): string | null {
@@ -136,7 +132,7 @@ export function createUsersRouter(): KoaRouter {
 
     const manager = getDbManager();
     const db = manager.getTenantDb(tenantId);
-    const userId = 'user-' + generateUuid();
+    const userId = 'user-' + generateHexId();
 
     try {
       // 检查邮箱唯一性
@@ -158,7 +154,7 @@ export function createUsersRouter(): KoaRouter {
       if (body.department) {
         const dept = db.prepare('SELECT dept_id FROM departments WHERE name = ?').get(body.department) as { dept_id: string } | undefined;
         if (dept) {
-          const udId = 'ud-' + generateUuid();
+          const udId = 'ud-' + generateHexId();
           db.prepare(`
             INSERT INTO user_departments (id, user_id, dept_id, is_primary)
             VALUES (?, ?, ?, 1)
@@ -168,7 +164,7 @@ export function createUsersRouter(): KoaRouter {
 
       // 如果指定了角色，创建关联
       if (body.role) {
-        const urId = 'ur-' + generateUuid();
+        const urId = 'ur-' + generateHexId();
         db.prepare(`
           INSERT INTO user_roles (id, user_id, role_id, source)
           VALUES (?, ?, ?, 'manual')
@@ -228,7 +224,7 @@ export function createUsersRouter(): KoaRouter {
         db.prepare('DELETE FROM user_departments WHERE user_id = ? AND is_primary = 1').run(userId);
         const dept = db.prepare('SELECT dept_id FROM departments WHERE name = ?').get(body.department) as { dept_id: string } | undefined;
         if (dept) {
-          const udId = 'ud-' + generateUuid();
+          const udId = 'ud-' + generateHexId();
           db.prepare(`
             INSERT INTO user_departments (id, user_id, dept_id, is_primary)
             VALUES (?, ?, ?, 1)
@@ -239,7 +235,7 @@ export function createUsersRouter(): KoaRouter {
       // 更新角色关联
       if (body.role !== undefined) {
         db.prepare('DELETE FROM user_roles WHERE user_id = ?').run(userId);
-        const urId = 'ur-' + generateUuid();
+        const urId = 'ur-' + generateHexId();
         db.prepare(`
           INSERT INTO user_roles (id, user_id, role_id, source)
           VALUES (?, ?, ?, 'manual')

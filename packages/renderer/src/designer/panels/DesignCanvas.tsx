@@ -574,7 +574,11 @@ export function DesignCanvas({ registry }: DesignCanvasProps) {
       if (val != null && typeof val === 'object' && 'type' in val) continue; // 跳过绑定
       if (val !== undefined && val !== '') props[key] = val;
     }
-    return Object.keys(props).length > 0 ? props : null;
+    // 水印启用但无 content/image 时，提供默认文案避免 antd canvas 0 尺寸报错
+    if (!props.content && !props.image) {
+      props.content = '水印';
+    }
+    return props;
   }, [schema.watermark]);
 
   // ─── 渲染 ──────────────────────────────────────────────

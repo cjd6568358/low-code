@@ -11,7 +11,7 @@ import {
   deserializeBpmnDocument,
   createEmptyBpmnDocument,
   cloneBpmnDocument,
-  generateId,
+  generateHexId,
   isStartEvent,
   isEndEvent,
   isUserTask,
@@ -223,15 +223,15 @@ describe('BPMN 序列化器', () => {
     });
   });
 
-  describe('generateId', () => {
+  describe('generateHexId', () => {
     it('应该生成 8 位 ID', () => {
-      const id = generateId();
+      const id = generateHexId();
       expect(id).toHaveLength(8);
       expect(id).toMatch(/^[a-z0-9]{8}$/);
     });
 
     it('应该生成唯一 ID', () => {
-      const ids = new Set(Array.from({ length: 100 }, () => generateId()));
+      const ids = new Set(Array.from({ length: 100 }, () => generateHexId()));
       expect(ids.size).toBe(100);
     });
   });

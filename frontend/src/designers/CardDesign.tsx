@@ -50,11 +50,6 @@ const PROP_TYPE_OPTIONS = [
   { label: '数组 (array)', value: 'array' },
 ];
 
-/** 生成 8 位 hex ID */
-function generateId(): string {
-  return crypto.randomUUID().slice(0, 8);
-}
-
 // ─── 样式 ──────────────────────────────────────────────
 
 const toolbarStyle: React.CSSProperties = {

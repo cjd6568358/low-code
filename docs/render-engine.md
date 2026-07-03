@@ -645,7 +645,6 @@ packages/renderer/src/workflow/              ← 引擎层
   ├── hooks/useBpmnConverter.ts              ← BPMN JSON 转换器
   ├── runtime/                               ← 运行时组件（ApprovalForm/TaskList/FlowChart）
   └── api/workflowApi.ts                     ← API 客户端
-packages/workflow-bpmn/                      ← BPMN 类型定义 + 序列化/校验工具
 ```
 
 #### 支持的节点类型
@@ -692,20 +691,49 @@ AppDesignPage (ResourceDesigner)
 **踩坑记录：**
 
 1. **PopoverComponent 必需**：`react-flow-builder` 不内置弹出层组件，必须提供 `PopoverComponent`（如 antd `Popover`）才能显示添加按钮
-2. **addableNodeTypes 配置**：在 `registerNodes` 中为每个节点类型配置 `addableNodeTypes`，指定该节点下方可添加哪些节点类型
-3. **BPMN 转换**：`useBpmnConverter` 负责 BPMN JSON 与 react-flow-builder 树形结构之间的双向转换
+2. **直接使用 antd Popover**：官方 demo 要求直接使用 `Popover` 组件，**不要自定义包装组件**，否则会导致弹窗闪烁或无法正常工作
+3. **addableNodeTypes 配置**：在 `registerNodes` 中为每个节点类型配置 `addableNodeTypes`，指定该节点下方可添加哪些节点类型
+4. **BPMN 转换**：`useBpmnConverter` 负责 BPMN JSON 与 react-flow-builder 树形结构之间的双向转换
    - `fromBpmnDocument`：从开始节点递归构建树形结构（`children` 属性）
    - `toBpmnDocument`：递归遍历树形结构生成 nodes 和 edges
+5. **状态同步防循环**：`onChange` 回调会触发父组件更新 `value`，导致 `useEffect` 重置节点。必须使用 `useRef` 标记内部更新，避免循环重置：
+   ```tsx
+   const isInternalUpdate = useRef(false);
+
+   useEffect(() => {
+     if (value && !isInternalUpdate.current) {
+       setNodes(fromBpmnDocument(value));
+     }
+     isInternalUpdate.current = false;
+   }, [value]);
+
+   const handleChange = useCallback((newNodes) => {
+     setNodes(newNodes);
+     isInternalUpdate.current = true;
+     onChange?.(toBpmnDocument(newNodes));
+   }, [onChange]);
+   ```
+6. **默认节点格式**：必须严格按照官方 demo 的平级数组格式，**不要自创 children 嵌套格式**：
+   ```tsx
+   // ✅ 正确：平级数组 + path 属性
+   const defaultNodes = [
+     { id: 'node-xxx', type: 'start', name: '开始', path: ['0'] },
+     { id: 'node-xxx', type: 'end', name: '结束', path: ['1'] },
+   ];
+
+   // ❌ 错误：children 嵌套
+   const defaultNodes = [
+     { id: 'xxx', type: 'start', name: '开始', children: [
+       { id: 'xxx', type: 'end', name: '结束' },
+     ]},
+   ];
+   ```
+7. **库自动过滤 isEnd 节点**：`react-flow-builder` 内部会过滤 `isEnd` 节点，不在 + 号菜单中显示。结束节点必须在初始数据中提供，无法通过 + 号添加
 
 **示例配置：**
 
 ```tsx
-// PopoverComponent 定义
-const PopoverComponent: React.FC<any> = ({ visible, onVisibleChange, children, content, ...rest }) => (
-  <Popover open={visible} onOpenChange={onVisibleChange} content={content} trigger="click" {...rest}>
-    {children}
-  </Popover>
-);
+import { Popover } from 'antd';
 
 // registerNodes 配置
 const registerNodes = [
@@ -719,12 +747,12 @@ const registerNodes = [
   // ... 其他节点
 ];
 
-// FlowBuilder 使用
+// FlowBuilder 使用 — 直接传入 antd Popover
 <FlowBuilder
   nodes={nodes}
   onChange={handleChange}
   registerNodes={registerNodes}
-  PopoverComponent={PopoverComponent}  // 必须提供
+  PopoverComponent={Popover}  // 直接使用 antd Popover，不要包装
 />
 ```
 

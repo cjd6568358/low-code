@@ -2,7 +2,7 @@
  * 任务相关类型定义
  */
 
-import type { TaskStatus } from '@low-code/workflow-bpmn';
+import type { TaskStatus } from '../schema';
 
 /** 任务类型 */
 export type TaskType =

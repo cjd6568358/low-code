@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { PageRule } from '@low-code/shared';
+import { generateNodeId } from '@low-code/shared';
 
 /** 条件构建器属性 */
 export interface ConditionBuilderProps {
@@ -28,7 +29,7 @@ export function ConditionBuilder(props: ConditionBuilderProps) {
   // 添加规则
   const handleAddRule = () => {
     const newRule: PageRule = {
-      id: `rule_${Date.now()}`,
+      id: generateNodeId('rule', rules.map((r) => r.id)),
       targetId: componentIds[0] || '',
       condition: '',
       action: 'visible',
