@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "version": 2,
+  "name": "测试流程",
+  "createdAt": 1783071977482,
+  "updatedAt": 1783073095556,
+  "references": {},
+  "workflowId": "bff536a1",
+  "status": "DRAFT",
+  "schema": {
+    "id": "doc_1783073091142",
+    "name": "流程定义",
+    "processes": [
+      {
+        "id": "process_1783073091142",
+        "name": "流程定义",
+        "isExecutable": true,
+        "nodes": [
+          {
+            "id": "start-1e34605a-47d4-459d-926f-a2e3563f1d46",
+            "$type": "bpmn:StartEvent",
+            "name": "开始"
+          },
+          {
+            "id": "service-be5423c1-856e-44a8-b64c-5975b58ff616",
+            "$type": "bpmn:ServiceTask",
+            "name": "自动化"
+          },
+          {
+            "id": "timer-dd1f12f9-54fd-40ff-bc83-fa2df9fb7f68",
+            "$type": "bpmn:TimerEvent",
+            "name": "延时"
+          },
+          {
+            "id": "approval-72616114-69fb-458f-8045-8b6b0b35eb4f",
+            "$type": "bpmn:UserTask",
+            "name": "审批"
+          },
+          {
+            "id": "end-d211f6d8-7164-4d60-a63e-e6426aeb59f8",
+            "$type": "bpmn:EndEvent",
+            "name": "结束"
+          }
+        ],
+        "edges": [
+          {
+            "id": "flow_start-1e34605a-47d4-459d-926f-a2e3563f1d46_service-be5423c1-856e-44a8-b64c-5975b58ff616",
+            "$type": "bpmn:SequenceFlow",
+            "sourceRef": "start-1e34605a-47d4-459d-926f-a2e3563f1d46",
+            "targetRef": "service-be5423c1-856e-44a8-b64c-5975b58ff616",
+            "name": ""
+          },
+          {
+            "id": "flow_service-be5423c1-856e-44a8-b64c-5975b58ff616_timer-dd1f12f9-54fd-40ff-bc83-fa2df9fb7f68",
+            "$type": "bpmn:SequenceFlow",
+            "sourceRef": "service-be5423c1-856e-44a8-b64c-5975b58ff616",
+            "targetRef": "timer-dd1f12f9-54fd-40ff-bc83-fa2df9fb7f68",
+            "name": ""
+          },
+          {
+            "id": "flow_timer-dd1f12f9-54fd-40ff-bc83-fa2df9fb7f68_approval-72616114-69fb-458f-8045-8b6b0b35eb4f",
+            "$type": "bpmn:SequenceFlow",
+            "sourceRef": "timer-dd1f12f9-54fd-40ff-bc83-fa2df9fb7f68",
+            "targetRef": "approval-72616114-69fb-458f-8045-8b6b0b35eb4f",
+            "name": ""
+          },
+          {
+            "id": "flow_approval-72616114-69fb-458f-8045-8b6b0b35eb4f_end-d211f6d8-7164-4d60-a63e-e6426aeb59f8",
+            "$type": "bpmn:SequenceFlow",
+            "sourceRef": "approval-72616114-69fb-458f-8045-8b6b0b35eb4f",
+            "targetRef": "end-d211f6d8-7164-4d60-a63e-e6426aeb59f8",
+            "name": ""
+          }
+        ]
+      }
+    ]
+  }
+}

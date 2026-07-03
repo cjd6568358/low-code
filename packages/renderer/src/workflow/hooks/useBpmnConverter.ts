@@ -2,6 +2,17 @@
  * BPMN 转换器 Hook
  *
  * 负责 react-flow-builder 节点格式与 BPMN JSON 之间的转换。
+ *
+ * **重要**：react-flow-builder 使用 **平级数组 + path** 结构，不是 children 嵌套！
+ * 官方 demo 示例：
+ * ```js
+ * [
+ *   { type: 'start', name: '开始', path: ['0'] },
+ *   { type: 'node', name: '普通节点', path: ['1'] },
+ *   { type: 'end', name: '结束', path: ['2'] },
+ * ]
+ * ```
+ * 只有 branch/condition 节点才有 children，且 children 内节点也有 path。
  */
 
 import { useCallback } from 'react';
@@ -40,8 +51,8 @@ export function useBpmnConverter() {
   /**
    * 从 BPMN 文档转换为 react-flow-builder 节点
    *
-   * react-flow-builder 使用树形结构，通过 children 属性表示连接关系。
-   * 需要将 BPMN 的 edges 转换为树形结构。
+   * 使用 BFS 遍历，生成 **平级数组 + path** 结构（符合官方 demo 格式）。
+   * 只有 branch/condition 节点才有 children。
    */
   const fromBpmnDocument = useCallback((doc: BpmnDocument): INode[] => {
     if (!doc.processes || doc.processes.length === 0) {
@@ -50,6 +61,10 @@ export function useBpmnConverter() {
 
     const process = doc.processes[0];
     const { nodes: bpmnNodes, edges: bpmnEdges } = process;
+
+    if (!bpmnNodes || bpmnNodes.length === 0) {
+      return [];
+    }
 
     // 构建节点映射
     const nodeMap = new Map<string, FlowNode>();
@@ -73,27 +88,37 @@ export function useBpmnConverter() {
       return [];
     }
 
-    // 递归构建树形结构
-    const buildTree = (nodeId: string, visited: Set<string> = new Set()): INode | null => {
+    // BFS 遍历，生成平级数组
+    const result: INode[] = [];
+    const visited = new Set<string>();
+    // 队列：[nodeId, path]
+    const queue: Array<[string, string[]]> = [[startNode.id, ['0']]];
+
+    while (queue.length > 0) {
+      const [nodeId, path] = queue.shift()!;
+
       if (visited.has(nodeId)) {
-        return null; // 防止循环
+        continue; // 防止循环
       }
       visited.add(nodeId);
 
       const bpmnNode = nodeMap.get(nodeId);
       if (!bpmnNode) {
-        return null;
+        continue;
       }
+
+      const flowBuilderType = NODE_TYPE_REVERSE_MAP[bpmnNode.$type] || bpmnNode.$type;
 
       const flowBuilderNode: INode = {
         id: bpmnNode.id,
         name: bpmnNode.name || '',
-        type: NODE_TYPE_REVERSE_MAP[bpmnNode.$type] || bpmnNode.$type,
+        type: flowBuilderType,
+        path,
         data: {},
       };
 
-      // 复制特有属性（排除 id, name, type, $type, incoming, outgoing）
-      const skipFields = new Set(['id', 'name', 'type', '$type', 'incoming', 'outgoing']);
+      // 复制特有属性（排除 id, name, type, $type, incoming, outgoing, path）
+      const skipFields = new Set(['id', 'name', 'type', '$type', 'incoming', 'outgoing', 'path']);
       for (const key of Object.keys(bpmnNode)) {
         if (!skipFields.has(key) && (bpmnNode as any)[key] !== undefined) {
           (flowBuilderNode.data as any)[key] = (bpmnNode as any)[key];
@@ -103,39 +128,95 @@ export function useBpmnConverter() {
       // 获取 outgoing edges
       const outgoingEdges = outgoingMap.get(nodeId) || [];
 
-      if (outgoingEdges.length > 0) {
-        // 递归处理子节点
+      // 判断是否为分支节点（有多个出口或类型为 gateway）
+      const isBranch = outgoingEdges.length > 1 ||
+        flowBuilderType === 'condition' ||
+        flowBuilderType === 'parallel';
+
+      if (isBranch && outgoingEdges.length > 0) {
+        // 分支节点：生成 children 结构
         const children: INode[] = [];
-        for (const edge of outgoingEdges) {
-          const childNode = buildTree(edge.targetRef, new Set(visited));
-          if (childNode) {
-            children.push(childNode);
+        for (let i = 0; i < outgoingEdges.length; i++) {
+          const edge = outgoingEdges[i];
+          const childPath = [...path, 'children', String(i)];
+
+          // 条件节点本身
+          const conditionNode: INode = {
+            id: `condition_${edge.id}`,
+            type: 'condition',
+            name: edge.name || `条件${i + 1}`,
+            path: childPath,
+            data: {},
+          };
+
+          // 获取条件节点的后续节点
+          const targetNode = nodeMap.get(edge.targetRef);
+          if (targetNode) {
+            const conditionChildren: INode[] = [];
+            const childFlowNode: INode = {
+              id: targetNode.id,
+              name: targetNode.name || '',
+              type: NODE_TYPE_REVERSE_MAP[targetNode.$type] || targetNode.$type,
+              path: [...childPath, 'children', '0'],
+              data: {},
+            };
+            conditionChildren.push(childFlowNode);
+            conditionNode.children = conditionChildren;
+
+            // 将后续节点加入队列继续处理
+            const targetOutEdges = outgoingMap.get(targetNode.id) || [];
+            if (targetOutEdges.length > 0) {
+              for (const targetEdge of targetOutEdges) {
+                if (!visited.has(targetEdge.targetRef)) {
+                  queue.push([targetEdge.targetRef, [...childPath, 'children', '0']]);
+                }
+              }
+            }
           }
+
+          children.push(conditionNode);
         }
-        if (children.length > 0) {
-          flowBuilderNode.children = children;
+        flowBuilderNode.children = children;
+      } else if (outgoingEdges.length === 1) {
+        // 单出口：将目标节点加入队列
+        const targetId = outgoingEdges[0].targetRef;
+        if (!visited.has(targetId)) {
+          // 计算下一个 path index
+          const pathIndex = parseInt(path[path.length - 1], 10) + 1;
+          const nextPath = [...path.slice(0, -1), String(pathIndex)];
+          queue.push([targetId, nextPath]);
         }
       }
 
-      return flowBuilderNode;
-    };
+      result.push(flowBuilderNode);
+    }
 
-    // 从开始节点构建树
-    const rootNode = buildTree(startNode.id);
-    return rootNode ? [rootNode] : [];
+    return result;
   }, []);
 
   /**
    * 从 react-flow-builder 节点转换为 BPMN 文档
    *
-   * react-flow-builder 使用树形结构（children），需要递归遍历收集节点并生成 edges。
+   * react-flow-builder 使用平级数组 + path 结构。
+   * 简化逻辑：按 path 排序后，为相邻节点生成 edges。
    */
   const toBpmnDocument = useCallback((nodes: INode[]): BpmnDocument => {
     const bpmnNodes: FlowNode[] = [];
     const bpmnEdges: Edge[] = [];
 
-    // 递归遍历树形结构，收集节点和生成 edges
-    const collectNodes = (node: INode, parentId?: string) => {
+    // 收集所有真实节点（跳过虚拟 condition 节点）
+    const collectNode = (node: INode) => {
+      // 跳过虚拟的 condition 节点（由 edge 生成的）
+      if (node.id.startsWith('condition_')) {
+        // 但处理它的 children
+        if (node.children) {
+          for (const child of node.children) {
+            collectNode(child);
+          }
+        }
+        return;
+      }
+
       const bpmnType = NODE_TYPE_MAP[node.type] || node.type;
 
       const bpmnNode: any = {
@@ -155,28 +236,53 @@ export function useBpmnConverter() {
 
       bpmnNodes.push(bpmnNode as FlowNode);
 
-      // 生成从父节点到当前节点的 edge
-      if (parentId) {
-        bpmnEdges.push({
-          id: `flow_${parentId}_${node.id}`,
-          $type: 'bpmn:SequenceFlow',
-          sourceRef: parentId,
-          targetRef: node.id,
-          name: '',
-        });
-      }
-
-      // 递归处理子节点
-      if (node.children && node.children.length > 0) {
+      // 处理 children（branch/condition 节点）
+      if (node.children) {
         for (const child of node.children) {
-          collectNodes(child, node.id);
+          collectNode(child);
         }
       }
     };
 
-    // 遍历顶层节点
-    for (const node of nodes) {
-      collectNodes(node);
+    // 按 path 排序
+    const sortedNodes = [...nodes].sort((a, b) => {
+      const pathA = (a.path || []).join('.');
+      const pathB = (b.path || []).join('.');
+      return pathA.localeCompare(pathB);
+    });
+
+    // 收集所有节点
+    for (const node of sortedNodes) {
+      collectNode(node);
+    }
+
+    // 按 path 排序真实节点，生成顺序连线
+    const realNodes = bpmnNodes
+      .filter(n => !n.id.startsWith('condition_'))
+      .sort((a, b) => {
+        // 找到对应的 react-flow-builder 节点来获取 path
+        const nodeA = sortedNodes.find(n => n.id === a.id);
+        const nodeB = sortedNodes.find(n => n.id === b.id);
+        const pathA = (nodeA?.path || []).join('.');
+        const pathB = (nodeB?.path || []).join('.');
+        return pathA.localeCompare(pathB);
+      });
+
+    // 为相邻节点生成 edges
+    for (let i = 0; i < realNodes.length - 1; i++) {
+      const current = realNodes[i];
+      const next = realNodes[i + 1];
+
+      // 只有非结束节点才生成出口 edge
+      if (current.$type !== 'bpmn:EndEvent') {
+        bpmnEdges.push({
+          id: `flow_${current.id}_${next.id}`,
+          $type: 'bpmn:SequenceFlow',
+          sourceRef: current.id,
+          targetRef: next.id,
+          name: '',
+        });
+      }
     }
 
     return {

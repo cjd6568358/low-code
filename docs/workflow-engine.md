@@ -650,6 +650,51 @@ const diff = await snapshotService.diff(snapshotId1, snapshotId2);
 | POST | `/api/workflow-tasks/:id/reject?appId=xxx` | 审批驳回 |
 | POST | `/api/workflow-tasks/:id/transfer?appId=xxx` | 转办任务 |
 
+### 默认流程 Schema
+
+创建新流程时，服务端会自动生成包含 **开始事件** 和 **结束事件** 的默认 BPMN Schema：
+
+```json
+{
+  "id": "workflow_{uuid}",
+  "name": "流程名称",
+  "processes": [
+    {
+      "id": "process_1",
+      "name": "主流程",
+      "nodes": [
+        {
+          "id": "start_1",
+          "$type": "bpmn:StartEvent",
+          "name": "开始",
+          "outgoing": ["edge_start_to_end"]
+        },
+        {
+          "id": "end_1",
+          "$type": "bpmn:EndEvent",
+          "name": "结束",
+          "incoming": ["edge_start_to_end"]
+        }
+      ],
+      "edges": [
+        {
+          "id": "edge_start_to_end",
+          "$type": "bpmn:SequenceFlow",
+          "name": "",
+          "sourceRef": "start_1",
+          "targetRef": "end_1"
+        }
+      ]
+    }
+  ]
+}
+```
+
+**设计决策（2026-07-03）：**
+- 新建流程自动包含 StartEvent + EndEvent，符合 BPMN 2.0 规范
+- 避免用户创建空流程后无法在设计器中操作
+- 与 react-flow-builder 的默认节点结构保持一致
+
 ---
 
 ## 与现有模块的关系

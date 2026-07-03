@@ -66,9 +66,11 @@ export default function WorkflowDesign({ appId, workflowId, onSaved }: WorkflowD
       try {
         const resp = await fetch(`/api/apps/${appId}/workflows/${workflowId}`);
         const data = await resp.json();
-        if (!cancelled && data.data) {
-          setWorkflow(data.data);
-          setSchema(data.data.schema);
+        // 服务端返回 { success: true, resource: content }
+        const resource = data.data || data.resource;
+        if (!cancelled && resource) {
+          setWorkflow(resource);
+          setSchema(resource.schema);
         }
       } catch {
         if (!cancelled) message.error('加载流程定义失败');
@@ -86,7 +88,11 @@ export default function WorkflowDesign({ appId, workflowId, onSaved }: WorkflowD
 
   // 保存
   const handleSave = useCallback(async () => {
-    if (!schema || !workflow) return;
+    console.log('[WorkflowDesign] handleSave called', { schema, workflow });
+    if (!schema || !workflow) {
+      console.warn('[WorkflowDesign] handleSave early return: schema or workflow is empty');
+      return;
+    }
     setSaving(true);
     try {
       const resp = await fetch(`/api/apps/${appId}/workflows/${workflowId}`, {

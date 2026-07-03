@@ -588,10 +588,43 @@ export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
       resourceContent.columns = [];
     }
 
-    // 流程类型：添加描述和 schema
+    // 流程类型：添加描述和默认 BPMN schema（含开始/结束节点）
     if (resourceType === 'workflows') {
       if (description) resourceContent.description = description;
-      if (schema) resourceContent.schema = schema;
+      // 如果未提供 schema，使用默认的 BPMN 结构
+      resourceContent.schema = schema || {
+        id: `workflow_${uuid}`,
+        name: name,
+        processes: [
+          {
+            id: 'process_1',
+            name: '主流程',
+            nodes: [
+              {
+                id: 'start_1',
+                $type: 'bpmn:StartEvent',
+                name: '开始',
+                outgoing: ['edge_start_to_end'],
+              },
+              {
+                id: 'end_1',
+                $type: 'bpmn:EndEvent',
+                name: '结束',
+                incoming: ['edge_start_to_end'],
+              },
+            ],
+            edges: [
+              {
+                id: 'edge_start_to_end',
+                $type: 'bpmn:SequenceFlow',
+                name: '',
+                sourceRef: 'start_1',
+                targetRef: 'end_1',
+              },
+            ],
+          },
+        ],
+      };
       resourceContent.status = 'DRAFT';
     }
 

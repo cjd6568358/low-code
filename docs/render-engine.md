@@ -665,9 +665,9 @@ packages/renderer/src/workflow/              ← 引擎层
 ```
 AppDesignPage (ResourceDesigner)
   └─ WorkflowDesign (wrapper)
-       ├─ fetch GET /api/workflows/:id?appId=xxx → 提取 schema (BpmnDocument)
+       ├─ fetch GET /api/apps/:appId/workflows/:id → 提取 schema (BpmnDocument)
        ├─ <WorkflowDesigner value={schema} onChange={setSchema} />
-       ├─ 保存 → PUT /api/workflows/:id?appId=xxx { schema }
+       ├─ 保存 → PUT /api/apps/:appId/workflows/:id { schema }
        └─ 发布 → POST /api/workflows/:id/publish?appId=xxx
 ```
 
@@ -677,6 +677,33 @@ AppDesignPage (ResourceDesigner)
 - `ProcessDefinition` — 流程定义，包含 `nodes: FlowNode[]`、`edges: Edge[]`
 - `FlowNode` — 节点联合类型（StartEvent / EndEvent / UserTask / ExclusiveGateway 等）
 - `WorkflowDefinition` — 服务端流程定义，包含 `schema`、`status`、`version` 等元数据
+
+#### 默认 Schema 结构
+
+创建新流程时，服务端自动生成包含 **开始事件** + **结束事件** 的默认 BPMN Schema，确保流程可立即在设计器中编辑。详见 [workflow-engine.md](workflow-engine.md#默认流程-schema)。
+
+#### ⚠️ react-flow-builder 数据结构（重要）
+
+**必须使用平级数组 + path 属性**，不是 children 嵌套！
+
+```js
+// ✅ 正确：平级数组 + path
+[
+  { type: 'start', name: '开始', path: ['0'] },
+  { type: 'node', name: '审批节点', path: ['1'] },
+  { type: 'end', name: '结束', path: ['2'] },
+]
+
+// ❌ 错误：children 嵌套
+{
+  type: 'start',
+  children: [
+    { type: 'end' }  // 结束节点被嵌套，刷新后消失！
+  ]
+}
+```
+
+只有 branch/condition 节点才有 `children`，且 children 内节点也必须有 `path`。
 
 #### react-flow-builder 配置要点
 
@@ -693,9 +720,9 @@ AppDesignPage (ResourceDesigner)
 1. **PopoverComponent 必需**：`react-flow-builder` 不内置弹出层组件，必须提供 `PopoverComponent`（如 antd `Popover`）才能显示添加按钮
 2. **直接使用 antd Popover**：官方 demo 要求直接使用 `Popover` 组件，**不要自定义包装组件**，否则会导致弹窗闪烁或无法正常工作
 3. **addableNodeTypes 配置**：在 `registerNodes` 中为每个节点类型配置 `addableNodeTypes`，指定该节点下方可添加哪些节点类型
-4. **BPMN 转换**：`useBpmnConverter` 负责 BPMN JSON 与 react-flow-builder 树形结构之间的双向转换
-   - `fromBpmnDocument`：从开始节点递归构建树形结构（`children` 属性）
-   - `toBpmnDocument`：递归遍历树形结构生成 nodes 和 edges
+4. **BPMN 转换**：`useBpmnConverter` 负责 BPMN JSON 与 react-flow-builder 平级数组结构之间的双向转换
+   - `fromBpmnDocument`：BFS 遍历生成平级数组 + path 属性（符合官方 demo 格式）
+   - `toBpmnDocument`：按 path 排序后生成 nodes 和 edges
 5. **状态同步防循环**：`onChange` 回调会触发父组件更新 `value`，导致 `useEffect` 重置节点。必须使用 `useRef` 标记内部更新，避免循环重置：
    ```tsx
    const isInternalUpdate = useRef(false);

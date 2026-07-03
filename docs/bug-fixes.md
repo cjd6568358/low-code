@@ -2,6 +2,66 @@
 
 ## 2026-07-03
 
+### 流程设计器刷新后结束节点消失
+
+**现象**：创建流程后画布上显示开始和结束节点，但刷新页面后结束节点消失
+
+**根因**：`useBpmnConverter.ts` 的 `fromBpmnDocument` 函数使用了 **children 嵌套结构**，但 react-flow-builder 官方 demo 使用的是 **平级数组 + path 属性** 结构！
+
+**官方 demo 正确格式**：
+```js
+[
+  { type: 'start', name: '开始', path: ['0'] },
+  { type: 'node', name: '普通节点', path: ['1'] },
+  { type: 'end', name: '结束', path: ['2'] },  // ← 平级数组！
+]
+```
+
+**错误实现**：
+```js
+// 错误：结束节点被嵌套在 children 里
+{
+  type: 'start',
+  children: [
+    { type: 'end' }  // ← 错误！
+  ]
+}
+```
+
+**修复**：
+1. 重写 `fromBpmnDocument` 函数，使用 BFS 遍历生成平级数组
+2. 每个节点都添加 `path` 属性
+3. 只有 branch/condition 节点才有 children
+
+**涉及文件**：
+- `packages/renderer/src/workflow/hooks/useBpmnConverter.ts` — 重写转换逻辑
+
+**教训**：
+- 拿到官方示例后，必须逐字段对照，不要脑补格式
+- react-flow-builder 的 `path` 属性是必须的，用于定位节点在流程中的位置
+
+---
+
+### 新建流程没有结束节点
+
+**现象**：通过 API 创建新流程后，流程文件中只有元数据，没有 BPMN 节点结构（缺少开始/结束事件）
+
+**根因**：`server/src/routes/apps.ts` 创建流程时，只添加了 `description`、`schema`、`status` 字段，但没有自动生成默认的 BPMN Schema 结构
+
+**修复**：
+1. 创建流程时，如果未提供 `schema`，自动生成包含 `StartEvent` + `EndEvent` 的默认 BPMN 结构
+2. 默认结构包含：开始节点 → 结束节点，通过 SequenceFlow 连接
+3. 更新现有空流程文件，补充默认节点
+
+**涉及文件**：
+- `server/src/routes/apps.ts` — 添加默认 Schema 生成逻辑
+- `tenants/tenant_90ef6d72/apps/app_80e88653/workflows/workflow_bff536a1.json` — 补充默认节点
+
+**教训**：
+- 资源创建时应提供合理的默认值，避免用户面对空白画布无法操作
+
+---
+
 ### 流程设计器默认节点格式错误及结束节点缺失
 
 **现象**：
