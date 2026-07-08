@@ -15,12 +15,89 @@ import type {
   InstanceRecord,
   TaskRecord,
   DefinitionRecord,
+  JobRecord,
+  UserResolver,
+  ResolvedUser,
 } from '@low-code/workflow';
 import { FileDatabaseAdapter } from './FileDatabaseAdapter.js';
 import { FileSnapshotService } from './FileSnapshotService.js';
 import { TENANTS_DIR } from '../config/index.js';
+import { getDbManager } from '../config/db.js';
 import fs from 'fs';
 import path from 'path';
+
+/**
+ * 租户用户解析器
+ *
+ * 运行时将指派策略（角色/部门/岗位）解析为具体用户列表。
+ * 通过 DatabaseManager 获取租户 SQLite 数据库查询用户信息。
+ */
+class TenantUserResolver implements UserResolver {
+  constructor(private tenantDirName: string) {}
+
+  private getDb() {
+    return getDbManager().getTenantDb(this.tenantDirName);
+  }
+
+  async findByRoles(roleIds: string[]): Promise<ResolvedUser[]> {
+    if (roleIds.length === 0) return [];
+
+    const db = this.getDb();
+    const placeholders = roleIds.map(() => '?').join(',');
+    const rows = db.prepare(`
+      SELECT DISTINCT u.user_id AS id, u.name
+      FROM users u
+      JOIN user_roles ur ON ur.user_id = u.user_id
+      WHERE ur.role_id IN (${placeholders}) AND u.status = 'active'
+    `).all(...roleIds) as ResolvedUser[];
+
+    return rows;
+  }
+
+  async findByDepartments(deptIds: string[]): Promise<ResolvedUser[]> {
+    if (deptIds.length === 0) return [];
+
+    const db = this.getDb();
+    const placeholders = deptIds.map(() => '?').join(',');
+    const rows = db.prepare(`
+      SELECT DISTINCT u.user_id AS id, u.name
+      FROM users u
+      JOIN user_departments ud ON ud.user_id = u.user_id
+      WHERE ud.dept_id IN (${placeholders}) AND u.status = 'active'
+    `).all(...deptIds) as ResolvedUser[];
+
+    return rows;
+  }
+
+  async findByPositions(positionIds: string[]): Promise<ResolvedUser[]> {
+    if (positionIds.length === 0) return [];
+
+    const db = this.getDb();
+    const placeholders = positionIds.map(() => '?').join(',');
+    const rows = db.prepare(`
+      SELECT DISTINCT u.user_id AS id, u.name
+      FROM users u
+      JOIN user_departments ud ON ud.user_id = u.user_id
+      WHERE ud.position_id IN (${placeholders}) AND u.status = 'active'
+    `).all(...positionIds) as ResolvedUser[];
+
+    return rows;
+  }
+
+  async findByIds(userIds: string[]): Promise<ResolvedUser[]> {
+    if (userIds.length === 0) return [];
+
+    const db = this.getDb();
+    const placeholders = userIds.map(() => '?').join(',');
+    const rows = db.prepare(`
+      SELECT user_id AS id, name
+      FROM users
+      WHERE user_id IN (${placeholders}) AND status = 'active'
+    `).all(...userIds) as ResolvedUser[];
+
+    return rows;
+  }
+}
 
 /**
  * 流程服务单例
@@ -39,9 +116,14 @@ export class WorkflowService {
       const db = new FileDatabaseAdapter(baseDir);
       const snapshotService = new FileSnapshotService(baseDir);
 
+      // 创建用户解析器 — 运行时将指派策略（角色/部门/岗位）解析为具体用户
+      const dirName = tenantId.startsWith('tenant_') ? tenantId : `tenant_${tenantId}`;
+      const userResolver = new TenantUserResolver(dirName);
+
       const engine = new WorkflowEngine({
         db,
         snapshotService,
+        userResolver,
       });
 
       this.instances.set(key, engine);
@@ -266,6 +348,22 @@ export class WorkflowService {
   static async getDefinition(tenantId: string, appId: string, workflowKey: string, version?: number): Promise<DefinitionRecord | undefined> {
     const engine = this.getEngine(tenantId, appId);
     return engine.getDefinition(workflowKey, version);
+  }
+
+  /**
+   * 获取流程实例的所有 Job
+   */
+  static async getJobs(tenantId: string, appId: string, instanceId: string): Promise<JobRecord[]> {
+    const engine = this.getEngine(tenantId, appId);
+    return engine.getJobs(instanceId);
+  }
+
+  /**
+   * 获取指定节点的最新 Job
+   */
+  static async getLatestJob(tenantId: string, appId: string, instanceId: string, nodeId: string): Promise<JobRecord | undefined> {
+    const engine = this.getEngine(tenantId, appId);
+    return engine.getLatestJob(instanceId, nodeId);
   }
 
   /**

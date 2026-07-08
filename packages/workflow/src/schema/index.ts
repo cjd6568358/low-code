@@ -62,6 +62,12 @@ export {
   isCallActivity,
   isSequenceFlow,
   isMessageFlow,
+  // 数据操作任务类型守卫
+  isDataOperationTask,
+  isCreateTask,
+  isUpdateTask,
+  isQueryTask,
+  isDeleteTask,
 } from './types/nodes';
 
 export type {

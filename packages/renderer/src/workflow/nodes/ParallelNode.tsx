@@ -8,12 +8,13 @@ import { NodeContext } from 'react-flow-builder';
 /** 并行节点展示组件 */
 export const ParallelNodeDisplay: React.FC = () => {
   const node = useContext(NodeContext) as any;
+  const data = node.data || {};
 
   return (
     <div
       style={{
-        width: 60,
-        height: 60,
+        width: 56,
+        height: 56,
         background: '#fff',
         border: '2px solid #722ed1',
         transform: 'rotate(45deg)',
@@ -32,7 +33,7 @@ export const ParallelNodeDisplay: React.FC = () => {
           textAlign: 'center',
         }}
       >
-        {node.name || '并行'}
+        {data.name || node.name || '并行'}
       </div>
     </div>
   );

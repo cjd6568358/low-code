@@ -1,13 +1,19 @@
 /**
  * 运算规则路由
  *
- * 提供运算规则的预览功能。
- * 规则的 CRUD 操作由 apps.ts 的通用路由处理。
- * 预览功能需要执行表达式并返回结果。
+ * 提供运算规则的 CRUD 和执行功能：
+ * - GET /api/computations — 列表
+ * - GET /api/computations/:id — 详情
+ * - POST /api/computations — 创建
+ * - PUT /api/computations/:id — 更新
+ * - DELETE /api/computations/:id — 删除
+ * - POST /api/computations/:id/execute — 执行
+ * - POST /api/computations/preview — 预览
  */
 
 import KoaRouter from '@koa/router';
 import { TENANTS_DIR } from '../config/index.js';
+import { computationExecutor } from '../services/ComputationExecutor.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -40,202 +46,9 @@ function findAppDir(appId: string): [string, string] | null {
   return null;
 }
 
-/**
- * 沙箱执行表达式
- *
- * 安全约束：
- * - 禁止访问全局对象（window、global、process、require）
- * - 禁止 this 逃逸（原型链访问）
- * - 禁止副作用（赋值、delete、new）
- * - 执行超时 100ms
- */
-function evaluateExpression(
-  expression: string,
-  context: Record<string, unknown>,
-  outputType: string
-): { success: boolean; result?: unknown; error?: string } {
-  try {
-    // 构建安全的上下文变量
-    const safeContext: Record<string, unknown> = {};
-
-    // 注入输入字段
-    for (const [key, value] of Object.entries(context)) {
-      // 验证变量名（只允许字母、数字、下划线）
-      if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key)) {
-        return { success: false, error: `无效的变量名: ${key}` };
-      }
-      safeContext[key] = value;
-    }
-
-    // 注入内置函数
-    const builtins = {
-      // 聚合函数
-      SUM: (arr: unknown[], field?: string) => {
-        if (!Array.isArray(arr)) return 0;
-        if (field) {
-          return arr.reduce((sum, item) => sum + (Number(item[field]) || 0), 0);
-        }
-        return arr.reduce((sum, item) => sum + (Number(item) || 0), 0);
-      },
-      AVG: (arr: unknown[], field?: string) => {
-        if (!Array.isArray(arr) || arr.length === 0) return 0;
-        const sum = builtins.SUM(arr, field);
-        return sum / arr.length;
-      },
-      COUNT: (arr: unknown[], filter?: (item: unknown) => boolean) => {
-        if (!Array.isArray(arr)) return 0;
-        if (filter) return arr.filter(filter).length;
-        return arr.length;
-      },
-      MAX: (...args: unknown[]) => {
-        if (args.length === 1 && Array.isArray(args[0])) {
-          return Math.max(...args[0].map(Number));
-        }
-        return Math.max(...args.map(Number));
-      },
-      MIN: (...args: unknown[]) => {
-        if (args.length === 1 && Array.isArray(args[0])) {
-          return Math.min(...args[0].map(Number));
-        }
-        return Math.min(...args.map(Number));
-      },
-      COUNT_DISTINCT: (arr: unknown[], field?: string) => {
-        if (!Array.isArray(arr)) return 0;
-        const values = field ? arr.map((item) => item[field]) : arr;
-        return new Set(values).size;
-      },
-
-      // 类型函数
-      isEmpty: (value: unknown) => {
-        if (value === null || value === undefined) return true;
-        if (typeof value === 'string') return value.trim() === '';
-        if (Array.isArray(value)) return value.length === 0;
-        if (typeof value === 'object') return Object.keys(value).length === 0;
-        return false;
-      },
-      isNotEmpty: (value: unknown) => !builtins.isEmpty(value),
-      toString: (value: unknown) => String(value),
-      toNumber: (value: unknown) => Number(value),
-
-      // 日期函数
-      NOW: () => new Date(),
-      TODAY: () => {
-        const d = new Date();
-        d.setHours(0, 0, 0, 0);
-        return d;
-      },
-      DAYS_BETWEEN: (d1: Date | string, d2: Date | string) => {
-        const date1 = new Date(d1);
-        const date2 = new Date(d2);
-        const diffTime = Math.abs(date1.getTime() - date2.getTime());
-        return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      },
-      ADD_DAYS: (date: Date | string, days: number) => {
-        const d = new Date(date);
-        d.setDate(d.getDate() + days);
-        return d;
-      },
-      FORMAT_DATE: (date: Date | string, pattern: string) => {
-        const d = new Date(date);
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        const hours = String(d.getHours()).padStart(2, '0');
-        const minutes = String(d.getMinutes()).padStart(2, '0');
-        const seconds = String(d.getSeconds()).padStart(2, '0');
-
-        return pattern
-          .replace('YYYY', String(year))
-          .replace('MM', month)
-          .replace('DD', day)
-          .replace('HH', hours)
-          .replace('mm', minutes)
-          .replace('ss', seconds);
-      },
-
-      // 字符串函数
-      UPPER: (str: string) => String(str).toUpperCase(),
-      LOWER: (str: string) => String(str).toLowerCase(),
-      TRIM: (str: string) => String(str).trim(),
-      SUBSTRING: (str: string, start: number, end?: number) => String(str).slice(start, end),
-      CONCAT: (...strs: unknown[]) => strs.map(String).join(''),
-      REPLACE: (str: string, search: string, replacement: string) =>
-        String(str).replace(search, replacement),
-
-      // 数学函数
-      ROUND: (num: number, decimals: number = 0) => {
-        const factor = Math.pow(10, decimals);
-        return Math.round(Number(num) * factor) / factor;
-      },
-      CEIL: (num: number) => Math.ceil(Number(num)),
-      FLOOR: (num: number) => Math.floor(Number(num)),
-      ABS: (num: number) => Math.abs(Number(num)),
-    };
-
-    // 构建执行上下文
-    const evalContext = {
-      ...safeContext,
-      ...builtins,
-      // 别名
-      record: safeContext,
-      this: safeContext,
-    };
-
-    // 安全检查：禁止危险操作
-    const dangerousPatterns = [
-      /\bwindow\b/,
-      /\bglobal\b/,
-      /\bprocess\b/,
-      /\brequire\b/,
-      /\bimport\b/,
-      /\beval\b/,
-      /\bFunction\b/,
-      /\bconstructor\b/,
-      /\b__proto__\b/,
-      /\bprototype\b/,
-      /=\s*[^=]/, // 赋值操作（排除比较运算符）
-      /\bdelete\b/,
-      /\bnew\s+(?!Date)/, // 禁止 new（除 new Date()）
-    ];
-
-    for (const pattern of dangerousPatterns) {
-      if (pattern.test(expression)) {
-        return {
-          success: false,
-          error: `表达式包含不允许的操作: ${pattern.source}`,
-        };
-      }
-    }
-
-    // 构建函数参数和函数体
-    const paramNames = Object.keys(evalContext);
-    const paramValues = Object.values(evalContext);
-    const funcBody = `"use strict"; return (${expression});`;
-
-    // 使用 Function 构造器在沙箱中执行，通过参数注入变量
-    const func = new Function(...paramNames, funcBody);
-    const result = func(...paramValues);
-
-    // 类型转换
-    let typedResult = result;
-    if (outputType === 'number') {
-      typedResult = Number(result);
-      if (isNaN(typedResult)) {
-        return { success: false, error: '运算结果不是有效数字' };
-      }
-    } else if (outputType === 'string') {
-      typedResult = String(result);
-    } else if (outputType === 'boolean') {
-      typedResult = Boolean(result);
-    }
-
-    return { success: true, result: typedResult };
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : '表达式执行失败',
-    };
-  }
+/** 生成 8 位 hex ID */
+function generateHexId(): string {
+  return Math.random().toString(16).substring(2, 10);
 }
 
 /** 创建运算路由 */
@@ -243,29 +56,278 @@ export function createComputationsRouter(): KoaRouter {
   const router = new KoaRouter({ prefix: '/api/computations' });
 
   /**
+   * GET /api/computations
+   * 获取运算规则列表
+   */
+  router.get('/', async (ctx) => {
+    const appId = ctx.query.appId as string;
+    if (!appId) {
+      ctx.status = 400;
+      ctx.body = { success: false, error: 'appId is required' };
+      return;
+    }
+
+    const result = findAppDir(appId);
+    if (!result) {
+      ctx.status = 404;
+      ctx.body = { success: false, error: '应用不存在' };
+      return;
+    }
+
+    const [, appDir] = result;
+    const computationsDir = path.join(appDir, 'computations');
+
+    try {
+      if (!fs.existsSync(computationsDir)) {
+        ctx.body = { success: true, data: [] };
+        return;
+      }
+
+      const files = fs.readdirSync(computationsDir).filter((f) => f.endsWith('.json'));
+      const computations = files.map((file) => {
+        const content = fs.readFileSync(path.join(computationsDir, file), 'utf-8');
+        return JSON.parse(content);
+      });
+
+      ctx.body = { success: true, data: computations };
+    } catch (error) {
+      ctx.status = 500;
+      ctx.body = { success: false, error: '加载运算规则失败' };
+    }
+  });
+
+  /**
+   * GET /api/computations/:id
+   * 获取单个运算规则
+   */
+  router.get('/:id', async (ctx) => {
+    const { id } = ctx.params;
+    const appId = ctx.query.appId as string;
+
+    if (!appId) {
+      ctx.status = 400;
+      ctx.body = { success: false, error: 'appId is required' };
+      return;
+    }
+
+    const result = findAppDir(appId);
+    if (!result) {
+      ctx.status = 404;
+      ctx.body = { success: false, error: '应用不存在' };
+      return;
+    }
+
+    const [, appDir] = result;
+    const computationFile = path.join(appDir, 'computations', `${id}.json`);
+
+    try {
+      if (!fs.existsSync(computationFile)) {
+        ctx.status = 404;
+        ctx.body = { success: false, error: '运算规则不存在' };
+        return;
+      }
+
+      const content = fs.readFileSync(computationFile, 'utf-8');
+      ctx.body = { success: true, data: JSON.parse(content) };
+    } catch (error) {
+      ctx.status = 500;
+      ctx.body = { success: false, error: '加载运算规则失败' };
+    }
+  });
+
+  /**
+   * POST /api/computations
+   * 创建运算规则
+   */
+  router.post('/', async (ctx) => {
+    const appId = ctx.query.appId as string;
+    if (!appId) {
+      ctx.status = 400;
+      ctx.body = { success: false, error: 'appId is required' };
+      return;
+    }
+
+    const result = findAppDir(appId);
+    if (!result) {
+      ctx.status = 404;
+      ctx.body = { success: false, error: '应用不存在' };
+      return;
+    }
+
+    const [, appDir] = result;
+    const computationsDir = path.join(appDir, 'computations');
+
+    try {
+      // 确保目录存在
+      if (!fs.existsSync(computationsDir)) {
+        fs.mkdirSync(computationsDir, { recursive: true });
+      }
+
+      const body = ctx.request.body as Record<string, unknown>;
+      const computationId = generateHexId();
+
+      const computation = {
+        schemaVersion: 1,
+        version: 1,
+        computationId,
+        appId,
+        name: body.name || '',
+        description: body.description || '',
+        type: body.type || 'field',
+        status: body.status || 'draft',
+        inputs: body.inputs || [],
+        expression: body.expression || { type: 'expression', value: '', async: false },
+        output: body.output || { name: '', type: 'number' },
+        tableId: body.tableId,
+        references: body.references,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      const filePath = path.join(computationsDir, `${computationId}.json`);
+      fs.writeFileSync(filePath, JSON.stringify(computation, null, 2), 'utf-8');
+
+      ctx.body = { success: true, data: computation };
+    } catch (error) {
+      ctx.status = 500;
+      ctx.body = { success: false, error: '创建运算规则失败' };
+    }
+  });
+
+  /**
+   * PUT /api/computations/:id
+   * 更新运算规则
+   */
+  router.put('/:id', async (ctx) => {
+    const { id } = ctx.params;
+    const appId = ctx.query.appId as string;
+
+    if (!appId) {
+      ctx.status = 400;
+      ctx.body = { success: false, error: 'appId is required' };
+      return;
+    }
+
+    const result = findAppDir(appId);
+    if (!result) {
+      ctx.status = 404;
+      ctx.body = { success: false, error: '应用不存在' };
+      return;
+    }
+
+    const [, appDir] = result;
+    const computationFile = path.join(appDir, 'computations', `${id}.json`);
+
+    try {
+      if (!fs.existsSync(computationFile)) {
+        ctx.status = 404;
+        ctx.body = { success: false, error: '运算规则不存在' };
+        return;
+      }
+
+      const existingContent = fs.readFileSync(computationFile, 'utf-8');
+      const existing = JSON.parse(existingContent);
+
+      const body = ctx.request.body as Record<string, unknown>;
+      const updated = {
+        ...existing,
+        ...body,
+        computationId: id,
+        appId,
+        version: (existing.version || 1) + 1,
+        updatedAt: new Date().toISOString(),
+      };
+
+      fs.writeFileSync(computationFile, JSON.stringify(updated, null, 2), 'utf-8');
+
+      ctx.body = { success: true, data: updated };
+    } catch (error) {
+      ctx.status = 500;
+      ctx.body = { success: false, error: '更新运算规则失败' };
+    }
+  });
+
+  /**
+   * DELETE /api/computations/:id
+   * 删除运算规则
+   */
+  router.delete('/:id', async (ctx) => {
+    const { id } = ctx.params;
+    const appId = ctx.query.appId as string;
+
+    if (!appId) {
+      ctx.status = 400;
+      ctx.body = { success: false, error: 'appId is required' };
+      return;
+    }
+
+    const result = findAppDir(appId);
+    if (!result) {
+      ctx.status = 404;
+      ctx.body = { success: false, error: '应用不存在' };
+      return;
+    }
+
+    const [, appDir] = result;
+    const computationFile = path.join(appDir, 'computations', `${id}.json`);
+
+    try {
+      if (!fs.existsSync(computationFile)) {
+        ctx.status = 404;
+        ctx.body = { success: false, error: '运算规则不存在' };
+        return;
+      }
+
+      fs.unlinkSync(computationFile);
+      ctx.body = { success: true };
+    } catch (error) {
+      ctx.status = 500;
+      ctx.body = { success: false, error: '删除运算规则失败' };
+    }
+  });
+
+  /**
+   * POST /api/computations/:id/execute
+   * 执行运算规则
+   */
+  router.post('/:id/execute', async (ctx) => {
+    const { id } = ctx.params;
+    const appId = ctx.query.appId as string;
+
+    if (!appId) {
+      ctx.status = 400;
+      ctx.body = { success: false, error: 'appId is required' };
+      return;
+    }
+
+    const body = ctx.request.body as Record<string, unknown>;
+    const params = (body.params || {}) as Record<string, unknown>;
+
+    const result = await computationExecutor.execute(appId, id, params);
+    ctx.body = result;
+  });
+
+  /**
    * POST /api/computations/preview
-   * 预览运算结果
-   *
-   * 请求体：{ expression: string, context: Record<string, unknown>, outputType: string }
-   * 响应：{ success: boolean, result?: unknown, error?: string }
+   * 预览表达式执行结果
    */
   router.post('/preview', async (ctx) => {
-    const { expression, context, outputType } = ctx.request.body as {
+    const body = ctx.request.body as {
       expression?: string;
       context?: Record<string, unknown>;
       outputType?: string;
     };
 
-    if (!expression) {
+    if (!body.expression) {
       ctx.status = 400;
       ctx.body = { success: false, error: '表达式不能为空' };
       return;
     }
 
-    const result = evaluateExpression(
-      expression,
-      context || {},
-      outputType || 'string'
+    const result = await computationExecutor.preview(
+      body.expression,
+      body.context || {},
+      body.outputType || 'string'
     );
 
     ctx.body = result;

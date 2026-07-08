@@ -12,7 +12,7 @@ export type TaskType =
   | 'notify';      // 通知
 
 /** 审批模式 */
-export type ApprovalMode = 'single' | 'countersign' | 'orSign';
+export type ApprovalMode = 'single' | 'countersign' | 'orSign' | 'raceSign';
 
 /** 驳回动作 */
 export type RejectAction =
@@ -37,10 +37,6 @@ export interface CreateTaskParams {
   assigneeId?: string;
   /** 审批人名称 */
   assigneeName?: string;
-  /** 候选用户 */
-  candidateUsers?: string[];
-  /** 候选组 */
-  candidateGroups?: string[];
   /** 截止时间 */
   dueDate?: string;
   /** 表单数据 */
@@ -55,10 +51,6 @@ export interface TaskQueryParams {
   instanceId?: string;
   /** 审批人 ID */
   assigneeId?: string;
-  /** 候选用户 */
-  candidateUserId?: string;
-  /** 候选组 */
-  candidateGroup?: string;
   /** 任务状态 */
   status?: TaskStatus | TaskStatus[];
   /** 任务类型 */
@@ -105,10 +97,6 @@ export interface TaskDetail {
   assigneeId?: string;
   /** 审批人名称 */
   assigneeName?: string;
-  /** 候选用户 */
-  candidateUsers?: string[];
-  /** 候选组 */
-  candidateGroups?: string[];
   /** 表单数据 */
   formData?: Record<string, unknown>;
   /** 审批意见 */
@@ -175,6 +163,16 @@ export interface OrSignState {
   approvedBy?: string;
   /** 审批时间 */
   approvedAt?: string;
+}
+
+/** 竞签状态 */
+export interface RaceSignState {
+  /** 是否已有人认领 */
+  hasClaimed: boolean;
+  /** 认领人 */
+  claimedBy?: string;
+  /** 认领时间 */
+  claimedAt?: string;
 }
 
 /** 超时配置 */

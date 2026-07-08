@@ -2,11 +2,14 @@
  * 运算设计器
  *
  * 可视化编辑计算字段/公式规则，支持：
- * - 基本信息配置（名称、描述、类型）
- * - 输入字段选择（从数据表字段）
- * - 表达式/公式编辑（复用 ExpressionEditor）
+ * - 基本信息配置（名称、描述、类型、状态）
+ * - 输入字段选择（从数据表字段或手动定义）
+ * - 表达式/公式编辑（复用 ExpressionEditor，阉割环境变量）
  * - 输出配置（字段名、类型、格式）
  * - 运算结果预览
+ *
+ * 存储格式：PropValue 格式 { type: 'expression', value: '...', async: false }
+ * 环境变量：只保留 $user/$system/$env，去掉页面相关变量
  *
  * Props:
  *   appId        — 应用 ID
@@ -29,7 +32,6 @@ import {
   Tag,
   Typography,
   Form,
-  Divider,
   Empty,
   Tooltip,
   Alert,
@@ -44,80 +46,23 @@ import {
   ThunderboltOutlined,
 } from '@ant-design/icons';
 import { ExpressionEditor } from '@low-code/renderer';
-import type { TableSchema, TableColumn, TableFieldType } from '@low-code/shared';
+import { environmentRegistry } from '@low-code/renderer';
+import type {
+  ComputationSchema,
+  ComputationInput,
+  ComputationOutput,
+  ComputationType,
+  ComputationStatus,
+  ComputationFieldType,
+  ExpressionBinding,
+} from '@low-code/shared';
+import type { TableSchema } from '@low-code/shared';
 
 const { Text, Title } = Typography;
 const { TextArea } = Input;
 const { Option } = Select;
 
 // ─── 类型 ──────────────────────────────────────────────────
-
-/** 运算类型 */
-type ComputationType = 'field' | 'formula' | 'aggregation' | 'transform';
-
-/** 运算规则状态 */
-type ComputationStatus = 'draft' | 'active' | 'disabled';
-
-/** 输入字段定义 */
-interface InputField {
-  /** 字段标识（用于表达式中引用） */
-  key: string;
-  /** 显示名称 */
-  label: string;
-  /** 字段类型 */
-  fieldType: TableFieldType;
-  /** 来源表 ID */
-  tableId?: string;
-  /** 来源字段名 */
-  fieldName?: string;
-  /** 是否必填 */
-  required?: boolean;
-}
-
-/** 输出字段定义 */
-interface OutputField {
-  /** 输出字段名 */
-  name: string;
-  /** 输出类型 */
-  type: 'string' | 'number' | 'boolean' | 'date' | 'json';
-  /** 格式化（如 currency、percentage、date 等） */
-  format?: string;
-  /** 小数精度（数字类型） */
-  precision?: number;
-  /** 描述 */
-  description?: string;
-}
-
-/** 运算规则数据 */
-interface ComputationData {
-  id?: string;
-  appId: string;
-  /** 运算名称 */
-  name: string;
-  /** 运算描述 */
-  description?: string;
-  /** 运算类型 */
-  type: ComputationType;
-  /** 状态 */
-  status: ComputationStatus;
-  /** 输入字段列表 */
-  inputs: InputField[];
-  /** 表达式 */
-  expression: string;
-  /** 表达式是否异步 */
-  async?: boolean;
-  /** 输出配置 */
-  output: OutputField;
-  /** 关联的数据表 ID */
-  tableId?: string;
-  /** 元数据 */
-  schemaVersion?: number;
-  version?: number;
-  createdBy?: string;
-  createdAt?: string;
-  updatedBy?: string;
-  updatedAt?: string;
-}
 
 /** 组件属性 */
 export interface ComputationDesignProps {
@@ -132,7 +77,7 @@ export interface ComputationDesignProps {
   /** 返回回调 */
   onBack?: () => void;
   /** 保存成功回调 */
-  onSave?: (computation: ComputationData) => void;
+  onSave?: (computation: ComputationSchema) => void;
 }
 
 // ─── 常量 ──────────────────────────────────────────────────
@@ -153,8 +98,17 @@ const COMPUTATION_TYPE_COLORS: Record<ComputationType, string> = {
   transform: 'purple',
 };
 
+/** 字段类型选项 */
+const FIELD_TYPE_OPTIONS: Array<{ label: string; value: ComputationFieldType }> = [
+  { label: '文本', value: 'string' },
+  { label: '数字', value: 'number' },
+  { label: '布尔', value: 'boolean' },
+  { label: '日期', value: 'date' },
+  { label: 'JSON', value: 'json' },
+];
+
 /** 输出类型选项 */
-const OUTPUT_TYPE_OPTIONS: Array<{ label: string; value: string }> = [
+const OUTPUT_TYPE_OPTIONS: Array<{ label: string; value: ComputationFieldType }> = [
   { label: '文本 (string)', value: 'string' },
   { label: '数字 (number)', value: 'number' },
   { label: '布尔 (boolean)', value: 'boolean' },
@@ -213,30 +167,24 @@ const previewBoxStyle: React.CSSProperties = {
 
 // ─── 工具函数 ──────────────────────────────────────────────
 
-/** 获取字段类型中文名 */
-function getFieldTypeName(fieldType: TableFieldType): string {
-  const names: Record<TableFieldType, string> = {
-    string: '文本',
-    number: '数字',
-    boolean: '布尔',
-    date: '日期',
-    json: 'JSON',
-    enum: '枚举',
+/** 初始化空的运算规则 */
+function createEmptyComputation(appId: string): ComputationSchema {
+  return {
+    schemaVersion: 1,
+    version: 1,
+    computationId: '',
+    appId,
+    name: '',
+    description: '',
+    type: 'field',
+    status: 'draft',
+    inputs: [],
+    expression: { type: 'expression', value: '', async: false },
+    output: {
+      name: '',
+      type: 'number',
+    },
   };
-  return names[fieldType] || fieldType;
-}
-
-/** 获取字段类型颜色 */
-function getFieldTypeColor(fieldType: TableFieldType): string {
-  const colors: Record<TableFieldType, string> = {
-    string: 'blue',
-    number: 'green',
-    boolean: 'orange',
-    date: 'purple',
-    json: 'default',
-    enum: 'magenta',
-  };
-  return colors[fieldType] || 'default';
 }
 
 // ─── 子组件 ────────────────────────────────────────────────
@@ -247,29 +195,12 @@ function InputFieldCard({
   index,
   onUpdate,
   onDelete,
-  tables,
 }: {
-  field: InputField;
+  field: ComputationInput;
   index: number;
-  onUpdate: (index: number, field: InputField) => void;
+  onUpdate: (index: number, field: ComputationInput) => void;
   onDelete: (index: number) => void;
-  tables: TableSchema[];
 }) {
-  const handleTableFieldSelect = (tableId: string, fieldName: string) => {
-    const table = tables.find((t) => t.tableId === tableId);
-    const column = table?.columns.find((c) => c.fieldName === fieldName);
-    if (column) {
-      onUpdate(index, {
-        ...field,
-        key: column.fieldName,
-        label: column.description || column.fieldName,
-        fieldType: column.fieldType,
-        tableId,
-        fieldName: column.fieldName,
-      });
-    }
-  };
-
   return (
     <Card size="small" style={inputFieldCardStyle}>
       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
@@ -296,46 +227,29 @@ function InputFieldCard({
               onChange={(value) => onUpdate(index, { ...field, fieldType: value })}
               style={{ width: 100 }}
             >
-              <Option value="string">文本</Option>
-              <Option value="number">数字</Option>
-              <Option value="boolean">布尔</Option>
-              <Option value="date">日期</Option>
-              <Option value="json">JSON</Option>
-            </Select>
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Select
-              size="small"
-              placeholder="选择数据表"
-              value={field.tableId}
-              onChange={(value) => handleTableFieldSelect(value, field.fieldName || '')}
-              style={{ width: 180 }}
-              allowClear
-            >
-              {tables.map((table) => (
-                <Option key={table.tableId} value={table.tableId}>
-                  {table.name}
+              {FIELD_TYPE_OPTIONS.map((opt) => (
+                <Option key={opt.value} value={opt.value}>
+                  {opt.label}
                 </Option>
               ))}
             </Select>
-            {field.tableId && (
-              <Select
-                size="small"
-                placeholder="选择字段"
-                value={field.fieldName}
-                onChange={(value) => handleTableFieldSelect(field.tableId!, value)}
-                style={{ width: 150 }}
-              >
-                {tables
-                  .find((t) => t.tableId === field.tableId)
-                  ?.columns.filter((c) => !c.system)
-                  .map((column) => (
-                    <Option key={column.fieldName} value={column.fieldName}>
-                      {column.fieldName}
-                    </Option>
-                  ))}
-              </Select>
-            )}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Input
+              size="small"
+              placeholder="描述（可选）"
+              value={field.description || ''}
+              onChange={(e) => onUpdate(index, { ...field, description: e.target.value })}
+              style={{ flex: 1 }}
+            />
+            <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+              <input
+                type="checkbox"
+                checked={field.required || false}
+                onChange={(e) => onUpdate(index, { ...field, required: e.target.checked })}
+              />
+              必填
+            </label>
           </div>
         </div>
         <Button
@@ -355,8 +269,8 @@ function OutputConfigPanel({
   output,
   onChange,
 }: {
-  output: OutputField;
-  onChange: (output: OutputField) => void;
+  output: ComputationOutput;
+  onChange: (output: ComputationOutput) => void;
 }) {
   const formatOptions = useMemo(() => {
     switch (output.type) {
@@ -453,19 +367,9 @@ export const ComputationDesign: React.FC<ComputationDesignProps> = ({
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [computation, setComputation] = useState<ComputationData>({
-    appId,
-    name: '',
-    type: 'field',
-    status: 'draft',
-    inputs: [],
-    expression: '',
-    output: {
-      name: '',
-      type: 'number',
-    },
-  });
-  const [tables, setTables] = useState<TableSchema[]>([]);
+  const [computation, setComputation] = useState<ComputationSchema>(
+    createEmptyComputation(appId)
+  );
   const [expressionEditorVisible, setExpressionEditorVisible] = useState(false);
   const [previewResult, setPreviewResult] = useState<{
     loading: boolean;
@@ -494,39 +398,38 @@ export const ComputationDesign: React.FC<ComputationDesignProps> = ({
     }
   }, [computationId, appId, apiBase, message]);
 
-  /** 加载应用数据表 */
-  const fetchTables = useCallback(async () => {
-    try {
-      const response = await fetch(`/api/apps/${appId}`);
-      const data = await response.json();
-
-      if (data.resources?.tables) {
-        // 加载每个表的完整 schema
-        const tableSchemas: TableSchema[] = [];
-        for (const table of data.resources.tables) {
-          const tableResp = await fetch(`/api/apps/${appId}/tables/${table.id}`);
-          const tableData = await tableResp.json();
-          if (tableData.resource) {
-            tableSchemas.push(tableData.resource);
-          }
-        }
-        setTables(tableSchemas);
-      }
-    } catch {
-      console.error('Failed to fetch tables');
-    }
-  }, [appId]);
-
   /** 初始加载 */
   useEffect(() => {
     fetchComputation();
-    fetchTables();
-  }, [fetchComputation, fetchTables]);
+  }, [fetchComputation]);
+
+  // ─── 环境变量过滤 ─────────────────────────────────────
+
+  /** 计算运算模式可用的变量列表 */
+  const allowedVariables = useMemo(() => {
+    // 系统基础变量
+    const systemVars = [
+      '$user.id',
+      '$user.name',
+      '$user.roles',
+      '$user.department',
+      '$user.departmentName',
+      '$user.position',
+      '$system.now',
+      '$system.today',
+      '$env.NODE_ENV',
+    ];
+
+    // 输入字段变量
+    const inputVars = computation.inputs.map((i) => i.key);
+
+    return [...systemVars, ...inputVars];
+  }, [computation.inputs]);
 
   // ─── 事件处理 ─────────────────────────────────────────
 
   /** 更新输入字段 */
-  const handleUpdateInput = useCallback((index: number, field: InputField) => {
+  const handleUpdateInput = useCallback((index: number, field: ComputationInput) => {
     setComputation((prev) => ({
       ...prev,
       inputs: prev.inputs.map((f, i) => (i === index ? field : f)),
@@ -550,14 +453,14 @@ export const ComputationDesign: React.FC<ComputationDesignProps> = ({
         {
           key: `var${prev.inputs.length + 1}`,
           label: '',
-          fieldType: 'string',
+          fieldType: 'string' as ComputationFieldType,
         },
       ],
     }));
   }, []);
 
   /** 更新输出配置 */
-  const handleOutputChange = useCallback((output: OutputField) => {
+  const handleOutputChange = useCallback((output: ComputationOutput) => {
     setComputation((prev) => ({ ...prev, output }));
   }, []);
 
@@ -568,7 +471,7 @@ export const ComputationDesign: React.FC<ComputationDesignProps> = ({
       message.warning('请输入运算名称');
       return;
     }
-    if (!computation.expression.trim()) {
+    if (!computation.expression.value.trim()) {
       message.warning('请编写运算表达式');
       return;
     }
@@ -610,7 +513,7 @@ export const ComputationDesign: React.FC<ComputationDesignProps> = ({
 
   /** 预览运算结果 */
   const handlePreview = useCallback(async () => {
-    if (!computation.expression.trim()) {
+    if (!computation.expression.value.trim()) {
       message.warning('请先编写表达式');
       return;
     }
@@ -648,7 +551,7 @@ export const ComputationDesign: React.FC<ComputationDesignProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          expression: computation.expression,
+          expression: computation.expression.value,
           context: testContext,
           outputType: computation.output.type,
         }),
@@ -671,8 +574,7 @@ export const ComputationDesign: React.FC<ComputationDesignProps> = ({
     (value: { type: 'expression'; value: string; async: boolean }) => {
       setComputation((prev) => ({
         ...prev,
-        expression: value.value,
-        async: value.async,
+        expression: value,
       }));
       setExpressionEditorVisible(false);
     },
@@ -734,7 +636,7 @@ export const ComputationDesign: React.FC<ComputationDesignProps> = ({
           <div style={{ display: 'flex', gap: 16 }}>
             <Form.Item label="运算名称" required style={{ flex: 1 }}>
               <Input
-                placeholder="输入运算名称"
+                placeholder="输入运算名称（如：订单金额计算）"
                 value={computation.name}
                 onChange={(e) =>
                   setComputation((prev) => ({ ...prev, name: e.target.value }))
@@ -770,7 +672,7 @@ export const ComputationDesign: React.FC<ComputationDesignProps> = ({
           </div>
           <Form.Item label="描述">
             <TextArea
-              placeholder="输入运算描述（可选）"
+              placeholder="输入运算描述（可选），说明该规则的用途和计算逻辑"
               rows={2}
               value={computation.description}
               onChange={(e) =>
@@ -810,7 +712,6 @@ export const ComputationDesign: React.FC<ComputationDesignProps> = ({
               index={index}
               onUpdate={handleUpdateInput}
               onDelete={handleDeleteInput}
-              tables={tables}
             />
           ))
         )}
@@ -836,7 +737,6 @@ export const ComputationDesign: React.FC<ComputationDesignProps> = ({
           <Space>
             <CalculatorOutlined />
             <span>运算表达式</span>
-            {computation.async && <Tag color="blue">异步</Tag>}
           </Space>
         }
         extra={
@@ -850,7 +750,7 @@ export const ComputationDesign: React.FC<ComputationDesignProps> = ({
         }
         style={cardStyle}
       >
-        {computation.expression ? (
+        {computation.expression.value ? (
           <div
             style={{
               backgroundColor: '#f6f6f6',
@@ -863,7 +763,7 @@ export const ComputationDesign: React.FC<ComputationDesignProps> = ({
               wordBreak: 'break-all',
             }}
           >
-            {computation.expression}
+            {computation.expression.value}
           </div>
         ) : (
           <Empty
@@ -871,6 +771,9 @@ export const ComputationDesign: React.FC<ComputationDesignProps> = ({
             description="点击上方按钮编写表达式"
           />
         )}
+        <div style={{ marginTop: 8, fontSize: 12, color: '#999' }}>
+          💡 表达式中可使用输入字段变量和系统变量（$user、$system），不支持页面相关变量
+        </div>
       </Card>
 
       {/* 输出配置 */}
@@ -918,13 +821,17 @@ export const ComputationDesign: React.FC<ComputationDesignProps> = ({
       <ExpressionEditor
         visible={expressionEditorVisible}
         value={computation.expression}
-        async={computation.async}
+        async={false} // 运算表达式默认同步
         onChange={handleExpressionConfirm}
         onClear={() =>
-          setComputation((prev) => ({ ...prev, expression: '' }))
+          setComputation((prev) => ({
+            ...prev,
+            expression: { type: 'expression', value: '', async: false },
+          }))
         }
         onClose={() => setExpressionEditorVisible(false)}
         appId={appId}
+        allowedVariables={allowedVariables}
       />
     </div>
   );

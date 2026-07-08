@@ -78,7 +78,7 @@ function writeWorkflowFile(tenantId: string, appId: string, workflow: any): void
  * 创建流程定义路由
  */
 export function createWorkflowsRouter(): KoaRouter {
-  const router = new KoaRouter({ prefix: '/api/workflows' });
+  const router = new KoaRouter({ prefix: '/api/apps' });
 
   // 注意：基本 CRUD 操作已统一到 apps 路由
   // GET    /api/apps/:appId/workflows          - 获取列表
@@ -87,8 +87,8 @@ export function createWorkflowsRouter(): KoaRouter {
   // PUT    /api/apps/:appId/workflows/:id       - 更新
   // DELETE /api/apps/:appId/workflows/:id       - 删除
 
-  // POST /api/workflows/:id/publish - 发布流程定义
-  router.post('/:id/publish', async (ctx) => {
+  // POST /api/apps/:appId/workflows/:id/publish - 发布流程定义
+  router.post('/:appId/workflows/:id/publish', async (ctx) => {
     const tenantId = getFirstTenantId();
     if (!tenantId) {
       ctx.status = 404;
@@ -96,12 +96,7 @@ export function createWorkflowsRouter(): KoaRouter {
       return;
     }
 
-    const appId = ctx.query.appId as string;
-    if (!appId) {
-      ctx.status = 400;
-      ctx.body = { error: '缺少 appId 参数' };
-      return;
-    }
+    const appId = ctx.params.appId;
 
     const workflowId = ctx.params.id;
     const existing = readWorkflowFile(tenantId, appId, workflowId);
@@ -124,8 +119,8 @@ export function createWorkflowsRouter(): KoaRouter {
     ctx.body = { data: updated };
   });
 
-  // POST /api/workflows/:id/trigger - 触发流程实例
-  router.post('/:id/trigger', async (ctx) => {
+  // POST /api/apps/:appId/workflows/:id/trigger - 触发流程实例
+  router.post('/:appId/workflows/:id/trigger', async (ctx) => {
     const tenantId = getFirstTenantId();
     if (!tenantId) {
       ctx.status = 404;
@@ -133,12 +128,7 @@ export function createWorkflowsRouter(): KoaRouter {
       return;
     }
 
-    const appId = ctx.query.appId as string;
-    if (!appId) {
-      ctx.status = 400;
-      ctx.body = { error: '缺少 appId 参数' };
-      return;
-    }
+    const appId = ctx.params.appId;
 
     const workflowId = ctx.params.id;
     const workflow = readWorkflowFile(tenantId, appId, workflowId);

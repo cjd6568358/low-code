@@ -1,34 +1,33 @@
 /**
- * 服务节点展示组件（自动化节点）
+ * 脚本节点展示组件（原服务/自动化节点）
+ *
+ * 执行自定义脚本表达式，支持 $fetch 调用外部 API
  */
 
 import React, { useContext } from 'react';
 import { NodeContext } from 'react-flow-builder';
 
-/** 服务节点展示组件 */
+/** 脚本节点展示组件 */
 export const ServiceNodeDisplay: React.FC = () => {
   const node = useContext(NodeContext) as any;
+  const data = node.data || {};
 
-  // 服务类型标签
-  const typeLabels: Record<string, string> = {
-    api: 'API',
-    database: '数据库',
-    email: '邮件',
-    webhook: 'Webhook',
-    custom: '自定义',
-  };
+  const expression = data.expression || '';
 
-  const serviceType = node.serviceType || 'custom';
+  // 截断过长的表达式
+  const displayExpression = expression.length > 30
+    ? expression.substring(0, 30) + '...'
+    : expression;
 
   return (
     <div
       style={{
-        width: 160,
-        minHeight: 60,
+        width: 180,
+        minHeight: 70,
         background: '#fff',
         border: '1px solid #fa8c16',
         borderRadius: 4,
-        padding: '10px',
+        padding: '12px',
         boxShadow: '0 1px 4px rgba(250, 140, 22, 0.15)',
       }}
     >
@@ -56,13 +55,29 @@ export const ServiceNodeDisplay: React.FC = () => {
           ⚙
         </span>
         <span style={{ fontWeight: 'bold', fontSize: 13 }}>
-          {node.name || '自动化'}
+          {data.name || node.name || '脚本'}
         </span>
       </div>
 
-      <div style={{ fontSize: 11, color: '#666' }}>
-        类型: {typeLabels[serviceType] || serviceType}
-      </div>
+      {expression ? (
+        <div
+          style={{
+            fontSize: 11,
+            color: '#666',
+            fontFamily: 'monospace',
+            background: '#f5f5f5',
+            padding: '4px 6px',
+            borderRadius: 2,
+            wordBreak: 'break-all',
+          }}
+        >
+          {displayExpression}
+        </div>
+      ) : (
+        <div style={{ fontSize: 11, color: '#999' }}>
+          未配置脚本
+        </div>
+      )}
     </div>
   );
 };

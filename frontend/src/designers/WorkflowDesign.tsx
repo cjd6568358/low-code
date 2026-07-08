@@ -1,21 +1,17 @@
 /**
- * 流程设计器
+ * 流程设计器页面
  *
- * 包装 @low-code/renderer 的 WorkflowDesigner 组件，
- * 负责加载/保存流程定义 schema。
- *
- * Props:
- *   workflowId — 裸资源 ID
- *   onSaved    — 保存成功后的回调（用于更新 tab 名称和刷新资源列表）
- *
- * Route: 由 AppDesignPage 加载，不直接暴露路由。
+ * 负责加载/保存流程定义 schema，以及 schema <-> nodes 的转换。
+ * WorkflowDesigner 只处理 nodes。
  */
 
 import { useCallback, useEffect, useState } from 'react';
 import { App, Spin, Button, Tag, Space } from 'antd';
 import { SaveOutlined, SendOutlined } from '@ant-design/icons';
-import { WorkflowDesigner } from '@low-code/renderer';
+import { WorkflowDesigner, useBpmnConverter } from '@low-code/renderer';
 import type { BpmnDocument } from '@low-code/workflow';
+import type { INode } from 'react-flow-builder';
+import { generateNodeId } from '@low-code/shared';
 
 /** 服务端返回的流程定义结构 */
 interface WorkflowDefinition {
@@ -33,6 +29,7 @@ interface WorkflowDefinition {
 interface WorkflowDesignProps {
   appId: string;
   workflowId: string;
+  tenantId: string;
   /** 保存成功后的回调（用于更新 tab 名称和刷新资源列表） */
   onSaved?: (name: string) => void;
 }
@@ -51,26 +48,50 @@ const STATUS_LABEL: Record<string, string> = {
   ARCHIVED: '已归档',
 };
 
-export default function WorkflowDesign({ appId, workflowId, onSaved }: WorkflowDesignProps) {
+/** 默认节点：开始 -> 结束 */
+const DEFAULT_NODES: INode[] = [
+  {
+    id: generateNodeId('node', []),
+    type: 'start',
+    name: '开始',
+    path: ['0'],
+  },
+  {
+    id: generateNodeId('node', ['node_01']),
+    type: 'end',
+    name: '结束',
+    path: ['1'],
+  },
+];
+
+export default function WorkflowDesign({ appId, workflowId, tenantId, onSaved }: WorkflowDesignProps) {
   const { message } = App.useApp();
   const [workflow, setWorkflow] = useState<WorkflowDefinition | null>(null);
-  const [schema, setSchema] = useState<BpmnDocument | undefined>();
+  const [nodes, setNodes] = useState<INode[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
 
-  // 加载流程定义
+  const { fromBpmnDocument, toBpmnDocument } = useBpmnConverter();
+
+  // 加载流程定义，转换为 nodes
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const resp = await fetch(`/api/apps/${appId}/workflows/${workflowId}`);
         const data = await resp.json();
-        // 服务端返回 { success: true, resource: content }
         const resource = data.data || data.resource;
         if (!cancelled && resource) {
           setWorkflow(resource);
-          setSchema(resource.schema);
+          // schema -> nodes
+          const schema = resource.schema;
+          if (schema?.processes?.length > 0) {
+            const converted = fromBpmnDocument(schema);
+            setNodes(converted.length > 0 ? converted : DEFAULT_NODES);
+          } else {
+            setNodes(DEFAULT_NODES);
+          }
         }
       } catch {
         if (!cancelled) message.error('加载流程定义失败');
@@ -81,20 +102,21 @@ export default function WorkflowDesign({ appId, workflowId, onSaved }: WorkflowD
     return () => { cancelled = true; };
   }, [appId, workflowId]);
 
-  // schema 变更
-  const handleChange = useCallback((newSchema: BpmnDocument) => {
-    setSchema(newSchema);
+  // nodes 变更
+  const handleNodesChange = useCallback((newNodes: INode[]) => {
+    setNodes(newNodes);
   }, []);
 
-  // 保存
+  // 保存：nodes -> schema
   const handleSave = useCallback(async () => {
-    console.log('[WorkflowDesign] handleSave called', { schema, workflow });
-    if (!schema || !workflow) {
-      console.warn('[WorkflowDesign] handleSave early return: schema or workflow is empty');
+    if (nodes.length === 0 || !workflow) {
       return;
     }
     setSaving(true);
     try {
+      // nodes -> schema
+      const schema = toBpmnDocument(nodes);
+
       const resp = await fetch(`/api/apps/${appId}/workflows/${workflowId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -104,7 +126,6 @@ export default function WorkflowDesign({ appId, workflowId, onSaved }: WorkflowD
       if (!resp.ok || data.error) {
         throw new Error(data.error || '保存失败');
       }
-      // 更新本地状态（版本号可能已自增）
       if (data.data) {
         setWorkflow(data.data);
       }
@@ -115,7 +136,7 @@ export default function WorkflowDesign({ appId, workflowId, onSaved }: WorkflowD
     } finally {
       setSaving(false);
     }
-  }, [appId, workflowId, schema, workflow, onSaved]);
+  }, [appId, workflowId, nodes, workflow, onSaved]);
 
   // 发布
   const handlePublish = useCallback(async () => {
@@ -198,8 +219,9 @@ export default function WorkflowDesign({ appId, workflowId, onSaved }: WorkflowD
       {/* 流程设计器 */}
       <div style={{ flex: 1, overflow: 'hidden' }}>
         <WorkflowDesigner
-          value={schema}
-          onChange={handleChange}
+          nodes={nodes}
+          onChange={handleNodesChange}
+          tenantId={tenantId}
           width="100%"
           height="100%"
         />

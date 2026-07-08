@@ -45,15 +45,23 @@ export interface Task extends Activity {
   // 任务基类，继承 Activity
 }
 
+/**
+ * 审批人指派策略
+ *
+ * 设计时存储策略描述，运行时由引擎动态解析为具体用户。
+ * 支持按用户/角色/部门/岗位四种维度指派。
+ */
+export type AssigneeStrategy =
+  | { type: 'user'; userIds: string[] }
+  | { type: 'role'; roleIds: string[] }
+  | { type: 'department'; deptIds: string[] }
+  | { type: 'position'; positionIds: string[] };
+
 /** 用户任务（审批节点） */
 export interface UserTask extends Task {
   $type: 'bpmn:UserTask';
-  /** 审批人 */
-  assignee?: string;
-  /** 候选用户 */
-  candidateUsers?: string[];
-  /** 候选组 */
-  candidateGroups?: string[];
+  /** 审批人指派策略（设计时存储策略，运行时动态解析为具体用户） */
+  assignee?: AssigneeStrategy;
   /** 实现 */
   implementation?: string;
   /** 渲染 */
@@ -124,6 +132,83 @@ export interface BusinessRuleTask extends Task {
   $type: 'bpmn:BusinessRuleTask';
   /** 实现 */
   implementation?: string;
+}
+
+// ==================== 数据操作任务 ====================
+
+/** 字段映射项 — 表字段与变量的绑定关系 */
+export interface FieldMappingItem {
+  /** 表字段名 */
+  field: string;
+  /** 绑定值（变量路径或常量） */
+  value: string;
+  /** 绑定类型 */
+  valueType: 'variable' | 'constant';
+}
+
+/** 条件项 — 筛选条件 */
+export interface ConditionItem {
+  /** 表字段名 */
+  field: string;
+  /** 操作符 */
+  operator: '=' | '!=' | '>' | '>=' | '<' | '<=' | 'like' | 'in';
+  /** 绑定值（变量路径或常量） */
+  value: string;
+  /** 绑定类型 */
+  valueType: 'variable' | 'constant';
+}
+
+/** 创建记录任务 */
+export interface CreateTask extends Task {
+  $type: 'bpmn:CreateTask';
+  /** 数据表名称 */
+  collection: string;
+  /** 数据源 */
+  dataSource?: string;
+  /** 字段赋值配置（表字段 = 变量） */
+  fields?: FieldMappingItem[];
+}
+
+/** 更新记录任务 */
+export interface UpdateTask extends Task {
+  $type: 'bpmn:UpdateTask';
+  /** 数据表名称 */
+  collection: string;
+  /** 数据源 */
+  dataSource?: string;
+  /** 匹配条件（字段 操作符 变量） */
+  filter?: ConditionItem[];
+  /** 字段赋值配置（表字段 = 变量） */
+  fields?: FieldMappingItem[];
+}
+
+/** 查询记录任务 */
+export interface QueryTask extends Task {
+  $type: 'bpmn:QueryTask';
+  /** 数据表名称 */
+  collection: string;
+  /** 数据源 */
+  dataSource?: string;
+  /** 筛选条件 */
+  filter?: ConditionItem[];
+  /** 排序 */
+  sort?: Record<string, 'asc' | 'desc'>;
+  /** 分页 */
+  pagination?: {
+    limit?: number;
+    offset?: number;
+  };
+}
+
+/** 删除记录任务 */
+export interface DeleteTask extends Task {
+  $type: 'bpmn:DeleteTask';
+  /** 数据表名称 */
+  collection: string;
+  /** 数据源 */
+  dataSource?: string;
+  /** 匹配条件（字段 操作符 变量） */
+  filter?: ConditionItem[];
 }
 
 /** 调用活动（子流程引用） */

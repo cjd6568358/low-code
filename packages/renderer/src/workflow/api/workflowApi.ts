@@ -120,9 +120,8 @@ export async function deleteWorkflow(appId: string, workflowId: string): Promise
  * 发布流程定义
  */
 export async function publishWorkflow(appId: string, workflowId: string): Promise<WorkflowDefinition> {
-  return request<WorkflowDefinition>(`/workflows/${workflowId}/publish`, {
+  return request<WorkflowDefinition>(`/apps/${appId}/workflows/${workflowId}/publish`, {
     method: 'POST',
-    params: { appId },
   });
 }
 
@@ -136,9 +135,8 @@ export async function triggerWorkflow(appId: string, workflowId: string, data: {
   startedBy?: string;
   startedByName?: string;
 }): Promise<WorkflowInstance> {
-  return request<WorkflowInstance>(`/workflows/${workflowId}/trigger`, {
+  return request<WorkflowInstance>(`/apps/${appId}/workflows/${workflowId}/trigger`, {
     method: 'POST',
-    params: { appId },
     body: data,
   });
 }
@@ -170,8 +168,8 @@ export async function getInstances(appId: string, filters?: {
   workflowId?: string;
   startedBy?: string;
 }): Promise<WorkflowInstance[]> {
-  return request<WorkflowInstance[]>('/workflow-instances', {
-    params: { appId, ...filters },
+  return request<WorkflowInstance[]>(`/apps/${appId}/workflow-instances`, {
+    params: filters,
   });
 }
 
@@ -179,18 +177,15 @@ export async function getInstances(appId: string, filters?: {
  * 获取单个流程实例
  */
 export async function getInstance(appId: string, instanceId: string): Promise<WorkflowInstance> {
-  return request<WorkflowInstance>(`/workflow-instances/${instanceId}`, {
-    params: { appId },
-  });
+  return request<WorkflowInstance>(`/apps/${appId}/workflow-instances/${instanceId}`);
 }
 
 /**
  * 终止流程实例
  */
 export async function terminateInstance(appId: string, instanceId: string, reason?: string): Promise<WorkflowInstance> {
-  return request<WorkflowInstance>(`/workflow-instances/${instanceId}/terminate`, {
+  return request<WorkflowInstance>(`/apps/${appId}/workflow-instances/${instanceId}/terminate`, {
     method: 'POST',
-    params: { appId },
     body: { reason },
   });
 }
@@ -202,9 +197,7 @@ export async function getInstanceHistory(appId: string, instanceId: string): Pro
   instance: WorkflowInstance;
   snapshots: any[];
 }> {
-  return request(`/workflow-instances/${instanceId}/history`, {
-    params: { appId },
-  });
+  return request(`/apps/${appId}/workflow-instances/${instanceId}/history`);
 }
 
 // ==================== 审批任务 API ====================
@@ -235,8 +228,8 @@ export async function getTasks(appId: string, filters?: {
   assigneeId?: string;
   status?: string;
 }): Promise<ApprovalTask[]> {
-  return request<ApprovalTask[]>('/workflow-tasks', {
-    params: { appId, ...filters },
+  return request<ApprovalTask[]>(`/apps/${appId}/workflow-tasks`, {
+    params: filters,
   });
 }
 
@@ -244,9 +237,7 @@ export async function getTasks(appId: string, filters?: {
  * 获取单个任务
  */
 export async function getTask(appId: string, taskId: string): Promise<ApprovalTask> {
-  return request<ApprovalTask>(`/workflow-tasks/${taskId}`, {
-    params: { appId },
-  });
+  return request<ApprovalTask>(`/apps/${appId}/workflow-tasks/${taskId}`);
 }
 
 /**
@@ -258,9 +249,8 @@ export async function approveTask(appId: string, taskId: string, data: {
   operatorId?: string;
   operatorName?: string;
 }): Promise<any> {
-  return request(`/workflow-tasks/${taskId}/approve`, {
+  return request(`/apps/${appId}/workflow-tasks/${taskId}/approve`, {
     method: 'POST',
-    params: { appId },
     body: data,
   });
 }
@@ -274,9 +264,8 @@ export async function rejectTask(appId: string, taskId: string, data: {
   operatorName?: string;
   targetNodeId?: string;
 }): Promise<any> {
-  return request(`/workflow-tasks/${taskId}/reject`, {
+  return request(`/apps/${appId}/workflow-tasks/${taskId}/reject`, {
     method: 'POST',
-    params: { appId },
     body: data,
   });
 }
@@ -291,9 +280,8 @@ export async function transferTask(appId: string, taskId: string, data: {
   operatorName?: string;
   reason?: string;
 }): Promise<any> {
-  return request(`/workflow-tasks/${taskId}/transfer`, {
+  return request(`/apps/${appId}/workflow-tasks/${taskId}/transfer`, {
     method: 'POST',
-    params: { appId },
     body: data,
   });
 }

@@ -12,6 +12,31 @@ import type {
   SnapshotType,
 } from '../schema';
 
+/** 用户解析结果 */
+export interface ResolvedUser {
+  /** 用户 ID */
+  id: string;
+  /** 用户名 */
+  name: string;
+}
+
+/**
+ * 用户解析器接口
+ *
+ * 运行时将指派策略（角色/部门/岗位）解析为具体用户列表。
+ * 由服务层实现并注入引擎。
+ */
+export interface UserResolver {
+  /** 按角色查找用户 */
+  findByRoles(roleIds: string[]): Promise<ResolvedUser[]>;
+  /** 按部门查找用户 */
+  findByDepartments(deptIds: string[]): Promise<ResolvedUser[]>;
+  /** 按岗位查找用户 */
+  findByPositions(positionIds: string[]): Promise<ResolvedUser[]>;
+  /** 按用户 ID 批量查找 */
+  findByIds(userIds: string[]): Promise<ResolvedUser[]>;
+}
+
 /** 引擎配置 */
 export interface WorkflowEngineConfig {
   /** 数据库连接 */
@@ -22,6 +47,8 @@ export interface WorkflowEngineConfig {
   notifyService?: NotifyService;
   /** 表达式求值器 */
   expressionEvaluator?: ExpressionEvaluator;
+  /** 用户解析器（运行时将指派策略解析为具体用户） */
+  userResolver?: UserResolver;
   /** 最大并发实例数 */
   maxConcurrentInstances?: number;
   /** 检查点间隔（毫秒） */
@@ -205,8 +232,6 @@ export interface TaskRecord {
   nodeName?: string;
   assigneeId?: string;
   assigneeName?: string;
-  candidateUsers?: string[];
-  candidateGroups?: string[];
   status: TaskStatus;
   formData?: Record<string, unknown>;
   comment?: string;

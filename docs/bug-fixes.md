@@ -1,5 +1,143 @@
 # Bug 修复记录
 
+## 2026-07-08 (三)
+
+### CronScheduler 注释中 `*/` 提前关闭块注释导致后端无法启动
+
+**现象**：后端启动报 `TransformError: Expected ";" but found "）"`，所有 API 返回 500。
+
+**根因**：`CronScheduler.ts` 第 11 行块注释 `/** ... */` 中包含 `*/5`，其中的 `*/` 被 esbuild 解析为块注释结束符，导致 `5）` 被当作代码解析失败，整个后端进程崩溃。
+
+**修复**：将注释中的 `*/5` 改为 `star/5，star 代表 *`，避免 `*/` 序列。
+
+**涉及文件**：
+- `server/src/services/CronScheduler.ts` — 注释文本修正
+
+---
+
+### 配置中心页面 API 路径错误导致 500
+
+**现象**：`ConfigCenterPage.tsx` 的用户管理 Tab 调用 `/api/users` 返回 500 Internal Server Error。
+
+**根因**：
+1. 前端 `UserManagementTab` 硬编码 `/api/users` 路径，但服务端用户路由注册在 `/api/tenants/:tenantId/users`
+2. `roles` 和 `permissions` 路由文件已创建但未在 `registerRoutes()` 中注册，导致 `/api/roles` 和 `/api/permissions/matrix` 也返回 404
+
+**修复**：
+1. **ConfigCenterPage.tsx**：`UserManagementTab` 引入 `useAuth()` 获取 `tenantId`，所有 API 路径改为 `/api/tenants/${tenantId}/users` 格式
+2. **server/src/routes/index.ts**：注册 `createRolesRouter()` 和 `createPermissionsRouter()`
+
+**涉及文件**：
+- `frontend/src/pages/ConfigCenterPage.tsx` — 用户管理 API 路径修正
+- `server/src/routes/index.ts` — 注册 roles/permissions 路由
+
+---
+
+## 2026-07-08 (续)
+
+### 流程引擎节点配置与执行器不一致
+
+**现象**：设计器配置的节点参数无法被引擎正确读取和执行。ServiceTask 读取 `extensionElements.serviceConfig` 但设计器保存的是顶层 `expression` 字段；数据操作任务的 `fields`/`filter` 类型与执行器期望的格式不匹配。
+
+**根因**：执行器开发时采用了"理想化"的配置结构（`extensionElements.serviceConfig`、`Record<string, any>`），但设计器实际保存的字段格式不同（顶层 `expression`、`FieldMappingItem[]`/`ConditionItem[]` 数组格式）。两套代码独立开发，未对齐数据契约。
+
+**修复**：
+1. **ScriptTaskExecutor**（新建）：复用 `ConditionExpressionEvaluator` 执行同步表达式，读取节点顶层 `expression`/`script` 字段
+2. **ServiceTaskExecutor**：新增表达式模式，优先读取顶层 `expression`，回退到 `extensionElements.serviceConfig`
+3. **DataOperationExecutor**：新增 `convertFieldMappings()`/`convertConditions()` 方法，支持 `FieldMappingItem[]` 和 `ConditionItem[]` 数组格式自动转换
+4. **四个数据操作子执行器**：修正 `execute()` 签名从 `execute(node, context)` 改为 `execute(context)`，配置从 `context.currentNode` 顶层字段读取
+5. **UserTaskExecutor**：补全超时逻辑，支持 autoApprove/autoReject/notify/transfer 四种超时动作
+6. **TimeoutManager**：新增节点级超时 `scheduleNodeTimeout()`/`clearNodeTimeout()`
+7. **WorkflowEngine**：新增 `transfer()`/`addSign()`/`claimTask()`/`scheduleNodeTimeout()`/`clearNodeTimeout()` API
+
+**涉及文件**：
+- `packages/workflow/src/executors/ScriptTaskExecutor.ts` — 新建
+- `packages/workflow/src/executors/ServiceTaskExecutor.ts` — 双模式执行
+- `packages/workflow/src/executors/DataOperationExecutor.ts` — 数组格式适配
+- `packages/workflow/src/executors/CreateRecordExecutor.ts` — 签名修正
+- `packages/workflow/src/executors/UpdateRecordExecutor.ts` — 签名修正
+- `packages/workflow/src/executors/QueryRecordExecutor.ts` — 签名修正
+- `packages/workflow/src/executors/DeleteRecordExecutor.ts` — 签名修正
+- `packages/workflow/src/executors/UserTaskExecutor.ts` — 超时逻辑
+- `packages/workflow/src/engine/TimeoutManager.ts` — 节点级超时
+- `packages/workflow/src/engine/WorkflowEngine.ts` — 新 API + 注册
+- `packages/workflow/src/index.ts` — 导出 ScriptTaskExecutor
+
+---
+
+## 2026-07-08
+
+### 流程节点配置回显丢失 + 展示组件不更新
+
+**现象**：
+1. 节点配置面板设置后保存，重新打开时配置丢失
+2. 配置保存后，画布上的节点展示信息不更新（如创建记录节点仍显示"未指定表"）
+
+**根因**：`react-flow-builder` 的 `save` 回调将数据存入 `node.data`（`selectedNode.data = values`），但：
+- `NodeConfigComponent` 初始化时只展开 `...(node as any)`，未展开 `node.data`
+- 所有 12 个节点展示组件从 `node.collection`、`node.fields` 等顶层属性读取，实际数据在 `node.data` 中
+
+**修复**：
+1. `NodeConfigComponent` 初始化时同时展开 `node.data`
+2. 所有展示组件统一从 `node.data` 读取配置：
+```typescript
+const node = useContext(NodeContext) as any;
+const data = node.data || {};
+const collection = data.collection || '未指定表';
+const name = data.name || node.name || '默认名称';
+```
+
+**涉及文件**：
+- `packages/renderer/src/workflow/config/NodeConfigComponent.tsx`
+- `packages/renderer/src/workflow/nodes/` — 全部 12 个展示组件
+
+---
+
+### VariableTreeSelector 打开后无限渲染
+
+**现象**：点击"选择变量"后控制台报 `Maximum update depth exceeded`
+
+**根因**：`VariableTreeSelector` 的环境变量注册 `useEffect` 依赖了 `pageDataSources` 对象。父组件每次渲染都产生新引用，导致 useEffect 无限触发 → `setRefreshCounter` → 重渲染 → 新引用 → 循环。
+
+**修复**：`pageDataSources` 已通过 `pageDataSourcesRef.current` 访问，从依赖数组中移除：
+```typescript
+// Before
+}, [visible, resolvedPageComponents, pageDataSources]);
+// After
+}, [visible, resolvedPageComponents]);
+```
+
+**涉及文件**：
+- `packages/renderer/src/components/VariableTreeSelector.tsx`
+
+---
+
+### 流程节点配置保存后丢失
+
+**现象**：审批节点配置面板设置审批人后保存，重新打开面板时选中值丢失
+
+**根因**：`react-flow-builder` 的 `save` 回调是直接替换 `node.data`（`selectedNode.data = values`），不是合并。旧代码将 BPMN 属性存在 `node.data` 里，但 `NodeConfigComponent` 从 `node.assignee` 读取（undefined），保存时写到 `node.assignee`（不进 `data`）。
+
+**修复**：
+1. `NodeConfigComponent` 初始化从 `node.data` 读取所有配置，保存时平铺传给 `save()`（成为新的 `node.data`）
+2. `useBpmnConverter` 的 `fromBpmnDocument` 将 `name` 同时写入 `node.data.name`
+3. `toBpmnDocument` 从 `node.data.name` 读取名称（优先于 `node.name`）
+
+**关键发现**：`react-flow-builder` 的 `save` 回调源码：
+```js
+var saveDrawer = function saveDrawer(values) {
+  selectedNode.data = values;  // 直接替换，不是 Object.assign 合并
+};
+```
+
+### 审批人指派选择器回显 ID 而非名称
+
+**现象**：按部门/角色/岗位选完审批人后，Tag 显示 `dept_93b3515d` 而非部门名称
+
+**根因**：`AssigneeSelector` 的基础引用数据（部门/角色/岗位）仅在弹窗打开时加载，但 Tag 回显在弹窗关闭时就需要。`value` 变化时 `departments` 还是空数组，fallback 到显示 ID。
+
+**修复**：基础引用数据（部门/角色/岗位）挂载时即加载，不限于弹窗打开状态。用户列表仍仅在弹窗打开时加载（数据量大）。
+
 ## 2026-07-03
 
 ### 流程设计器刷新后结束节点消失

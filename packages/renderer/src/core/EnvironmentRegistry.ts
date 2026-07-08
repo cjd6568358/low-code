@@ -139,10 +139,53 @@ class EnvironmentRegistryImpl {
       ],
     });
 
+    // $env — 环境变量（流程表达式）
+    this.register({
+      name: '$env',
+      description: '环境变量，包含系统级配置和自定义环境变量',
+      modes: ['expression'],
+      properties: [
+        { name: 'NODE_ENV', type: 'string', description: '运行环境（development/production）' },
+      ],
+    });
+
+    // $system — 系统信息（流程表达式）
+    this.register({
+      name: '$system',
+      description: '系统级信息，包含当前时间等系统运行时数据',
+      modes: ['expression'],
+      properties: [
+        { name: 'now', type: 'string', description: '当前时间（ISO 8601 格式）' },
+        { name: 'today', type: 'string', description: '当前日期（YYYY-MM-DD）' },
+      ],
+    });
+
+    // $initiator — 流程发起人（流程表达式）
+    this.register({
+      name: '$initiator',
+      description: '流程发起人信息，包含发起流程的用户 ID 和姓名',
+      modes: ['expression'],
+      properties: [
+        { name: 'id', type: 'string', description: '发起人用户 ID' },
+        { name: 'name', type: 'string', description: '发起人姓名' },
+      ],
+    });
+
+    // $operator — 当前操作人（流程表达式）
+    this.register({
+      name: '$operator',
+      description: '当前操作人信息，包含正在处理审批任务的用户 ID 和姓名',
+      modes: ['expression'],
+      properties: [
+        { name: 'id', type: 'string', description: '操作人用户 ID' },
+        { name: 'name', type: 'string', description: '操作人姓名' },
+      ],
+    });
+
     // $workflow — 流程上下文（仅表达式）
     this.register({
       name: '$workflow',
-      description: '流程上下文，仅在流程审批页面内有效，包含流程实例、节点、变量、快照等信息',
+      description: '流程上下文，包含流程实例、节点执行结果、变量、快照等信息',
       modes: ['expression'],
       properties: [
         { name: 'instanceId', type: 'string', description: '当前流程实例 ID' },
@@ -377,6 +420,53 @@ class EnvironmentRegistryImpl {
     const defs = Array.from(this.definitions.values());
     if (!mode) return defs;
     return defs.filter((d) => d.modes.includes(mode));
+  }
+
+  /**
+   * 获取运算模式可用的变量定义
+   *
+   * 运算模式只保留系统基础变量，去掉页面相关的变量：
+   * - 保留：$user、$system、$env
+   * - 去掉：$component、$route、$data、$table、$fetch、$workflow、$event、$result、$platform
+   */
+  getComputationVariables(): VariableDefinition[] {
+    const allowedVars = ['$user', '$system', '$env'];
+    return Array.from(this.definitions.values()).filter((def) =>
+      allowedVars.includes(def.name)
+    );
+  }
+
+  /**
+   * 注册运算输入字段作为临时变量
+   *
+   * 将运算规则定义的输入字段注入到变量注册表，
+   * 供表达式编辑器的代码提示使用。
+   *
+   * @param inputs 运算输入字段列表
+   */
+  registerComputationInputs(inputs: Array<{ key: string; label: string; fieldType: string }>): void {
+    // 移除旧的运算输入变量
+    const existingDefs = Array.from(this.definitions.keys());
+    for (const key of existingDefs) {
+      if (key.startsWith('$input.')) {
+        this.definitions.delete(key);
+      }
+    }
+
+    // 注册新的输入字段变量
+    const properties: VariableProperty[] = inputs.map((input) => ({
+      name: input.key,
+      type: input.fieldType,
+      description: input.label || input.key,
+    }));
+
+    // 创建 $input 变量定义
+    this.definitions.set('$input', {
+      name: '$input',
+      description: '运算规则输入字段，通过配置的变量名直接引用',
+      modes: ['expression'],
+      properties,
+    });
   }
 
   /**

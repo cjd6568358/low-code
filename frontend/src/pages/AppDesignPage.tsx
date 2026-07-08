@@ -101,7 +101,7 @@ function ResourceDesigner({ tenantId, appId, resourceType, resourceId, onSaved }
 
   // 流程类型：使用 WorkflowDesign 组件
   if (resourceType === 'workflows') {
-    return <WorkflowDesign appId={appId} workflowId={resourceId} onSaved={onSaved} />;
+    return <WorkflowDesign appId={appId} workflowId={resourceId} tenantId={tenantId} onSaved={onSaved} />;
   }
 
   // 自动化类型：使用 AutomationDesign 组件

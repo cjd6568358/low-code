@@ -70,6 +70,8 @@ export interface ExpressionEditorProps {
   modalWidth?: number;
   /** 弹窗最大高度（默认 '90vh'） */
   modalMaxHeight?: string;
+  /** 变量白名单（只显示指定的变量，用于流程节点等场景过滤页面变量） */
+  allowedVariables?: string[];
 }
 
 // ─── 样式常量 ──────────────────────────────────────────
@@ -301,6 +303,7 @@ export function ExpressionEditor(props: ExpressionEditorProps) {
     editorTheme = 'dark',
     modalWidth = 820,
     modalMaxHeight = '90vh',
+    allowedVariables,
   } = props;
 
   // asyncProp 有值 → 锁定；无值 → 内部可切换（默认异步）
@@ -359,7 +362,8 @@ export function ExpressionEditor(props: ExpressionEditorProps) {
       environmentRegistry.registerPageDataSources(pageDataSourcesRef.current);
     }
     setRefreshCounter((c) => c + 1);
-  }, [visible, resolvedPageComponents, pageDataSources]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, resolvedPageComponents]);
 
   useEffect(() => {
     setInputValue(extractStringValue(value));
@@ -416,7 +420,10 @@ export function ExpressionEditor(props: ExpressionEditorProps) {
 
   const expressionCompletionItems = useMemo((): CompletionItem[] => {
     const completions = environmentRegistry.generateMonacoCompletions('expression');
-    return completions.map((item) => ({
+    const filtered = allowedVariables && allowedVariables.length > 0
+      ? completions.filter((item) => allowedVariables.some((v) => item.label === v || item.label.startsWith(v + '.')))
+      : completions;
+    return filtered.map((item) => ({
       label: item.label,
       kind: item.kind,
       detail: item.detail,
@@ -424,9 +431,13 @@ export function ExpressionEditor(props: ExpressionEditorProps) {
       insertText: item.insertText,
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshCounter]);
+  }, [refreshCounter, allowedVariables]);
 
-  const envVars = useMemo(() => environmentRegistry.getAllDefinitions('expression'), [refreshCounter]);
+  const allEnvVars = useMemo(() => environmentRegistry.getAllDefinitions('expression'), [refreshCounter]);
+  const envVars = useMemo(() => {
+    if (!allowedVariables || allowedVariables.length === 0) return allEnvVars;
+    return allEnvVars.filter((def) => allowedVariables.includes(def.name));
+  }, [allEnvVars, allowedVariables]);
 
   /** 动态生成 JSDoc + 完整函数（编辑器显示用） */
   const editorValue = useMemo(() => {

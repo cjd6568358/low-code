@@ -1,14 +1,18 @@
 /**
  * 服务任务执行器
- * 处理自动化节点（API 调用、数据操作等）
+ *
+ * 支持两种配置模式：
+ * 1. 表达式模式（设计器输出）：读取节点顶层 expression 字段，通过表达式引擎执行
+ * 2. 服务配置模式（扩展字段）：读取 extensionElements.serviceConfig，按 serviceType 分发
  */
 
-import type { ServiceTask, FlowNode } from '../schema';
+import type { FlowNode } from '../schema';
 import { NodeExecutorBase } from './NodeExecutorBase';
 import type { ExecutionContext, ExecutionResult } from '../types/execution';
+import { ConditionExpressionEvaluator } from '../engine/ExpressionEvaluator';
 
-/** 服务任务配置 */
-interface ServiceTaskConfig {
+/** 服务任务配置（扩展模式） */
+interface ServiceTaskExtensionConfig {
   /** 服务类型 */
   serviceType: 'api' | 'database' | 'email' | 'webhook' | 'custom';
   /** API 配置 */
@@ -59,6 +63,8 @@ interface ServiceTaskConfig {
  * 服务任务执行器
  */
 export class ServiceTaskExecutor extends NodeExecutorBase {
+  private readonly evaluator = new ConditionExpressionEvaluator();
+
   /**
    * 执行服务任务
    */
@@ -70,10 +76,75 @@ export class ServiceTaskExecutor extends NodeExecutorBase {
       currentNodeId: currentNode.id,
     });
 
-    // 获取服务配置
-    const serviceConfig = this.getServiceConfig(currentNode);
+    // 优先检查表达式模式（设计器输出）
+    const expression = (currentNode as any).expression;
+    if (expression) {
+      return this.executeExpression(context, expression);
+    }
 
-    // 执行服务
+    // 回退到扩展配置模式
+    const serviceConfig = this.getExtensionConfig(currentNode);
+    if (serviceConfig.serviceType) {
+      return this.executeExtensionConfig(context, serviceConfig);
+    }
+
+    return this.createErrorResult('服务任务未配置执行内容');
+  }
+
+  /**
+   * 执行表达式模式（设计器保存的 expression 字段）
+   */
+  private async executeExpression(
+    context: ExecutionContext,
+    expression: string
+  ): Promise<ExecutionResult> {
+    const { instance, variables, currentNode } = context;
+
+    try {
+      // 使用表达式引擎执行（支持 async 上下文）
+      const result = this.evaluator.evaluate(expression, {
+        variables,
+        currentNodeId: currentNode.id,
+      });
+
+      // 如果结果是 Promise，等待完成
+      const resolvedResult = result instanceof Promise ? await result : result;
+
+      // 合并结果到流程变量
+      if (resolvedResult !== undefined && resolvedResult !== null) {
+        const variableUpdates: Record<string, unknown> =
+          typeof resolvedResult === 'object' && !Array.isArray(resolvedResult)
+            ? resolvedResult as Record<string, unknown>
+            : { [currentNode.id]: resolvedResult };
+
+        await this.engine['mergeVariables'](instance.id, variableUpdates);
+
+        const nextNodes = this.getNextNodes(context);
+        return {
+          success: true,
+          nextNodes,
+          variableUpdates,
+        };
+      }
+
+      const nextNodes = this.getNextNodes(context);
+      return this.createSuccessResult(nextNodes);
+    } catch (error) {
+      return this.createErrorResult(
+        `服务表达式执行失败: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  /**
+   * 执行扩展配置模式（extensionElements.serviceConfig）
+   */
+  private async executeExtensionConfig(
+    context: ExecutionContext,
+    serviceConfig: ServiceTaskExtensionConfig
+  ): Promise<ExecutionResult> {
+    const { instance, variables, currentNode } = context;
+
     const result = await this.executeService(serviceConfig, variables);
 
     if (!result.success) {
@@ -85,17 +156,14 @@ export class ServiceTaskExecutor extends NodeExecutorBase {
       await this.engine['mergeVariables'](instance.id, result.data);
     }
 
-    // 获取下一个节点
     const nextNodes = this.getNextNodes(context);
-
-    // 返回成功结果
     return this.createSuccessResult(nextNodes);
   }
 
   /**
-   * 获取服务配置
+   * 获取扩展配置（extensionElements.serviceConfig）
    */
-  private getServiceConfig(node: FlowNode): ServiceTaskConfig {
+  private getExtensionConfig(node: FlowNode): ServiceTaskExtensionConfig {
     const extension = node.extensionElements as any;
     return extension?.serviceConfig || {};
   }
@@ -104,7 +172,7 @@ export class ServiceTaskExecutor extends NodeExecutorBase {
    * 执行服务
    */
   private async executeService(
-    config: ServiceTaskConfig,
+    config: ServiceTaskExtensionConfig,
     variables: Record<string, unknown>
   ): Promise<{ success: boolean; data?: Record<string, unknown>; error?: string }> {
     try {
@@ -134,7 +202,7 @@ export class ServiceTaskExecutor extends NodeExecutorBase {
    * 执行 API 调用
    */
   private async executeApiCall(
-    config: ServiceTaskConfig['apiConfig'],
+    config: ServiceTaskExtensionConfig['apiConfig'],
     variables: Record<string, unknown>
   ): Promise<{ success: boolean; data?: Record<string, unknown>; error?: string }> {
     if (!config) {
@@ -180,7 +248,7 @@ export class ServiceTaskExecutor extends NodeExecutorBase {
    * 执行数据库操作
    */
   private async executeDatabaseOperation(
-    config: ServiceTaskConfig['databaseConfig'],
+    config: ServiceTaskExtensionConfig['databaseConfig'],
     variables: Record<string, unknown>
   ): Promise<{ success: boolean; data?: Record<string, unknown>; error?: string }> {
     if (!config) {
@@ -203,7 +271,7 @@ export class ServiceTaskExecutor extends NodeExecutorBase {
    * 执行邮件发送
    */
   private async executeEmail(
-    config: ServiceTaskConfig['emailConfig'],
+    config: ServiceTaskExtensionConfig['emailConfig'],
     variables: Record<string, unknown>
   ): Promise<{ success: boolean; data?: Record<string, unknown>; error?: string }> {
     if (!config) {
@@ -226,7 +294,7 @@ export class ServiceTaskExecutor extends NodeExecutorBase {
    * 执行 Webhook
    */
   private async executeWebhook(
-    config: ServiceTaskConfig['webhookConfig'],
+    config: ServiceTaskExtensionConfig['webhookConfig'],
     variables: Record<string, unknown>
   ): Promise<{ success: boolean; data?: Record<string, unknown>; error?: string }> {
     if (!config) {
@@ -264,7 +332,7 @@ export class ServiceTaskExecutor extends NodeExecutorBase {
    * 执行自定义处理器
    */
   private async executeCustomHandler(
-    config: ServiceTaskConfig['customConfig'],
+    config: ServiceTaskExtensionConfig['customConfig'],
     variables: Record<string, unknown>
   ): Promise<{ success: boolean; data?: Record<string, unknown>; error?: string }> {
     if (!config) {
@@ -313,14 +381,15 @@ export class ServiceTaskExecutor extends NodeExecutorBase {
    * 获取节点配置
    */
   getNodeConfig(node: FlowNode) {
-    const serviceConfig = this.getServiceConfig(node);
+    const extensionConfig = this.getExtensionConfig(node);
+    const expression = (node as any).expression;
 
     return {
       type: 'bpmn:ServiceTask',
       waitForInput: false,
-      timeout: serviceConfig.timeout,
-      retryCount: serviceConfig.retryConfig?.maxRetries,
-      retryInterval: serviceConfig.retryConfig?.retryInterval,
+      timeout: extensionConfig.timeout,
+      retryCount: expression ? 0 : extensionConfig.retryConfig?.maxRetries,
+      retryInterval: expression ? 0 : extensionConfig.retryConfig?.retryInterval,
     };
   }
 }

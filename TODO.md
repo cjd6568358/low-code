@@ -1,6 +1,6 @@
 # TODO — 待完成功能清单
 
-> 最后更新：2026-06-29，P0 任务全部完成
+> 最后更新：2026-07-08，P0 任务全部完成，自动化中心已实现
 
 ---
 
@@ -42,6 +42,37 @@
 | `ConfigCenterPage.tsx` | ✅ 已对接 | 用户/角色/权限/租户设置全部从 API 加载 |
 
 新增服务端 API：`/api/users`、`/api/roles`、`/api/permissions`、`/api/messages`
+
+---
+
+### ~~15. 自动化中心（设计器 + 执行引擎）~~ ✅ 已完成
+
+**需求**：实现定时任务调度和自动化规则执行
+
+**已实现**：
+- ✅ **公共表达式引擎**（`packages/shared/src/engine/expression.ts`）
+  - 安全沙箱求值，禁止访问全局对象
+  - 超时控制
+  - 依赖分析（提取 `$variable.path` 引用）
+  - 模板字符串插值（`{{expression}}` 语法）
+- ✅ **跨平台 Cron 调度器**（`server/src/services/CronScheduler.ts`）
+  - 纯 TypeScript 实现，不依赖外部库
+  - 支持标准 cron 表达式（分 时 日 月 周）
+  - 时区支持
+  - 任务状态管理
+- ✅ **自动化执行引擎**（`server/src/services/AutomationExecutor.ts`）
+  - 支持 6 种动作类型：触发流程、执行脚本、发送通知、数据操作、API 调用、Webhook
+  - 条件评估引擎（支持 and/or 逻辑）
+  - 执行日志记录
+  - 重试策略
+- ✅ **设计器增强**（`frontend/src/designers/automation/ActionConfig.tsx`）
+  - 新增「执行脚本」动作类型
+  - 集成 ExpressionEditor 进行脚本编辑
+  - 支持 `$event`、`$rule`、`$tenant`、`$now` 上下文变量
+- ✅ **API 路由**
+  - `POST /api/automations/trigger` — 触发事件
+  - `POST /api/automations/:id/execute` — 手动执行规则
+  - `GET /api/automations/:id/stats` — 获取执行统计
 
 ---
 
@@ -89,17 +120,37 @@
 
 ---
 
-### ~~7. 运算设计器~~ ✅ 已完成
+### ~~7. 运算中心（设计器 + 执行器）~~ ✅ 已完成
 
 **问题**：`AppDesignPage.tsx` 中 `computations` 显示"即将上线"占位，无设计器组件。
 
 **已实现**：
-- ✅ 表达式/公式编辑器（复用 ExpressionEditor）
-- ✅ 运算规则配置（输入字段、运算逻辑、输出字段）
-- ✅ 运算结果预览
-- ✅ 支持 4 种运算类型：字段计算、公式规则、聚合计算、数据转换
-- ✅ 输入字段支持从数据表自动选择
-- ✅ 输出配置支持多种格式化（货币、百分比、日期等）
+- ✅ **运算设计器**（`frontend/src/designers/ComputationDesign.tsx`）
+  - 规则级元数据（名称、描述）
+  - 4 种运算类型：字段计算、公式规则、聚合计算、数据转换
+  - 输入字段配置（变量名、类型、描述、必填）
+  - 输出配置（字段名、类型、格式化选项）
+  - 运算结果预览
+- ✅ **环境变量过滤**（`packages/renderer/src/core/EnvironmentRegistry.ts`）
+  - 运算模式只保留 `$user`、`$system`、`$env`
+  - 去掉 `$component`、`$route`、`$data` 等页面相关变量
+- ✅ **存储格式**：PropValue 格式 `{ type: 'expression', value: '...', async: false }`
+- ✅ **运算执行器**（`server/src/services/ComputationExecutor.ts`）
+  - 沙箱执行，禁止危险操作
+  - 类型转换和格式化
+  - 依赖分析
+- ✅ **完整 CRUD API**
+  - `GET /api/computations` — 列表
+  - `GET /api/computations/:id` — 详情
+  - `POST /api/computations` — 创建
+  - `PUT /api/computations/:id` — 更新
+  - `DELETE /api/computations/:id` — 删除
+  - `POST /api/computations/:id/execute` — 执行
+  - `POST /api/computations/preview` — 预览
+- ✅ **流程节点集成**
+  - `ComputationSelector` 组件（运算规则选择器）
+  - `ComputationParamMapper` 组件（参数映射）
+  - 计算节点支持"自定义表达式"和"选择运算规则"两种模式
 
 ---
 

@@ -7,7 +7,8 @@ import { NodeContext } from 'react-flow-builder';
 
 /** 开始节点展示组件 */
 export const StartNodeDisplay: React.FC = () => {
-  const node = useContext(NodeContext);
+  const node = useContext(NodeContext) as any;
+  const data = node.data || {};
 
   return (
     <div
@@ -25,7 +26,7 @@ export const StartNodeDisplay: React.FC = () => {
         boxShadow: '0 2px 8px rgba(24, 144, 255, 0.3)',
       }}
     >
-      {node.name || '开始'}
+      {data.name || node.name || '开始'}
     </div>
   );
 };

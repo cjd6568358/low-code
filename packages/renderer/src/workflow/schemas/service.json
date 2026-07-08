@@ -1,0 +1,22 @@
+{
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "节点名称",
+      "x-group": "基础属性",
+      "x-priority": 1
+    },
+    "expression": {
+      "type": "string",
+      "title": "脚本表达式",
+      "x-component": "expression-input",
+      "x-group": "基础属性",
+      "x-priority": 2,
+      "x-component-props": {
+        "async": true,
+        "placeholder": "// 使用 $fetch 调用外部 API\nawait $fetch(\"https://api.example.com/webhook\", {\n  method: \"POST\",\n  body: { status: \"approved\" }\n})"
+      }
+    }
+  }
+}

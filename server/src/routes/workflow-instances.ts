@@ -93,10 +93,10 @@ function writeInstanceFile(tenantId: string, appId: string, instance: any): void
  * 创建流程实例路由
  */
 export function createWorkflowInstancesRouter(): KoaRouter {
-  const router = new KoaRouter({ prefix: '/api/workflow-instances' });
+  const router = new KoaRouter({ prefix: '/api/apps' });
 
-  // GET /api/workflow-instances - 获取实例列表
-  router.get('/', async (ctx) => {
+  // GET /api/apps/:appId/workflow-instances - 获取实例列表
+  router.get('/:appId/workflow-instances', async (ctx) => {
     const tenantId = getFirstTenantId();
     if (!tenantId) {
       ctx.status = 404;
@@ -104,12 +104,7 @@ export function createWorkflowInstancesRouter(): KoaRouter {
       return;
     }
 
-    const appId = ctx.query.appId as string;
-    if (!appId) {
-      ctx.status = 400;
-      ctx.body = { error: '缺少 appId 参数' };
-      return;
-    }
+    const appId = ctx.params.appId;
 
     const filters = {
       status: ctx.query.status as string,
@@ -121,8 +116,8 @@ export function createWorkflowInstancesRouter(): KoaRouter {
     ctx.body = { data: instances, total: instances.length };
   });
 
-  // GET /api/workflow-instances/:id - 获取单个实例
-  router.get('/:id', async (ctx) => {
+  // GET /api/apps/:appId/workflow-instances/:id - 获取单个实例
+  router.get('/:appId/workflow-instances/:id', async (ctx) => {
     const tenantId = getFirstTenantId();
     if (!tenantId) {
       ctx.status = 404;
@@ -130,13 +125,7 @@ export function createWorkflowInstancesRouter(): KoaRouter {
       return;
     }
 
-    const appId = ctx.query.appId as string;
-    if (!appId) {
-      ctx.status = 400;
-      ctx.body = { error: '缺少 appId 参数' };
-      return;
-    }
-
+    const appId = ctx.params.appId;
     const instanceId = ctx.params.id;
     const instance = readInstanceFile(tenantId, appId, instanceId);
 
@@ -149,8 +138,8 @@ export function createWorkflowInstancesRouter(): KoaRouter {
     ctx.body = { data: instance };
   });
 
-  // POST /api/workflow-instances/:id/terminate - 终止流程
-  router.post('/:id/terminate', async (ctx) => {
+  // POST /api/apps/:appId/workflow-instances/:id/terminate - 终止流程
+  router.post('/:appId/workflow-instances/:id/terminate', async (ctx) => {
     const tenantId = getFirstTenantId();
     if (!tenantId) {
       ctx.status = 404;
@@ -158,13 +147,7 @@ export function createWorkflowInstancesRouter(): KoaRouter {
       return;
     }
 
-    const appId = ctx.query.appId as string;
-    if (!appId) {
-      ctx.status = 400;
-      ctx.body = { error: '缺少 appId 参数' };
-      return;
-    }
-
+    const appId = ctx.params.appId;
     const instanceId = ctx.params.id;
     const body = ctx.request.body as any;
 
@@ -189,8 +172,8 @@ export function createWorkflowInstancesRouter(): KoaRouter {
     }
   });
 
-  // GET /api/workflow-instances/:id/history - 获取实例审批历史
-  router.get('/:id/history', async (ctx) => {
+  // GET /api/apps/:appId/workflow-instances/:id/jobs - 获取实例的节点执行记录
+  router.get('/:appId/workflow-instances/:id/jobs', async (ctx) => {
     const tenantId = getFirstTenantId();
     if (!tenantId) {
       ctx.status = 404;
@@ -198,13 +181,28 @@ export function createWorkflowInstancesRouter(): KoaRouter {
       return;
     }
 
-    const appId = ctx.query.appId as string;
-    if (!appId) {
-      ctx.status = 400;
-      ctx.body = { error: '缺少 appId 参数' };
+    const appId = ctx.params.appId;
+    const instanceId = ctx.params.id;
+
+    try {
+      const jobs = await WorkflowService.getJobs(tenantId, appId, instanceId);
+      ctx.body = { data: jobs, total: jobs.length };
+    } catch (error) {
+      ctx.status = 500;
+      ctx.body = { error: '获取节点执行记录失败' };
+    }
+  });
+
+  // GET /api/apps/:appId/workflow-instances/:id/history - 获取实例审批历史
+  router.get('/:appId/workflow-instances/:id/history', async (ctx) => {
+    const tenantId = getFirstTenantId();
+    if (!tenantId) {
+      ctx.status = 404;
+      ctx.body = { error: '没有找到租户' };
       return;
     }
 
+    const appId = ctx.params.appId;
     const instanceId = ctx.params.id;
     const instance = readInstanceFile(tenantId, appId, instanceId);
 

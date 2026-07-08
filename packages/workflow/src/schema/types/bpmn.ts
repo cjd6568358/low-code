@@ -150,10 +150,6 @@ export interface ApprovalTask {
   assigneeId?: string;
   /** 审批人名称 */
   assigneeName?: string;
-  /** 候选用户 */
-  candidateUsers?: string[];
-  /** 候选组 */
-  candidateGroups?: string[];
   /** 表单数据 */
   formData?: Record<string, unknown>;
   /** 审批意见 */

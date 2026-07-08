@@ -306,7 +306,7 @@ export function VariableTreeSelector(props: VariableTreeSelectorProps) {
       environmentRegistry.registerPageDataSources(pageDataSourcesRef.current);
     }
     setRefreshCounter((c) => c + 1);
-  }, [visible, resolvedPageComponents, pageDataSources]);
+  }, [visible, resolvedPageComponents]);
 
   useEffect(() => {
     if (typeof value === 'string') setInputValue(value);

@@ -213,6 +213,7 @@ TODO.md          ← 技术难点与工作计划
 - `/:tenantId/app/:appId` — 应用运行时视图（含侧边栏页面菜单）
 - `/:tenantId/app/:appId/page/:pageId` — 应用内页面运行时渲染（PageRuntime 组件驱动）
 - `/:tenantId/workflows` — 流程中心
+- `/:tenantId/app/:appId/workflows/:instanceId` — 流程实例详情（流程图 + 执行时间线）
 - `/:tenantId/config` — 配置中心（仅管理员）
 - `/:tenantId/designer/:resourceType/:id` — 设计器
 
@@ -289,6 +290,12 @@ const db = outDb[0]; // sqlite3* 指针
 - **变更追踪**：`changedFields` 字段记录相对上一快照的增量变更，支持子表单行级变更追踪
 - **存储设计**：独立 `workflow_snapshots` 表，数据只读不可变
 - **节点表单**：每个审批节点可独立配置表单视图（readonly/editable/hidden），数据从快照表加载
+
+### 审批人指派策略（2026-07-08）
+
+- **策略驱动**：审批节点通过 `AssigneeStrategy` 配置审批人，支持按人员/角色/部门/岗位四种维度
+- **运行时解析**：设计时存储策略描述，运行时由 `UserResolver` 动态解析为具体用户，人员变动不影响已发布的流程
+- **注入机制**：`WorkflowEngineConfig.userResolver` 注入实现，服务层 `TenantUserResolver` 查询租户 SQLite
 
 ### 实现流程
 

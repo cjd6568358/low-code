@@ -64,10 +64,7 @@ function scanTasks(tenantId: string, appId: string, filters?: {
       tasks = tasks.filter((t) => t.instanceId === filters.instanceId);
     }
     if (filters?.assigneeId) {
-      tasks = tasks.filter((t) =>
-        t.assigneeId === filters.assigneeId ||
-        (t.candidateUsers && t.candidateUsers.includes(filters.assigneeId))
-      );
+      tasks = tasks.filter((t) => t.assigneeId === filters.assigneeId);
     }
     if (filters?.status) {
       tasks = tasks.filter((t) => t.status === filters.status);
@@ -142,10 +139,10 @@ function saveSnapshot(tenantId: string, appId: string, snapshot: any): void {
  * 创建审批任务路由
  */
 export function createWorkflowTasksRouter(): KoaRouter {
-  const router = new KoaRouter({ prefix: '/api/workflow-tasks' });
+  const router = new KoaRouter({ prefix: '/api/apps' });
 
-  // GET /api/workflow-tasks - 获取任务列表
-  router.get('/', async (ctx) => {
+  // GET /api/apps/:appId/workflow-tasks/stats - 获取用户任务统计
+  router.get('/:appId/workflow-tasks/stats', async (ctx) => {
     const tenantId = getFirstTenantId();
     if (!tenantId) {
       ctx.status = 404;
@@ -153,12 +150,35 @@ export function createWorkflowTasksRouter(): KoaRouter {
       return;
     }
 
-    const appId = ctx.query.appId as string;
-    if (!appId) {
-      ctx.status = 400;
-      ctx.body = { error: '缺少 appId 参数' };
+    const appId = ctx.params.appId;
+
+    const userId = ctx.query.userId as string;
+
+    try {
+      const engine = WorkflowService.getEngine(tenantId, appId);
+      if (userId) {
+        const stats = await engine.getUserTaskStats(userId);
+        ctx.body = { data: stats };
+      } else {
+        const allStats = await engine.getAllUserTaskStats();
+        ctx.body = { data: allStats, total: allStats.length };
+      }
+    } catch (error) {
+      ctx.status = 500;
+      ctx.body = { error: '获取任务统计失败' };
+    }
+  });
+
+  // GET /api/apps/:appId/workflow-tasks - 获取任务列表
+  router.get('/:appId/workflow-tasks', async (ctx) => {
+    const tenantId = getFirstTenantId();
+    if (!tenantId) {
+      ctx.status = 404;
+      ctx.body = { error: '没有找到租户' };
       return;
     }
+
+    const appId = ctx.params.appId;
 
     const filters = {
       instanceId: ctx.query.instanceId as string,
@@ -170,8 +190,8 @@ export function createWorkflowTasksRouter(): KoaRouter {
     ctx.body = { data: tasks, total: tasks.length };
   });
 
-  // GET /api/workflow-tasks/:id - 获取单个任务
-  router.get('/:id', async (ctx) => {
+  // GET /api/apps/:appId/workflow-tasks/:id - 获取单个任务
+  router.get('/:appId/workflow-tasks/:id', async (ctx) => {
     const tenantId = getFirstTenantId();
     if (!tenantId) {
       ctx.status = 404;
@@ -179,13 +199,7 @@ export function createWorkflowTasksRouter(): KoaRouter {
       return;
     }
 
-    const appId = ctx.query.appId as string;
-    if (!appId) {
-      ctx.status = 400;
-      ctx.body = { error: '缺少 appId 参数' };
-      return;
-    }
-
+    const appId = ctx.params.appId;
     const taskId = ctx.params.id;
     const task = readTaskFile(tenantId, appId, taskId);
 
@@ -198,8 +212,8 @@ export function createWorkflowTasksRouter(): KoaRouter {
     ctx.body = { data: task };
   });
 
-  // POST /api/workflow-tasks/:id/approve - 审批通过
-  router.post('/:id/approve', async (ctx) => {
+  // POST /api/apps/:appId/workflow-tasks/:id/approve - 审批通过
+  router.post('/:appId/workflow-tasks/:id/approve', async (ctx) => {
     const tenantId = getFirstTenantId();
     if (!tenantId) {
       ctx.status = 404;
@@ -207,13 +221,7 @@ export function createWorkflowTasksRouter(): KoaRouter {
       return;
     }
 
-    const appId = ctx.query.appId as string;
-    if (!appId) {
-      ctx.status = 400;
-      ctx.body = { error: '缺少 appId 参数' };
-      return;
-    }
-
+    const appId = ctx.params.appId;
     const taskId = ctx.params.id;
     const body = ctx.request.body as any;
     const { formData, comment, operatorId, operatorName } = body;
@@ -240,8 +248,8 @@ export function createWorkflowTasksRouter(): KoaRouter {
     }
   });
 
-  // POST /api/workflow-tasks/:id/reject - 审批驳回
-  router.post('/:id/reject', async (ctx) => {
+  // POST /api/apps/:appId/workflow-tasks/:id/reject - 审批驳回
+  router.post('/:appId/workflow-tasks/:id/reject', async (ctx) => {
     const tenantId = getFirstTenantId();
     if (!tenantId) {
       ctx.status = 404;
@@ -249,13 +257,7 @@ export function createWorkflowTasksRouter(): KoaRouter {
       return;
     }
 
-    const appId = ctx.query.appId as string;
-    if (!appId) {
-      ctx.status = 400;
-      ctx.body = { error: '缺少 appId 参数' };
-      return;
-    }
-
+    const appId = ctx.params.appId;
     const taskId = ctx.params.id;
     const body = ctx.request.body as any;
     const { comment, operatorId, operatorName, targetNodeId } = body;
@@ -288,8 +290,8 @@ export function createWorkflowTasksRouter(): KoaRouter {
     }
   });
 
-  // POST /api/workflow-tasks/:id/transfer - 转办
-  router.post('/:id/transfer', async (ctx) => {
+  // POST /api/apps/:appId/workflow-tasks/:id/transfer - 转办
+  router.post('/:appId/workflow-tasks/:id/transfer', async (ctx) => {
     const tenantId = getFirstTenantId();
     if (!tenantId) {
       ctx.status = 404;
@@ -297,13 +299,7 @@ export function createWorkflowTasksRouter(): KoaRouter {
       return;
     }
 
-    const appId = ctx.query.appId as string;
-    if (!appId) {
-      ctx.status = 400;
-      ctx.body = { error: '缺少 appId 参数' };
-      return;
-    }
-
+    const appId = ctx.params.appId;
     const taskId = ctx.params.id;
     const body = ctx.request.body as any;
     const { targetUserId, targetUserName, operatorId, operatorName, reason } = body;

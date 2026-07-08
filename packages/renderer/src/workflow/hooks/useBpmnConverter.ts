@@ -29,6 +29,12 @@ const NODE_TYPE_MAP: Record<string, string> = {
   timer: 'bpmn:TimerEvent',
   notify: 'bpmn:SendTask',
   service: 'bpmn:ServiceTask',
+  calculation: 'bpmn:ScriptTask',
+  // 数据操作
+  create: 'bpmn:CreateTask',
+  update: 'bpmn:UpdateTask',
+  query: 'bpmn:QueryTask',
+  delete: 'bpmn:DeleteTask',
 };
 
 /** 反向节点类型映射 */
@@ -42,6 +48,12 @@ const NODE_TYPE_REVERSE_MAP: Record<string, string> = {
   'bpmn:TimerEvent': 'timer',
   'bpmn:SendTask': 'notify',
   'bpmn:ServiceTask': 'service',
+  'bpmn:ScriptTask': 'calculation',
+  // 数据操作
+  'bpmn:CreateTask': 'create',
+  'bpmn:UpdateTask': 'update',
+  'bpmn:QueryTask': 'query',
+  'bpmn:DeleteTask': 'delete',
 };
 
 /**
@@ -116,6 +128,9 @@ export function useBpmnConverter() {
         path,
         data: {},
       };
+
+      // name 同时写入 data（config panel 从 data 读取，save 后写回 data）
+      (flowBuilderNode.data as any).name = bpmnNode.name || '';
 
       // 复制特有属性（排除 id, name, type, $type, incoming, outgoing, path）
       const skipFields = new Set(['id', 'name', 'type', '$type', 'incoming', 'outgoing', 'path']);
@@ -222,7 +237,8 @@ export function useBpmnConverter() {
       const bpmnNode: any = {
         id: node.id,
         $type: bpmnType,
-        name: node.name || '',
+        // name 优先从 node.data 读（config panel 保存到 data），回退到顶层
+        name: node.data?.name || node.name || '',
       };
 
       // 复制 data 中的特有属性

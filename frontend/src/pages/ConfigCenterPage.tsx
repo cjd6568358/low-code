@@ -69,6 +69,8 @@ const ROLE_LABELS: Record<string, { label: string; color: string }> = {
 
 function UserManagementTab() {
   const { message } = App.useApp();
+  const { user } = useAuth();
+  const tenantId = user?.tenantId;
   const [users, setUsers] = useState<UserItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -76,9 +78,10 @@ function UserManagementTab() {
 
   /** 加载用户列表 */
   const loadUsers = useCallback(async () => {
+    if (!tenantId) return;
     setLoading(true);
     try {
-      const resp = await fetch('/api/users');
+      const resp = await fetch(`/api/tenants/${tenantId}/users`);
       const data = await resp.json();
       if (data.success) {
         setUsers(data.users);
@@ -88,7 +91,7 @@ function UserManagementTab() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [tenantId]);
 
   useEffect(() => {
     loadUsers();
@@ -96,8 +99,9 @@ function UserManagementTab() {
 
   /** 切换用户状态 */
   const handleStatusChange = useCallback(async (userId: string, checked: boolean) => {
+    if (!tenantId) return;
     try {
-      const resp = await fetch(`/api/users/${userId}/status`, {
+      const resp = await fetch(`/api/tenants/${tenantId}/users/${userId}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: checked ? 'active' : 'disabled' }),
@@ -116,13 +120,14 @@ function UserManagementTab() {
     } catch {
       message.error('操作失败');
     }
-  }, []);
+  }, [tenantId]);
 
   /** 创建用户 */
   const handleCreateUser = useCallback(async () => {
+    if (!tenantId) return;
     try {
       const values = await form.validateFields();
-      const resp = await fetch('/api/users', {
+      const resp = await fetch(`/api/tenants/${tenantId}/users`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(values),
@@ -139,7 +144,7 @@ function UserManagementTab() {
     } catch {
       message.error('创建失败');
     }
-  }, [form, loadUsers]);
+  }, [tenantId, form, loadUsers]);
 
   const columns: ColumnsType<UserItem> = [
     {
@@ -213,6 +218,7 @@ function UserManagementTab() {
         }}
         okText="创建"
         cancelText="取消"
+        destroyOnClose
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
           <Form.Item name="name" label="姓名" rules={[{ required: true }]}>
@@ -392,6 +398,7 @@ function RoleManagementTab() {
         }}
         okText="创建"
         cancelText="取消"
+        destroyOnClose
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
           <Form.Item name="name" label="角色名称" rules={[{ required: true }]}>

@@ -428,7 +428,7 @@ yarn test
 
 ### 路由规范
 
-所有租户页面路由必须带 `/:tenantId` 前缀：`/:tenantId/workspace`、`/:tenantId/apps`、`/:tenantId/workflows`、`/:tenantId/config`、`/:tenantId/designer/:resourceType/:id`
+所有租户页面路由必须带 `/:tenantId` 前缀：`/:tenantId/workspace`、`/:tenantId/apps`、`/:tenantId/workflows`、`/:tenantId/config`、`/:tenantId/designer/:resourceType/:id`、`/:tenantId/app/:appId/workflows/:instanceId`
 
 ---
 

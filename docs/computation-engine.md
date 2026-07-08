@@ -424,10 +424,12 @@ interface ValidationResult {
 ### 功能特性
 
 - **4 种运算类型**：字段计算、公式规则、聚合计算、数据转换
-- **输入字段配置**：支持从数据表自动选择字段，或手动定义变量
+- **输入字段配置**：手动定义变量名、类型、描述
 - **表达式编辑器**：复用 ExpressionEditor 组件，支持语法高亮、自动补全、类型推断
+- **环境变量过滤**：只保留系统基础变量（`$user`、`$system`、`$env`），去掉页面相关变量
 - **输出配置**：支持多种数据类型和格式化选项（货币、百分比、日期等）
 - **预览功能**：实时预览运算结果，支持测试数据输入
+- **流程节点引用**：流程计算节点可选择已定义的运算规则
 
 ### 路由格式
 
@@ -438,48 +440,56 @@ interface ValidationResult {
 ### 数据结构
 
 ```typescript
-interface ComputationData {
-  /** 运算 ID */
-  id?: string;
-  /** 应用 ID */
+interface ComputationSchema {
+  /** Schema 版本号 */
+  schemaVersion: number;
+  /** 业务版本号（乐观锁） */
+  version: number;
+  /** 运算规则 ID */
+  computationId: string;
+  /** 所属应用 ID */
   appId: string;
-  /** 运算名称 */
+  /** 规则标题 */
   name: string;
-  /** 运算描述 */
+  /** 规则描述 */
   description?: string;
   /** 运算类型：field | formula | aggregation | transform */
   type: ComputationType;
   /** 状态：draft | active | disabled */
   status: ComputationStatus;
   /** 输入字段列表 */
-  inputs: InputField[];
-  /** 表达式 */
-  expression: string;
-  /** 表达式是否异步 */
-  async?: boolean;
+  inputs: ComputationInput[];
+  /** 表达式（PropValue 格式） */
+  expression: ExpressionBinding;
   /** 输出配置 */
-  output: OutputField;
-  /** 关联的数据表 ID */
+  output: ComputationOutput;
+  /** 关联数据表 ID */
   tableId?: string;
-  /** 元数据 */
-  schemaVersion?: number;
-  version?: number;
+  /** 资源引用声明 */
+  references?: { tables?: string[] };
+  /** 创建/更新信息 */
+  createdBy?: string;
+  createdAt?: string;
+  updatedBy?: string;
+  updatedAt?: string;
 }
 
-interface InputField {
-  /** 变量名（用于表达式引用） */
+interface ComputationInput {
+  /** 字段标识（用于表达式中引用） */
   key: string;
   /** 显示名称 */
   label: string;
   /** 字段类型 */
   fieldType: 'string' | 'number' | 'boolean' | 'date' | 'json';
-  /** 来源表 ID */
-  tableId?: string;
-  /** 来源字段名 */
-  fieldName?: string;
+  /** 是否必填 */
+  required?: boolean;
+  /** 默认值 */
+  defaultValue?: unknown;
+  /** 字段描述 */
+  description?: string;
 }
 
-interface OutputField {
+interface ComputationOutput {
   /** 输出字段名 */
   name: string;
   /** 输出类型 */
@@ -491,26 +501,148 @@ interface OutputField {
   /** 描述 */
   description?: string;
 }
+
+/** 表达式绑定（PropValue 格式） */
+interface ExpressionBinding {
+  type: 'expression';
+  value: string;   // 表达式内容
+  async?: boolean;  // 是否异步（运算表达式默认 false）
+}
 ```
 
-### 预览 API
+### 环境变量
+
+运算表达式只支持以下环境变量：
+
+| 变量 | 说明 |
+|------|------|
+| `$user.id` | 当前用户 ID |
+| `$user.name` | 当前用户姓名 |
+| `$user.roles` | 用户角色列表 |
+| `$user.department` | 部门 ID |
+| `$user.departmentName` | 部门名称 |
+| `$user.position` | 岗位名称 |
+| `$system.now` | 当前时间（ISO 8601） |
+| `$system.today` | 当前日期（YYYY-MM-DD） |
+| `$env.NODE_ENV` | 运行环境 |
+
+> **注意**：运算表达式不支持 `$component`、`$route`、`$data`、`$table`、`$fetch`、`$workflow` 等页面相关变量。
+
+### API 接口
+
+#### 列表查询
+
+```http
+GET /api/computations?appId={appId}
+
+Response:
+{
+  "success": true,
+  "data": [ComputationSchema, ...]
+}
+```
+
+#### 获取详情
+
+```http
+GET /api/computations/{id}?appId={appId}
+
+Response:
+{
+  "success": true,
+  "data": ComputationSchema
+}
+```
+
+#### 创建
+
+```http
+POST /api/computations?appId={appId}
+Content-Type: application/json
+
+{
+  "name": "订单金额计算",
+  "description": "根据数量和单价计算订单金额",
+  "type": "field",
+  "inputs": [
+    { "key": "quantity", "label": "数量", "fieldType": "number" },
+    { "key": "unitPrice", "label": "单价", "fieldType": "number" }
+  ],
+  "expression": { "type": "expression", "value": "quantity * unitPrice", "async": false },
+  "output": { "name": "totalAmount", "type": "number", "format": "currency" }
+}
+
+Response:
+{
+  "success": true,
+  "data": ComputationSchema
+}
+```
+
+#### 更新
+
+```http
+PUT /api/computations/{id}?appId={appId}
+Content-Type: application/json
+
+{ ... }
+
+Response:
+{
+  "success": true,
+  "data": ComputationSchema
+}
+```
+
+#### 删除
+
+```http
+DELETE /api/computations/{id}?appId={appId}
+
+Response:
+{
+  "success": true
+}
+```
+
+#### 执行运算
+
+```http
+POST /api/computations/{id}/execute?appId={appId}
+Content-Type: application/json
+
+{
+  "params": {
+    "quantity": 10,
+    "unitPrice": 99.9
+  }
+}
+
+Response:
+{
+  "success": true,
+  "result": 999,
+  "duration": 5
+}
+```
+
+#### 预览表达式
 
 ```http
 POST /api/computations/preview
 Content-Type: application/json
 
 {
-  "expression": "amount * 0.1",
-  "context": {
-    "amount": 1000
-  },
+  "expression": "quantity * unitPrice",
+  "context": { "quantity": 10, "unitPrice": 99.9 },
   "outputType": "number"
 }
 
 Response:
 {
   "success": true,
-  "result": 100
+  "result": 999,
+  "duration": 3
 }
 ```
 
@@ -519,13 +651,31 @@ Response:
 运算设计器采用卡片式布局，包含以下区域：
 
 1. **基本信息卡片**：运算名称、类型、状态、描述
-2. **输入字段卡片**：变量名、显示名称、字段类型、数据表来源
-3. **表达式卡片**：表达式内容预览、编辑按钮
+2. **输入字段卡片**：变量名、显示名称、字段类型、是否必填
+3. **表达式卡片**：表达式内容预览、编辑按钮（使用阉割版 ExpressionEditor）
 4. **输出配置卡片**：字段名、类型、格式化选项
 5. **预览结果卡片**：运算结果展示（调用预览 API 后显示）
 
+### 流程节点集成
+
+流程计算节点支持两种模式：
+
+1. **自定义表达式**：直接编写表达式（原有模式）
+2. **选择运算规则**：从运算中心选择已定义的规则，配置参数映射
+
+#### 运算规则选择器
+
+`ComputationSelector` 组件提供规则选择功能：
+- 从 API 加载状态为 `active` 的运算规则
+- 显示规则名称、类型、描述
+- 支持搜索过滤
+
+#### 参数映射
+
+选择运算规则后，需要配置参数映射，将流程变量映射到运算规则的输入字段。
+
 ### 与其他模块的集成
 
-- **数据表**：输入字段可从数据表自动选择，输出字段可写回数据表
 - **表达式引擎**：复用 ExpressionEditor 组件，支持完整的表达式语法
-- **运算引擎**：预览功能调用服务端运算引擎执行表达式
+- **运算执行器**：服务端 `ComputationExecutor` 负责沙箱执行
+- **流程引擎**：计算节点可选择运算规则，运行时传入参数执行

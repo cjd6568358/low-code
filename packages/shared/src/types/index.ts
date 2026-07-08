@@ -12,3 +12,4 @@ export * from './permission.js';
 export * from './app.js';
 export * from './environment.js';
 export * from './table.js';
+export * from './computation.js';

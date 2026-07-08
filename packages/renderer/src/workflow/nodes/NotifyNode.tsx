@@ -8,8 +8,8 @@ import { NodeContext } from 'react-flow-builder';
 /** 通知节点展示组件 */
 export const NotifyNodeDisplay: React.FC = () => {
   const node = useContext(NodeContext) as any;
+  const data = node.data || {};
 
-  // 通知渠道标签
   const channelLabels: Record<string, string> = {
     email: '邮件',
     sms: '短信',
@@ -17,17 +17,17 @@ export const NotifyNodeDisplay: React.FC = () => {
     dingtalk: '钉钉',
   };
 
-  const channels = node.channels || [];
+  const channels = data.channels || [];
 
   return (
     <div
       style={{
-        width: 160,
-        minHeight: 60,
+        width: 180,
+        minHeight: 70,
         background: '#fff',
         border: '1px solid #eb2f96',
         borderRadius: 4,
-        padding: '10px',
+        padding: '12px',
         boxShadow: '0 1px 4px rgba(235, 47, 150, 0.15)',
       }}
     >
@@ -55,7 +55,7 @@ export const NotifyNodeDisplay: React.FC = () => {
           ✉
         </span>
         <span style={{ fontWeight: 'bold', fontSize: 13 }}>
-          {node.name || '通知'}
+          {data.name || node.name || '通知'}
         </span>
       </div>
 

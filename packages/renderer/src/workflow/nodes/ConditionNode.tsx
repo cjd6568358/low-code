@@ -8,16 +8,17 @@ import { NodeContext } from 'react-flow-builder';
 /** 条件节点展示组件 */
 export const ConditionNodeDisplay: React.FC = () => {
   const node = useContext(NodeContext) as any;
+  const data = node.data || {};
 
   return (
     <div
       style={{
         width: 180,
-        minHeight: 60,
+        minHeight: 70,
         background: '#fff',
         border: '1px solid #faad14',
         borderRadius: 4,
-        padding: '10px',
+        padding: '12px',
         boxShadow: '0 1px 4px rgba(250, 173, 20, 0.15)',
       }}
     >
@@ -45,7 +46,7 @@ export const ConditionNodeDisplay: React.FC = () => {
           ?
         </span>
         <span style={{ fontWeight: 'bold', fontSize: 13 }}>
-          {node.name || '条件判断'}
+          {data.name || node.name || '条件判断'}
         </span>
       </div>
 

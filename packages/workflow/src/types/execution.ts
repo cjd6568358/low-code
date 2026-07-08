@@ -80,10 +80,6 @@ export interface TaskCreateParams {
   assigneeId?: string;
   /** 审批人名称 */
   assigneeName?: string;
-  /** 候选用户 */
-  candidateUsers?: string[];
-  /** 候选组 */
-  candidateGroups?: string[];
   /** 截止时间 */
   dueDate?: string;
   /** 表单数据 */

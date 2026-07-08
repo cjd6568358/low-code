@@ -7,7 +7,8 @@ import { NodeContext } from 'react-flow-builder';
 
 /** 结束节点展示组件 */
 export const EndNodeDisplay: React.FC = () => {
-  const node = useContext(NodeContext);
+  const node = useContext(NodeContext) as any;
+  const data = node.data || {};
 
   return (
     <div
@@ -25,7 +26,7 @@ export const EndNodeDisplay: React.FC = () => {
         boxShadow: '0 2px 8px rgba(102, 102, 102, 0.3)',
       }}
     >
-      {node.name || '结束'}
+      {data.name || node.name || '结束'}
     </div>
   );
 };

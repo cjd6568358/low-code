@@ -192,6 +192,7 @@ interface ConditionRule {
 | 动作类型 | 说明 | 执行方式 |
 |---------|------|---------|
 | 触发流程 | 启动指定流程引擎实例 | 调用流程引擎 API |
+| **执行脚本** | 使用表达式引擎执行自定义脚本 | **公共表达式引擎** |
 | 发送通知 | 通过消息中心发送多渠道通知 | 调用消息中心 API |
 | 数据操作 | 创建/更新/删除实体记录 | 调用数据引擎 API |
 | API 调用 | 调用外部 HTTP API | HTTP Client |
@@ -202,7 +203,7 @@ interface ConditionRule {
 ```typescript
 interface AutomationAction {
   /** 动作类型 */
-  type: 'trigger_workflow' | 'send_notification' | 'data_operation' | 'api_call' | 'webhook';
+  type: 'trigger_workflow' | 'execute_script' | 'send_notification' | 'data_operation' | 'api_call' | 'webhook';
 
   /** 动作名称（用于日志展示） */
   name: string;
@@ -224,6 +225,12 @@ interface AutomationAction {
     workflowId: string;                   // 流程定义 ID
     variables?: Record<string, any>;      // 流程变量（支持 {{event.data.xxx}} 插值）
     initiator?: string;                   // 发起人（默认系统用户）
+  };
+
+  /** 执行脚本配置 */
+  executeScript?: {
+    script: string;                       // 脚本内容（JavaScript 表达式或语句）
+    context?: Record<string, any>;        // 额外上下文变量
   };
 
   /** 发送通知配置 */
@@ -270,6 +277,44 @@ interface NotificationRecipient {
   value: string;                          // 用户ID / 角色名 / 部门ID / 变量路径
 }
 ```
+
+### 执行脚本详解
+
+执行脚本动作使用公共表达式引擎（`@low-code/shared`），支持安全沙箱求值。
+
+**上下文变量**：
+
+| 变量 | 说明 | 示例 |
+|------|------|------|
+| `$event` | 触发事件数据 | `$event.data.recordId` |
+| `$rule` | 规则信息 | `$rule.id`, `$rule.appId` |
+| `$tenant` | 租户信息 | `$tenant.id` |
+| `$now` | 当前时间（ISO 8601） | `$now` |
+
+**脚本示例**：
+
+```javascript
+// 简单计算
+return $event.data.amount * 0.8
+
+// 条件判断
+if ($event.data.status === 'urgent') {
+  return { priority: 'high', message: '紧急订单' }
+}
+return { priority: 'normal' }
+
+// 字符串处理
+return `订单 ${$event.data.id} 已处理，金额: ${$event.data.amount} 元`
+
+// 数组操作
+const items = $event.data.items || []
+return items.filter(item => item.quantity > 0).length
+```
+
+**安全特性**：
+- 沙箱隔离：禁止访问 `globalThis`、`window`、`process` 等全局对象
+- 超时控制：默认 5 秒超时，防止死循环
+- 语法校验：括号平衡检查、禁止的全局引用检测
 
 ## 自动化规则定义
 
@@ -568,6 +613,101 @@ CREATE TABLE automation_execution_logs (
 | `{{rule.id}}` | 规则 ID | `rule_001` |
 | `{{rule.name}}` | 规则名称 | `大额订单自动审批` |
 | `{{now}}` | 当前时间 | `2024-06-04T14:30:00Z` |
+
+## Cron 调度器
+
+### 位置
+
+`server/src/services/CronScheduler.ts`
+
+### Cron 表达式格式
+
+```
+┌───────────── 分 (0-59)
+│ ┌───────────── 时 (0-23)
+│ │ ┌───────────── 日 (1-31)
+│ │ │ ┌───────────── 月 (1-12)
+│ │ │ │ ┌───────────── 周 (0-6, 0=周日)
+│ │ │ │ │
+* * * * *
+```
+
+### 特殊字符
+
+| 字符 | 说明 | 示例 |
+|------|------|------|
+| `*` | 任意值 | `* * * * *` 每分钟 |
+| `,` | 列表 | `1,3,5 * * * *` 第 1、3、5 分钟 |
+| `-` | 范围 | `1-5 * * * *` 第 1 到 5 分钟 |
+| `/` | 步长 | `*/5 * * * *` 每 5 分钟 |
+
+### 常用 Cron 表达式
+
+| 表达式 | 说明 |
+|--------|------|
+| `* * * * *` | 每分钟 |
+| `*/5 * * * *` | 每 5 分钟 |
+| `0 * * * *` | 每小时 |
+| `0 9 * * *` | 每天 9:00 |
+| `0 9 * * 1-5` | 工作日 9:00 |
+| `0 2 * * *` | 每天凌晨 2:00 |
+| `0 0 * * 0` | 每周日 0:00 |
+| `0 0 1 * *` | 每月 1 日 0:00 |
+| `0 9,18 * * *` | 每天 9:00 和 18:00 |
+
+### 使用示例
+
+```typescript
+import { CronScheduler, validateCronExpression, getNextRunTimes } from './CronScheduler';
+
+// 创建调度器
+const scheduler = new CronScheduler('Asia/Shanghai');
+
+// 添加任务
+scheduler.addJob({
+  id: 'task_001',
+  name: '每日数据备份',
+  expression: '0 2 * * *', // 每天凌晨 2 点
+  timezone: 'Asia/Shanghai',
+  callback: async () => {
+    console.log('执行数据备份...');
+    await backupDatabase();
+  },
+});
+
+// 启动调度器
+scheduler.start();
+
+// 校验表达式
+const result = validateCronExpression('0 2 * * *');
+console.log(result); // { valid: true }
+
+// 获取下次执行时间
+const nextRuns = getNextRunTimes('0 9 * * 1-5', 5, 'Asia/Shanghai');
+console.log(nextRuns); // 未来 5 个工作日的 9:00
+
+// 任务管理
+scheduler.enableJob('task_001');
+scheduler.disableJob('task_001');
+scheduler.removeJob('task_001');
+
+// 手动触发
+await scheduler.triggerJob('task_001');
+
+// 获取任务状态
+const status = scheduler.getJobStatus('task_001');
+console.log(status);
+// {
+//   id: 'task_001',
+//   name: '每日数据备份',
+//   expression: '0 2 * * *',
+//   enabled: true,
+//   lastRunAt: Date,
+//   nextRunAt: Date,
+//   runCount: 10,
+//   errorCount: 0
+// }
+```
 
 ## 执行流程
 

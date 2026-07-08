@@ -199,7 +199,7 @@ function validateNode(node: FlowNode, path: string): ValidationResult {
   // 校验用户任务特有字段
   if (node.$type === 'bpmn:UserTask') {
     const userTask = node as any;
-    if (!userTask.assignee && !userTask.candidateUsers?.length && !userTask.candidateGroups?.length) {
+    if (!userTask.assignee) {
       warnings.push({
         path: `${path}`,
         message: '审批节点没有配置审批人',

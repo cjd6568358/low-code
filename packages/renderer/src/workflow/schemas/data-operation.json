@@ -1,0 +1,11 @@
+{
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "节点名称",
+      "x-group": "基础属性",
+      "x-priority": 1
+    }
+  }
+}

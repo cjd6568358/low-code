@@ -11,6 +11,17 @@ export * from './schema';
 // 引擎主类
 export { WorkflowEngine, WorkflowError, WorkflowErrorCode } from './engine/WorkflowEngine';
 
+// 超时管理器
+export { TimeoutManager } from './engine/TimeoutManager';
+
+// 运行注册表
+export { RunningRegistry } from './engine/RunningRegistry';
+export type { AbortHandle } from './engine/RunningRegistry';
+
+// 任务统计管理器
+export { TaskStatsManager } from './engine/TaskStatsManager';
+export type { UserTaskStats } from './engine/TaskStatsManager';
+
 // 状态机
 export { StateMachine } from './engine/StateMachine';
 export type { StateMachineEvent } from './engine/StateMachine';
@@ -43,6 +54,15 @@ export { UserTaskExecutor } from './executors/UserTaskExecutor';
 export { GatewayExecutor } from './executors/GatewayExecutor';
 export { TimerExecutor } from './executors/TimerExecutor';
 export { ServiceTaskExecutor } from './executors/ServiceTaskExecutor';
+export { ScriptTaskExecutor } from './executors/ScriptTaskExecutor';
+
+// 数据操作执行器
+export { DataOperationExecutor } from './executors/DataOperationExecutor';
+export type { DataOperationConfig, DataOperationResult } from './executors/DataOperationExecutor';
+export { CreateRecordExecutor } from './executors/CreateRecordExecutor';
+export { UpdateRecordExecutor } from './executors/UpdateRecordExecutor';
+export { QueryRecordExecutor } from './executors/QueryRecordExecutor';
+export { DeleteRecordExecutor } from './executors/DeleteRecordExecutor';
 
 // 类型定义
 export type {
@@ -58,6 +78,10 @@ export type {
   NotifyParams,
   ExpressionEvaluator,
   EvaluationContext,
+
+  // 用户解析
+  UserResolver,
+  ResolvedUser,
 
   // 流程实例
   InstanceRecord,
@@ -104,6 +128,14 @@ export type {
   TaskOperationHistory,
   CountersignState,
   OrSignState,
+  RaceSignState,
   TimeoutConfig,
   AssigneeSelection,
 } from './types/task';
+
+export type {
+  // Job 类型
+  JobRecord,
+  JobStatus,
+} from './types/job';
+export { JOB_STATUS_VALUE, JOB_STATUS_FROM_VALUE } from './types/job';

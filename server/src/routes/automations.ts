@@ -181,7 +181,7 @@ export function createAutomationsRouter(): KoaRouter {
     ctx.body = { data: updated };
   });
 
-  // POST /api/automations/trigger - 手动触发事件（测试用）
+  // POST /api/automations/trigger - 手动触发事件
   router.post('/trigger', async (ctx) => {
     const tenantId = getFirstTenantId();
     if (!tenantId) {
@@ -205,41 +205,152 @@ export function createAutomationsRouter(): KoaRouter {
       return;
     }
 
-    // 获取匹配的规则
-    const rules = scanRules(tenantId, appId as string)
-      .filter(r => r.status === 'enabled');
+    // 使用自动化执行引擎触发事件
+    try {
+      const { getAutomationExecutor } = await import('../index.js');
+      const executor = getAutomationExecutor();
 
-    // 简单的触发器匹配
-    const matchedRules = rules.filter(rule => {
-      const trigger = rule.trigger as Record<string, unknown>;
-      if (!trigger) return false;
+      if (executor) {
+        const results = await executor.triggerEvent(
+          eventType as string,
+          (eventData as Record<string, unknown>) || {},
+          appId as string
+        );
 
-      const triggerType = trigger.type as string;
+        ctx.body = {
+          data: {
+            matchedRules: results.length,
+            results,
+          },
+        };
+      } else {
+        // 回退到简单匹配
+        const rules = scanRules(tenantId, appId as string)
+          .filter(r => r.status === 'enabled');
 
-      if (triggerType === 'data_change' && eventType.toString().startsWith('entity.')) {
-        return true;
-      }
-      if (triggerType === 'form_event' && eventType.toString().startsWith('form.')) {
-        return true;
-      }
-      if (triggerType === 'workflow_event' && eventType.toString().startsWith('workflow.')) {
-        return true;
-      }
-      if (triggerType === 'custom_event') {
-        const customEvent = trigger.customEvent as Record<string, unknown>;
-        if (customEvent && customEvent.eventType === eventType) {
-          return true;
-        }
-      }
-      return false;
-    });
+        const matchedRules = rules.filter(rule => {
+          const trigger = rule.trigger as Record<string, unknown>;
+          if (!trigger) return false;
 
-    ctx.body = {
-      data: {
-        matchedRules: matchedRules.length,
-        rules: matchedRules.map(r => ({ id: r.id, name: r.name })),
-      },
-    };
+          const triggerType = trigger.type as string;
+
+          if (triggerType === 'data_change' && eventType.toString().startsWith('entity.')) {
+            return true;
+          }
+          if (triggerType === 'form_event' && eventType.toString().startsWith('form.')) {
+            return true;
+          }
+          if (triggerType === 'workflow_event' && eventType.toString().startsWith('workflow.')) {
+            return true;
+          }
+          if (triggerType === 'custom_event') {
+            const customEvent = trigger.customEvent as Record<string, unknown>;
+            if (customEvent && customEvent.eventType === eventType) {
+              return true;
+            }
+          }
+          return false;
+        });
+
+        ctx.body = {
+          data: {
+            matchedRules: matchedRules.length,
+            rules: matchedRules.map(r => ({ id: r.id, name: r.name })),
+          },
+        };
+      }
+    } catch (error) {
+      console.error('[Automations] 触发事件失败:', error);
+      ctx.status = 500;
+      ctx.body = { error: '触发事件失败' };
+    }
+  });
+
+  // POST /api/automations/:id/execute - 手动执行规则
+  router.post('/:id/execute', async (ctx) => {
+    const tenantId = getFirstTenantId();
+    if (!tenantId) {
+      ctx.status = 404;
+      ctx.body = { error: '没有找到租户' };
+      return;
+    }
+
+    const ruleId = ctx.params.id;
+    const appId = ctx.query.appId as string;
+
+    if (!appId) {
+      ctx.status = 400;
+      ctx.body = { error: '缺少 appId 参数' };
+      return;
+    }
+
+    try {
+      const { getAutomationExecutor } = await import('../index.js');
+      const executor = getAutomationExecutor();
+
+      if (!executor) {
+        ctx.status = 500;
+        ctx.body = { error: '自动化执行引擎未初始化' };
+        return;
+      }
+
+      // 获取规则
+      const rule = readRuleFile(tenantId, appId, ruleId);
+      if (!rule) {
+        ctx.status = 404;
+        ctx.body = { error: '规则不存在' };
+        return;
+      }
+
+      // 手动触发定时任务
+      if (rule.trigger && (rule.trigger as Record<string, unknown>).type === 'schedule') {
+        await executor.triggerEvent(
+          'manual',
+          { triggerType: 'manual', timestamp: new Date().toISOString() },
+          appId
+        );
+      } else {
+        ctx.status = 400;
+        ctx.body = { error: '只有定时触发类型的规则支持手动执行' };
+        return;
+      }
+
+      ctx.body = { data: { success: true } };
+    } catch (error) {
+      console.error('[Automations] 手动执行规则失败:', error);
+      ctx.status = 500;
+      ctx.body = { error: '执行失败' };
+    }
+  });
+
+  // GET /api/automations/:id/stats - 获取规则执行统计
+  router.get('/:id/stats', async (ctx) => {
+    const tenantId = getFirstTenantId();
+    if (!tenantId) {
+      ctx.status = 404;
+      ctx.body = { error: '没有找到租户' };
+      return;
+    }
+
+    const ruleId = ctx.params.id;
+
+    try {
+      const { getAutomationExecutor } = await import('../index.js');
+      const executor = getAutomationExecutor();
+
+      if (!executor) {
+        ctx.status = 500;
+        ctx.body = { error: '自动化执行引擎未初始化' };
+        return;
+      }
+
+      const stats = executor.getExecutionStats(tenantId, ruleId);
+      ctx.body = { data: stats };
+    } catch (error) {
+      console.error('[Automations] 获取执行统计失败:', error);
+      ctx.status = 500;
+      ctx.body = { error: '获取统计失败' };
+    }
   });
 
   // GET /api/automations/:id/logs - 获取规则执行日志

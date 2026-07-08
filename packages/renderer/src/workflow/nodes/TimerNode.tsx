@@ -8,8 +8,8 @@ import { NodeContext } from 'react-flow-builder';
 /** 延时节点展示组件 */
 export const TimerNodeDisplay: React.FC = () => {
   const node = useContext(NodeContext) as any;
+  const data = node.data || {};
 
-  // 格式化时长
   const formatDuration = (ms: number): string => {
     if (!ms) return '未配置';
     const seconds = Math.floor(ms / 1000);
@@ -26,12 +26,12 @@ export const TimerNodeDisplay: React.FC = () => {
   return (
     <div
       style={{
-        width: 160,
-        minHeight: 60,
+        width: 180,
+        minHeight: 70,
         background: '#fff',
         border: '1px solid #13c2c2',
         borderRadius: 4,
-        padding: '10px',
+        padding: '12px',
         boxShadow: '0 1px 4px rgba(19, 194, 194, 0.15)',
       }}
     >
@@ -59,12 +59,12 @@ export const TimerNodeDisplay: React.FC = () => {
           ⏱
         </span>
         <span style={{ fontWeight: 'bold', fontSize: 13 }}>
-          {node.name || '延时'}
+          {data.name || node.name || '延时'}
         </span>
       </div>
 
       <div style={{ fontSize: 11, color: '#666' }}>
-        {node.duration ? formatDuration(node.duration) : '未配置时长'}
+        {data.duration ? formatDuration(data.duration) : '未配置时长'}
       </div>
     </div>
   );

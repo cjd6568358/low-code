@@ -184,8 +184,7 @@ describe('BPMN 序列化器', () => {
         id: 'task1',
         $type: 'bpmn:UserTask',
         name: '部门经理审批',
-        assignee: '${manager}',
-        candidateGroups: ['dept_manager'],
+        assignee: { type: 'role', roleIds: ['dept_manager'] },
       });
 
       const json = serializeBpmnDocument(doc);
@@ -193,8 +192,7 @@ describe('BPMN 序列化器', () => {
       const task = restored.processes[0].nodes.find(n => n.$type === 'bpmn:UserTask');
 
       expect(task).toBeDefined();
-      expect((task as UserTask).assignee).toBe('${manager}');
-      expect((task as UserTask).candidateGroups).toEqual(['dept_manager']);
+      expect((task as UserTask).assignee).toEqual({ type: 'role', roleIds: ['dept_manager'] });
     });
   });
 

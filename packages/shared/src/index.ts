@@ -3,3 +3,4 @@ export * from './utils/index.js';
 export * from './config/resource-types.js';
 export * from './core/PermissionEngine.js';
 export * from './core/RoleRegistry.js';
+export * from './engine/index.js';

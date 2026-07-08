@@ -1,6 +1,8 @@
 /**
  * 网关执行器
  * 处理各种类型的网关（排他、并行、包含）
+ *
+ * 使用统一的 expressionEvaluator 进行条件求值
  */
 
 import type {
@@ -52,7 +54,8 @@ export class GatewayExecutor extends NodeExecutorBase {
   }
 
   /**
-   * 执行排他网关
+   * 执行排他网关（XOR Gateway）
+   * 只选择第一个满足条件的分支
    */
   private async executeExclusiveGateway(
     context: ExecutionContext
@@ -65,7 +68,7 @@ export class GatewayExecutor extends NodeExecutorBase {
       currentNodeId: currentNode.id,
     });
 
-    // 获取所有出口连线
+    // 获取出口连线
     const outgoingEdges = definition.edges.filter((e: Edge) =>
       currentNode.outgoing?.includes(e.id)
     ) as SequenceFlow[];
@@ -112,7 +115,8 @@ export class GatewayExecutor extends NodeExecutorBase {
   }
 
   /**
-   * 执行并行网关
+   * 执行并行网关（AND Gateway）
+   * 分支时所有出口都执行，汇聚时等待所有分支完成
    */
   private async executeParallelGateway(
     context: ExecutionContext
@@ -151,7 +155,8 @@ export class GatewayExecutor extends NodeExecutorBase {
   }
 
   /**
-   * 执行包含网关
+   * 执行包含网关（OR Gateway）
+   * 分支时评估所有条件，满足的都执行；汇聚时等待所有活跃分支完成
    */
   private async executeInclusiveGateway(
     context: ExecutionContext
@@ -217,72 +222,58 @@ export class GatewayExecutor extends NodeExecutorBase {
   ): Promise<ExecutionResult> {
     const { currentNode, instance } = context;
 
-    // 检查是否有并行分支状态
-    const checkpoint = instance.checkpoint as any;
-    const parallelState = checkpoint?.parallelState;
+    // 获取所有入口连线
+    const incomingEdges = this.getIncomingEdges(context);
 
-    if (!parallelState) {
-      // 初始化并行状态
-      const incomingEdges = context.definition.edges.filter((e: Edge) =>
-        currentNode.incoming?.includes(e.id)
-      );
+    // 检查是否所有分支都已完成
+    // 这需要查询 job 表，看每个入口分支是否都有对应的完成记录
+    const jobs = await this.engine['getJobs'](instance.id);
+    const completedNodeIds = new Set(jobs.map((j: any) => j.nodeId));
 
-      // 记录等待状态
-      await this.engine['saveCheckpoint'](instance.id, {
-        instanceId: instance.id,
-        nodeId: currentNode.id,
-        nodeName: currentNode.name,
-        status: 'waiting',
-        timestamp: new Date().toISOString(),
-        context: {},
-        executionPath: [],
-      });
+    // 检查每个入口分支的上游节点是否都已完成
+    const allCompleted = incomingEdges.every((edge: Edge) => {
+      // 找到这个入口分支的起始节点（并行网关的出口）
+      const sourceNode = context.definition.nodes.find((n: FlowNode) => n.id === edge.sourceRef);
+      if (!sourceNode) return false;
 
+      // 检查该节点是否已完成
+      return completedNodeIds.has(sourceNode.id);
+    });
+
+    if (allCompleted) {
+      // 所有分支都已完成，继续执行后续节点
+      return this.createSuccessResult();
+    } else {
+      // 还有分支未完成，等待
       return this.createWaitingResult();
     }
-
-    // 检查是否所有分支都完成
-    if (parallelState.completedBranches.length < parallelState.activeBranches.length) {
-      return this.createWaitingResult();
-    }
-
-    // 所有分支完成，继续执行
-    const outgoingEdges = context.definition.edges.filter((e: Edge) =>
-      currentNode.outgoing?.includes(e.id)
-    );
-
-    if (outgoingEdges.length === 1) {
-      const targetNode = context.definition.nodes.find((n: FlowNode) => n.id === outgoingEdges[0].targetRef);
-      if (targetNode) {
-        return this.createSuccessResult([
-          { node: targetNode, edge: outgoingEdges[0] }
-        ]);
-      }
-    }
-
-    return this.createCompletedResult();
   }
 
   /**
-   * 评估条件
+   * 评估条件表达式
+   *
+   * 使用统一的 expressionEvaluator，支持 ${variable} 语法
    */
-  private evaluateCondition(expression: string, variables: Record<string, unknown>): boolean {
-    // 处理 ${variable} 格式
-    // 支持 ${amount <= 10000} 格式，只替换变量名部分
+  private evaluateCondition(
+    expression: string,
+    variables: Record<string, unknown>
+  ): boolean {
+    // 优先使用注入的 expressionEvaluator
+    if (this.engine.expressionEvaluator) {
+      return this.engine.expressionEvaluator.evaluateBoolean(expression, { variables });
+    }
+
+    // 降级到简单的模板替换和布尔解析
     const resolved = expression.replace(/\$\{([^}]+)\}/g, (match: string, varPath: string) => {
-      // 提取变量名（第一个单词或点号分隔的路径）
-      const varMatch = varPath.trim().match(/^([a-zA-Z_]\w*(?:\.\w+)*)\s*(.*)/);
-      if (varMatch) {
-        const [, varName, rest] = varMatch;
-        const value = this.getNestedValue(variables, varName);
-        if (value !== undefined) {
-          return String(value) + (rest ? ' ' + rest : '');
-        }
-      }
-      return match;
+      const value = this.getNestedValue(variables, varPath.trim());
+      return value !== undefined ? String(value) : match;
     });
 
-    // 处理比较运算（优先匹配 >=, <=, !=, ==，然后再匹配 >, <）
+    // 处理布尔值
+    if (resolved === 'true') return true;
+    if (resolved === 'false') return false;
+
+    // 处理比较运算
     const comparisonMatch = resolved.match(/^(.+?)\s*(>=|<=|!=|==|>|<)\s*(.+)$/);
     if (comparisonMatch) {
       const [, left, op, right] = comparisonMatch;
@@ -317,11 +308,6 @@ export class GatewayExecutor extends NodeExecutorBase {
       return !this.evaluateCondition(notMatch[1].trim(), variables);
     }
 
-    // 处理常量
-    if (resolved === 'true') return true;
-    if (resolved === 'false') return false;
-
-    // 默认返回 false
     return false;
   }
 
@@ -368,7 +354,7 @@ export class GatewayExecutor extends NodeExecutorBase {
   /**
    * 获取节点配置
    */
-  getNodeConfig(node: Gateway) {
+  getNodeConfig(node: FlowNode) {
     return {
       type: node.$type,
       waitForInput: false,

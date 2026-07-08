@@ -3,7 +3,21 @@
  */
 
 import type { StartEvent, EndEvent, BoundaryEvent, IntermediateCatchEvent, IntermediateThrowEvent } from '../schema/events';
-import type { UserTask, ServiceTask, ScriptTask, ManualTask, SendTask, ReceiveTask, BusinessRuleTask, CallActivity, SubProcess } from '../schema/tasks';
+import type {
+  UserTask,
+  ServiceTask,
+  ScriptTask,
+  ManualTask,
+  SendTask,
+  ReceiveTask,
+  BusinessRuleTask,
+  CallActivity,
+  SubProcess,
+  CreateTask,
+  UpdateTask,
+  QueryTask,
+  DeleteTask,
+} from '../schema/tasks';
 import type { ExclusiveGateway, ParallelGateway, InclusiveGateway, EventBasedGateway, ComplexGateway } from '../schema/gateways';
 import type { SequenceFlow, MessageFlow } from '../schema/flows';
 
@@ -27,7 +41,12 @@ export type FlowNode =
   | ParallelGateway
   | InclusiveGateway
   | EventBasedGateway
-  | ComplexGateway;
+  | ComplexGateway
+  // 数据操作任务
+  | CreateTask
+  | UpdateTask
+  | QueryTask
+  | DeleteTask;
 
 /** 所有连线类型 */
 export type Edge = SequenceFlow | MessageFlow;
@@ -52,7 +71,12 @@ export type FlowNodeType =
   | 'bpmn:ParallelGateway'
   | 'bpmn:InclusiveGateway'
   | 'bpmn:EventBasedGateway'
-  | 'bpmn:ComplexGateway';
+  | 'bpmn:ComplexGateway'
+  // 数据操作任务
+  | 'bpmn:CreateTask'
+  | 'bpmn:UpdateTask'
+  | 'bpmn:QueryTask'
+  | 'bpmn:DeleteTask';
 
 /** 任务节点类型 */
 export type TaskNodeType =
@@ -62,7 +86,12 @@ export type TaskNodeType =
   | 'bpmn:ManualTask'
   | 'bpmn:SendTask'
   | 'bpmn:ReceiveTask'
-  | 'bpmn:BusinessRuleTask';
+  | 'bpmn:BusinessRuleTask'
+  // 数据操作任务
+  | 'bpmn:CreateTask'
+  | 'bpmn:UpdateTask'
+  | 'bpmn:QueryTask'
+  | 'bpmn:DeleteTask';
 
 /** 网关节点类型 */
 export type GatewayNodeType =
@@ -88,6 +117,31 @@ export function isTaskNode(node: FlowNode): node is UserTask | ServiceTask | Scr
 /** 类型守卫：是否为用户任务（审批节点） */
 export function isUserTask(node: FlowNode): node is UserTask {
   return node.$type === 'bpmn:UserTask';
+}
+
+/** 类型守卫：是否为数据操作任务 */
+export function isDataOperationTask(node: FlowNode): node is CreateTask | UpdateTask | QueryTask | DeleteTask {
+  return ['bpmn:CreateTask', 'bpmn:UpdateTask', 'bpmn:QueryTask', 'bpmn:DeleteTask'].includes(node.$type);
+}
+
+/** 类型守卫：是否为创建记录任务 */
+export function isCreateTask(node: FlowNode): node is CreateTask {
+  return node.$type === 'bpmn:CreateTask';
+}
+
+/** 类型守卫：是否为更新记录任务 */
+export function isUpdateTask(node: FlowNode): node is UpdateTask {
+  return node.$type === 'bpmn:UpdateTask';
+}
+
+/** 类型守卫：是否为查询记录任务 */
+export function isQueryTask(node: FlowNode): node is QueryTask {
+  return node.$type === 'bpmn:QueryTask';
+}
+
+/** 类型守卫：是否为删除记录任务 */
+export function isDeleteTask(node: FlowNode): node is DeleteTask {
+  return node.$type === 'bpmn:DeleteTask';
 }
 
 /** 类型守卫：是否为网关节点 */

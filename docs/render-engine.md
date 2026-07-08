@@ -640,8 +640,12 @@ name?: string;
 frontend/src/designers/WorkflowDesign.tsx    ← 包装层（加载/保存/工具栏）
 packages/renderer/src/workflow/              ← 引擎层
   ├── designer/WorkflowDesigner.tsx          ← 核心设计器组件
-  ├── nodes/                                 ← 8 种节点显示组件
-  ├── config/NodeConfigDrawer.tsx            ← 节点配置抽屉
+  ├── nodes/                                 ← 12 种节点显示组件
+  ├── config/
+  │   ├── NodeConfigComponent.tsx            ← 节点配置面板（按类型分发）
+  │   ├── NodeConfigDrawer.tsx               ← 节点配置抽屉
+  │   ├── FieldMappingEditor.tsx             ← 字段映射编辑器（表字段 = 变量）
+  │   └── ConditionRowEditor.tsx             ← 条件行编辑器（字段 操作符 变量）
   ├── hooks/useBpmnConverter.ts              ← BPMN JSON 转换器
   ├── runtime/                               ← 运行时组件（ApprovalForm/TaskList/FlowChart）
   └── api/workflowApi.ts                     ← API 客户端
@@ -659,6 +663,10 @@ packages/renderer/src/workflow/              ← 引擎层
 | 延时 | `timer` | 定时等待 |
 | 通知 | `notify` | 消息通知 |
 | 自动化 | `service` | 自动执行任务 |
+| 计算 | `calculation` | 表达式计算节点 |
+| 创建记录 | `create` | 创建数据表记录 |
+| 更新记录 | `update` | 更新数据表记录 |
+| 删除记录 | `delete` | 删除数据表记录 |
 
 #### 数据流
 
@@ -782,6 +790,38 @@ const registerNodes = [
   PopoverComponent={Popover}  // 直接使用 antd Popover，不要包装
 />
 ```
+
+#### 数据操作节点配置组件
+
+数据操作节点（创建/更新/删除记录）使用专用编辑器组件，替代通用表达式编辑器：
+
+**FieldMappingEditor（字段映射编辑器）**
+- 三列布局：表字段（只读） | = | 变量选择器
+- 选表后自动列出全部字段，无需手动添加/删除
+- 变量绑定使用 `VariableTreeSelector` 组件
+- 数据结构：`FieldMappingItem[]`（`{ field, value }`）
+
+**ConditionRowEditor（条件行编辑器）**
+- 三列布局：字段 | 操作符 | 变量选择器
+- 支持 8 种操作符（=、≠、>、≥、<、≤、包含、在...中）
+- 变量绑定使用 `VariableTreeSelector` 组件
+- 数据结构：`ConditionItem[]`（`{ field, operator, value }`）
+
+**配置面板联动逻辑**：
+- 未选数据表时，不展示字段赋值和匹配条件区域
+- 选表后自动加载表字段，初始化 `fields` 数组
+- 字段类型信息异步加载，不阻塞主渲染
+
+**react-flow-builder save 机制**：
+- `save(values)` 将数据存入 `node.data`，不是 node 顶层属性
+- `NodeConfigComponent` 初始化时需同时展开 `node.data`：`...(node as any).data`
+- **展示组件必须从 `node.data` 读取配置**，不能从 `node` 顶层读：
+  ```typescript
+  const node = useContext(NodeContext) as any;
+  const data = node.data || {};
+  const collection = data.collection || '未指定表';
+  const name = data.name || node.name || '默认名称';
+  ```
 
 #### 测试用例
 

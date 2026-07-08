@@ -1,36 +1,33 @@
 /**
  * 流程设计器主组件
  *
- * 基于 react-flow-builder 实现的可视化流程设计器，
- * 支持 BPMN 2.0 JSON Schema 导入导出。
+ * 基于 react-flow-builder 实现的可视化流程设计器。
+ * 只处理 nodes，不负责 schema 转换。
  */
 
-import React, { useState, useCallback, useMemo, useRef } from 'react';
-import { Popover } from 'antd';
+import React, { useMemo, useCallback } from 'react';
+import { Drawer, Popover, Popconfirm } from 'antd';
 import FlowBuilder, {
-  NodeContext,
   INode,
   IRegisterNode,
+  IDrawerComponent,
+  IPopoverComponent,
+  IPopconfirmComponent,
 } from 'react-flow-builder';
-import { StartNodeDisplay } from '../nodes/StartNode';
-import { EndNodeDisplay } from '../nodes/EndNode';
-import { ApprovalNodeDisplay } from '../nodes/ApprovalNode';
-import { ConditionNodeDisplay } from '../nodes/ConditionNode';
-import { ParallelNodeDisplay } from '../nodes/ParallelNode';
-import { TimerNodeDisplay } from '../nodes/TimerNode';
-import { NotifyNodeDisplay } from '../nodes/NotifyNode';
-import { ServiceNodeDisplay } from '../nodes/ServiceNode';
-import { NodeConfigDrawer } from '../config/NodeConfigDrawer';
-import { useBpmnConverter } from '../hooks/useBpmnConverter';
-import type { BpmnDocument, FlowNode } from '@low-code/workflow';
-import { generateNodeId } from '@low-code/shared';
+import { NODE_META_LIST } from '../nodes/nodeMeta';
+import NodeConfigComponent from '../config/NodeConfigComponent';
+import { WorkflowContext } from '../context/WorkflowContext';
 
 /** 流程设计器属性 */
 export interface WorkflowDesignerProps {
-  /** 流程定义（BPMN JSON） */
-  value?: BpmnDocument;
-  /** 值变更回调 */
-  onChange?: (value: BpmnDocument) => void;
+  /** 流程节点列表 */
+  nodes: INode[];
+  /** 节点变更回调 */
+  onChange?: (nodes: INode[]) => void;
+  /** 租户ID */
+  tenantId?: string;
+  /** 应用ID */
+  appId?: string;
   /** 是否只读 */
   readonly?: boolean;
   /** 宽度 */
@@ -39,215 +36,125 @@ export interface WorkflowDesignerProps {
   height?: number | string;
   /** 自定义样式 */
   style?: React.CSSProperties;
-  /** 节点配置回调 */
-  onNodeConfig?: (node: INode) => void;
 }
 
-/** 节点类型常量 */
-const NODE_TYPES = {
-  START: 'start',
-  END: 'end',
-  APPROVAL: 'approval',
-  CONDITION: 'condition',
-  PARALLEL: 'parallel',
-  TIMER: 'timer',
-  NOTIFY: 'notify',
-  SERVICE: 'service',
-} as const;
+/**
+ * 自定义 Drawer 组件
+ * 将 react-flow-builder 的 visible 转换为 antd 的 open
+ * 使用 size 替代 width（antd 新版本）
+ */
+const DrawerComponent: React.FC<IDrawerComponent> = (props) => {
+  const { visible, children, width, ...restProps } = props;
+  return (
+    <Drawer open={visible} size={width} mask={{ closable: true }} {...restProps}>
+      {children}
+    </Drawer>
+  );
+};
+
+/**
+ * 自定义 Popover 组件
+ * 将 react-flow-builder 的 visible/onVisibleChange 转换为 antd 的 open/onOpenChange
+ */
+const PopoverComponent: React.FC<IPopoverComponent> = (props) => {
+  const { visible, onVisibleChange, children, ...restProps } = props;
+  return (
+    <Popover open={visible} onOpenChange={onVisibleChange} {...restProps}>
+      {children}
+    </Popover>
+  );
+};
+
+/**
+ * 自定义 Popconfirm 组件
+ */
+const PopconfirmComponent: React.FC<IPopconfirmComponent> = (props) => {
+  const { children, ...restProps } = props;
+  return (
+    <Popconfirm {...restProps}>
+      {children}
+    </Popconfirm>
+  );
+};
 
 /**
  * 流程设计器组件
  */
 export const WorkflowDesigner: React.FC<WorkflowDesignerProps> = ({
-  value,
+  nodes,
   onChange,
+  tenantId = '',
+  appId,
   readonly = false,
   width = '100%',
   height = 600,
   style,
-  onNodeConfig,
 }) => {
-  const [nodes, setNodes] = useState<INode[]>([]);
-  const [drawerVisible, setDrawerVisible] = useState(false);
-  const [selectedNode, setSelectedNode] = useState<INode | null>(null);
-  const { fromBpmnDocument, toBpmnDocument } = useBpmnConverter();
-
-  // 初始化：从 BPMN JSON 转换为 react-flow-builder 格式
-  // 使用 ref 跟踪是否是内部更新，避免循环
-  const isInternalUpdate = useRef(false);
-
-  /** 默认节点：开始 -> 结束 */
-  const defaultNodes: INode[] = useMemo(() => [
-    {
-      id: generateNodeId('node', []),
-      type: NODE_TYPES.START,
-      name: '开始',
-      path: ['0'],
-    },
-    {
-      id: generateNodeId('node', ['node_01']),
-      type: NODE_TYPES.END,
-      name: '结束',
-      path: ['1'],
-    },
-  ], []);
-
-  React.useEffect(() => {
-    if (!isInternalUpdate.current) {
-      if (value && value.processes && value.processes.length > 0) {
-        const converted = fromBpmnDocument(value);
-        setNodes(converted.length > 0 ? converted : defaultNodes);
-      } else {
-        setNodes(defaultNodes);
-      }
-    }
-    isInternalUpdate.current = false;
-  }, [value, defaultNodes]);
-
-  // 可添加的节点类型（排除开始节点）
-  const addableNodeTypes = useMemo(() => [
-    NODE_TYPES.APPROVAL,
-    NODE_TYPES.CONDITION,
-    NODE_TYPES.PARALLEL,
-    NODE_TYPES.TIMER,
-    NODE_TYPES.NOTIFY,
-    NODE_TYPES.SERVICE,
-    NODE_TYPES.END,
-  ], []);
-
-  // 注册节点类型
-  const registerNodes: IRegisterNode[] = useMemo(() => [
-    {
-      type: NODE_TYPES.START,
-      name: '开始',
-      isStart: true,
-      displayComponent: StartNodeDisplay,
-      addableNodeTypes,
-    },
-    {
-      type: NODE_TYPES.END,
-      name: '结束',
-      isEnd: true,
-      displayComponent: EndNodeDisplay,
-    },
-    {
-      type: NODE_TYPES.APPROVAL,
-      name: '审批',
-      displayComponent: ApprovalNodeDisplay,
-      addableNodeTypes,
-    },
-    {
-      type: NODE_TYPES.CONDITION,
-      name: '条件',
-      displayComponent: ConditionNodeDisplay,
-      addableNodeTypes,
-    },
-    {
-      type: NODE_TYPES.PARALLEL,
-      name: '并行',
-      conditionNodeType: NODE_TYPES.CONDITION,
-      displayComponent: ParallelNodeDisplay,
-      addableNodeTypes,
-    },
-    {
-      type: NODE_TYPES.TIMER,
-      name: '延时',
-      displayComponent: TimerNodeDisplay,
-      addableNodeTypes,
-    },
-    {
-      type: NODE_TYPES.NOTIFY,
-      name: '通知',
-      displayComponent: NotifyNodeDisplay,
-      addableNodeTypes,
-    },
-    {
-      type: NODE_TYPES.SERVICE,
-      name: '自动化',
-      displayComponent: ServiceNodeDisplay,
-      addableNodeTypes,
-    },
-  ], [addableNodeTypes]);
+  // 从元数据派生 registerNodes
+  const registerNodes: IRegisterNode[] = useMemo(
+    () =>
+      NODE_META_LIST.map((meta) => ({
+        type: meta.type,
+        name: meta.name,
+        displayComponent: meta.displayComponent,
+        isStart: meta.isStart,
+        isEnd: meta.isEnd,
+        conditionNodeType: meta.conditionNodeType,
+        addableNodeTypes: meta.addableTypes,
+        // 添加 configComponent 使节点可点击并显示配置面板
+        configComponent: NodeConfigComponent,
+      })),
+    []
+  );
 
   // 节点变更回调
-  const handleChange = useCallback((newNodes: INode[]) => {
-    setNodes(newNodes);
-    isInternalUpdate.current = true;
+  const handleChange = useCallback(
+    (newNodes: INode[]) => {
+      onChange?.(newNodes);
+    },
+    [onChange]
+  );
 
-    // 转换为 BPMN JSON 并通知父组件
-    if (onChange) {
-      const bpmnDoc = toBpmnDocument(newNodes);
-      onChange(bpmnDoc);
-    }
-  }, [onChange, toBpmnDocument]);
-
-  // 节点点击回调
-  const handleNodeClick = useCallback((node: INode) => {
-    if (readonly) return;
-
-    setSelectedNode(node);
-    setDrawerVisible(true);
-
-    if (onNodeConfig) {
-      onNodeConfig(node);
-    }
-  }, [readonly, onNodeConfig]);
-
-  // 配置抽屉关闭
-  const handleDrawerClose = useCallback(() => {
-    setDrawerVisible(false);
-    setSelectedNode(null);
-  }, []);
-
-  // 节点配置保存
-  const handleNodeConfigSave = useCallback((nodeId: string, config: any) => {
-    const newNodes = nodes.map((node) => {
-      if (node.id === nodeId) {
-        return {
-          ...node,
-          ...config,
-        };
-      }
-      return node;
-    });
-
-    handleChange(newNodes);
-    setDrawerVisible(false);
-    setSelectedNode(null);
-  }, [nodes, handleChange]);
+  // 上下文值
+  const contextValue = useMemo(
+    () => ({ tenantId, appId }),
+    [tenantId, appId]
+  );
 
   return (
-    <div
-      style={{
-        width,
-        height,
-        position: 'relative',
-        ...style,
-      }}
-    >
-      <FlowBuilder
-        nodes={nodes}
-        onChange={handleChange}
-        registerNodes={registerNodes}
-        readonly={readonly}
-        layout="vertical"
-        spaceX={16}
-        spaceY={16}
-        showArrow
-        historyTool
-        zoomTool
-        PopoverComponent={Popover}
-      />
-
-      {!readonly && (
-        <NodeConfigDrawer
-          visible={drawerVisible}
-          node={selectedNode}
-          onClose={handleDrawerClose}
-          onSave={handleNodeConfigSave}
-        />
-      )}
-    </div>
+    <WorkflowContext.Provider value={contextValue}>
+      <div style={{ width, height, position: 'relative', ...style }}>
+        {nodes.length > 0 ? (
+          <FlowBuilder
+            nodes={nodes}
+            onChange={handleChange}
+            registerNodes={registerNodes}
+            readonly={readonly}
+            layout="vertical"
+            spaceX={16}
+            spaceY={16}
+            showArrow
+            historyTool
+            zoomTool
+            // 传入自定义组件
+            DrawerComponent={DrawerComponent}
+            PopoverComponent={PopoverComponent}
+            PopconfirmComponent={PopconfirmComponent}
+          />
+        ) : (
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              height: '100%',
+            }}
+          >
+            加载中...
+          </div>
+        )}
+      </div>
+    </WorkflowContext.Provider>
   );
 };
 

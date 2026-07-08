@@ -119,6 +119,23 @@ export { DataSourcePanel } from './designer/panels/DataSourcePanel';
 // Workflow（流程设计器）
 export { WorkflowDesigner } from './workflow/designer/WorkflowDesigner';
 export type { WorkflowDesignerProps } from './workflow/designer/WorkflowDesigner';
+export { useBpmnConverter } from './workflow/hooks/useBpmnConverter';
+
+// Workflow 运行时
+export { FlowChart } from './workflow/runtime/FlowChart';
+export type { FlowChartProps } from './workflow/runtime/FlowChart';
+
+// 选人组件
+export { UserSelector, UserSelectorModal } from './components/UserSelector';
+export type { UserSelectorProps, UserInfo } from './components/UserSelector';
+
+// 审批人指派选择器
+export { AssigneeSelector } from './components/AssigneeSelector';
+export type { AssigneeStrategy, AssigneeSelectorProps } from './components/AssigneeSelector';
+
+// 运算规则选择器
+export { ComputationSelector } from './components/ComputationSelector';
+export type { ComputationSelectorProps } from './components/ComputationSelector';
 
 // Re-export shared types for convenience
 export type {

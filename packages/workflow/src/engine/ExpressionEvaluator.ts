@@ -119,28 +119,17 @@ export class ConditionExpressionEvaluator implements IExpressionEvaluator {
 
   /**
    * 替换变量
+   *
+   * 使用统一的流程变量体系，$env/$system/$initiator/$operator 已在 WorkflowEngine 中注入到 variables
    */
   private resolveVariables(expression: string, context: EvaluationContext): string {
-    const { variables, formData, operator, initiator } = context;
+    const { variables, formData } = context;
 
-    // 合并所有变量来源
+    // 合并所有变量来源（$env/$system/$initiator/$operator 已在 variables 中）
     const allVariables: Record<string, unknown> = {
       ...variables,
       ...formData,
     };
-
-    // 添加特殊变量
-    if (operator) {
-      allVariables['$operator'] = operator;
-      allVariables['$operator.id'] = operator.id;
-      allVariables['$operator.name'] = operator.name;
-    }
-
-    if (initiator) {
-      allVariables['$initiator'] = initiator;
-      allVariables['$initiator.id'] = initiator.id;
-      allVariables['$initiator.name'] = initiator.name;
-    }
 
     // 替换 ${variable} 格式的变量
     return expression.replace(/\$\{([^}]+)\}/g, (match, varPath) => {

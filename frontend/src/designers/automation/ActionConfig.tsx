@@ -1,8 +1,9 @@
 /**
  * 动作配置组件
  *
- * 支持 5 种动作类型的可视化配置：
+ * 支持 6 种动作类型的可视化配置：
  * - 触发流程 (trigger_workflow)
+ * - 执行脚本 (execute_script)
  * - 发送通知 (send_notification)
  * - 数据操作 (data_operation)
  * - API 调用 (api_call)
@@ -15,7 +16,7 @@
  * - 重试策略配置
  */
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   Form,
   Select,
@@ -40,12 +41,14 @@ import {
   ArrowUpOutlined,
   ArrowDownOutlined,
   PlayCircleOutlined,
+  CodeOutlined,
   SendOutlined,
   DatabaseOutlined,
   ApiOutlined,
   LinkOutlined,
   QuestionCircleOutlined,
 } from '@ant-design/icons';
+import { ExpressionEditor } from '@low-code/renderer';
 
 const { Text, Paragraph } = Typography;
 const { Option } = Select;
@@ -55,6 +58,7 @@ const { Panel } = Collapse;
 /** 动作类型选项 */
 const ACTION_TYPES = [
   { value: 'trigger_workflow', label: '触发流程', icon: <PlayCircleOutlined />, description: '启动指定流程引擎实例' },
+  { value: 'execute_script', label: '执行脚本', icon: <CodeOutlined />, description: '使用表达式引擎执行自定义脚本' },
   { value: 'send_notification', label: '发送通知', icon: <SendOutlined />, description: '通过消息中心发送多渠道通知' },
   { value: 'data_operation', label: '数据操作', icon: <DatabaseOutlined />, description: '创建/更新/删除实体记录' },
   { value: 'api_call', label: 'API 调用', icon: <ApiOutlined />, description: '调用外部 HTTP API' },
@@ -109,6 +113,10 @@ interface ActionConfig {
     workflowId: string;
     variables?: Record<string, unknown>;
     initiator?: string;
+  };
+  executeScript?: {
+    script: string;
+    context?: Record<string, unknown>;
   };
   sendNotification?: {
     templateId?: string;
@@ -270,6 +278,96 @@ export const ActionConfig: React.FC<ActionConfigProps> = ({
             rows={3}
           />
         </Form.Item>
+      </>
+    );
+  };
+
+  /** 渲染执行脚本配置 */
+  const renderExecuteScriptConfig = (action: ActionConfig, index: number) => {
+    const config = action.executeScript || { script: '' };
+    const [editorVisible, setEditorVisible] = useState(false);
+
+    return (
+      <>
+        <Form.Item
+          label={
+            <Space>
+              脚本内容
+              <Tooltip title="使用表达式引擎执行，支持 $event、$rule、$tenant 等上下文变量">
+                <QuestionCircleOutlined />
+              </Tooltip>
+            </Space>
+          }
+          required
+        >
+          <div style={{ marginBottom: 8 }}>
+            <Button
+              type="dashed"
+              icon={<CodeOutlined />}
+              onClick={() => setEditorVisible(true)}
+              block
+            >
+              {config.script ? '编辑脚本' : '编写脚本'}
+            </Button>
+          </div>
+
+          {config.script && (
+            <div style={{
+              padding: 12,
+              background: '#f5f5f5',
+              borderRadius: 6,
+              fontFamily: 'monospace',
+              fontSize: 12,
+              maxHeight: 200,
+              overflow: 'auto',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-all',
+            }}>
+              {config.script}
+            </div>
+          )}
+        </Form.Item>
+
+        <Form.Item
+          label={
+            <Space>
+              脚本上下文
+              <Tooltip title="传递给脚本的额外上下文变量（JSON 格式）">
+                <QuestionCircleOutlined />
+              </Tooltip>
+            </Space>
+          }
+        >
+          <TextArea
+            value={config.context ? JSON.stringify(config.context, null, 2) : ''}
+            onChange={(e) => {
+              try {
+                const ctx = e.target.value ? JSON.parse(e.target.value) : undefined;
+                handleActionChange(index, 'executeScript', { ...config, context: ctx });
+              } catch {
+                // 忽略 JSON 解析错误
+              }
+            }}
+            placeholder={'{\n  "customVar": "value"\n}'}
+            rows={3}
+          />
+        </Form.Item>
+
+        <ExpressionEditor
+          visible={editorVisible}
+          value={config.script}
+          onChange={(val) => {
+            handleActionChange(index, 'executeScript', { ...config, script: val.value });
+            setEditorVisible(false);
+          }}
+          onClear={() => {
+            handleActionChange(index, 'executeScript', { ...config, script: '' });
+            setEditorVisible(false);
+          }}
+          onClose={() => setEditorVisible(false)}
+          async={false}
+          allowedVariables={['$event', '$rule', '$tenant', '$now']}
+        />
       </>
     );
   };
@@ -455,6 +553,8 @@ export const ActionConfig: React.FC<ActionConfigProps> = ({
     switch (action.type) {
       case 'trigger_workflow':
         return renderTriggerWorkflowConfig(action, index);
+      case 'execute_script':
+        return renderExecuteScriptConfig(action, index);
       case 'send_notification':
         return renderSendNotificationConfig(action, index);
       case 'data_operation':

@@ -28,6 +28,8 @@ export class FileDatabaseAdapter implements DatabaseAdapter {
     this.ensureDir('tasks');
     this.ensureDir('snapshots');
     this.ensureDir('workflows');
+    this.ensureDir('jobs');
+    this.ensureDir('user_task_stats');
   }
 
   /**
@@ -269,6 +271,9 @@ export class FileDatabaseAdapter implements DatabaseAdapter {
       'snapshots': 'snapshots',
       'workflow_definitions': 'workflows',
       'workflows': 'workflows',
+      'workflow_jobs': 'jobs',
+      'jobs': 'jobs',
+      'user_task_stats': 'user_task_stats',
     };
 
     const dirName = tableDirMap[table] || table;
