@@ -10,7 +10,7 @@
 import React, { useMemo } from 'react';
 import type { RenderContext } from '@low-code/shared';
 import type { PropValue, ExpressionBinding } from '@low-code/shared';
-import type { DefaultExpressionEngine } from '@low-code/computation';
+import type { DefaultExpressionEngine } from '@low-code/shared';
 import {
   useExpressionValues,
   isExpressionBinding,

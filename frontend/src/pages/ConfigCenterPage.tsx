@@ -19,6 +19,7 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 import { PermissionGuard } from '../components/PermissionGuard';
 import { useAuth } from '../auth/AuthContext';
+import { apiFetch } from '../utils/apiClient.js';
 
 // ─── 类型 ──────────────────────────────────────────────
 
@@ -81,7 +82,7 @@ function UserManagementTab() {
     if (!tenantId) return;
     setLoading(true);
     try {
-      const resp = await fetch(`/api/tenants/${tenantId}/users`);
+      const resp = await apiFetch(`/api/tenants/${tenantId}/users`);
       const data = await resp.json();
       if (data.success) {
         setUsers(data.users);
@@ -101,7 +102,7 @@ function UserManagementTab() {
   const handleStatusChange = useCallback(async (userId: string, checked: boolean) => {
     if (!tenantId) return;
     try {
-      const resp = await fetch(`/api/tenants/${tenantId}/users/${userId}/status`, {
+      const resp = await apiFetch(`/api/tenants/${tenantId}/users/${userId}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: checked ? 'active' : 'disabled' }),
@@ -127,7 +128,7 @@ function UserManagementTab() {
     if (!tenantId) return;
     try {
       const values = await form.validateFields();
-      const resp = await fetch(`/api/tenants/${tenantId}/users`, {
+      const resp = await apiFetch(`/api/tenants/${tenantId}/users`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(values),
@@ -267,7 +268,7 @@ function RoleManagementTab() {
   const loadRoles = useCallback(async () => {
     setLoading(true);
     try {
-      const resp = await fetch('/api/roles');
+      const resp = await apiFetch('/api/roles');
       const data = await resp.json();
       if (data.success) {
         setRoles(data.roles);
@@ -287,7 +288,7 @@ function RoleManagementTab() {
   const handleCreateRole = useCallback(async () => {
     try {
       const values = await form.validateFields();
-      const resp = await fetch('/api/roles', {
+      const resp = await apiFetch('/api/roles', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(values),
@@ -313,7 +314,7 @@ function RoleManagementTab() {
       content: '删除角色将同时移除关联的权限和用户绑定，是否继续？',
       onOk: async () => {
         try {
-          const resp = await fetch(`/api/roles/${roleId}`, { method: 'DELETE' });
+          const resp = await apiFetch(`/api/roles/${roleId}`, { method: 'DELETE' });
           const data = await resp.json();
           if (data.success) {
             message.success('已删除');
@@ -436,7 +437,7 @@ function AuthorizationTab() {
   const loadMatrix = useCallback(async () => {
     setLoading(true);
     try {
-      const resp = await fetch('/api/permissions/matrix');
+      const resp = await apiFetch('/api/permissions/matrix');
       const data = await resp.json();
       if (data.success) {
         setMatrix(data.matrix);
@@ -477,7 +478,7 @@ function AuthorizationTab() {
         };
       });
 
-      const resp = await fetch('/api/permissions/batch', {
+      const resp = await apiFetch('/api/permissions/batch', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ roleId: editingRole, permissions }),
@@ -578,7 +579,7 @@ function TenantSettingsTab() {
   /** 加载租户信息 */
   useEffect(() => {
     if (!user?.tenantId) return;
-    fetch(`/api/tenants/${user.tenantId}`)
+    apiFetch(`/api/tenants/${user.tenantId}`)
       .then((r) => r.json())
       .then((data) => {
         if (data.success && data.tenant) {
@@ -596,7 +597,7 @@ function TenantSettingsTab() {
   const handleSave = useCallback(async () => {
     try {
       const values = await form.validateFields();
-      const resp = await fetch(`/api/tenants/${user?.tenantId}`, {
+      const resp = await apiFetch(`/api/tenants/${user?.tenantId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(values),

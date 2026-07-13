@@ -17,6 +17,7 @@ import {
   SendOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '../auth/AuthContext';
+import { apiFetch } from '../utils/apiClient.js';
 import type { ExposableResourceType } from '@low-code/shared';
 
 /** 应用数据结构 - 与 tenants/{id}/apps/{id}/app.json 一致 */
@@ -63,7 +64,7 @@ export default function AppCenterPage() {
   const loadApps = useCallback(async () => {
     setLoading(true);
     try {
-      const resp = await fetch('/api/apps');
+      const resp = await apiFetch('/api/apps');
       const data = await resp.json();
       if (data.success) {
         setApps(data.apps);
@@ -78,7 +79,7 @@ export default function AppCenterPage() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetch('/api/apps')
+    apiFetch('/api/apps')
       .then((r) => r.json())
       .then((data) => {
         if (!cancelled && data.success) setApps(data.apps);
@@ -102,7 +103,7 @@ export default function AppCenterPage() {
   const handleCreate = useCallback(async () => {
     try {
       const values = await form.validateFields();
-      const resp = await fetch('/api/apps', {
+      const resp = await apiFetch('/api/apps', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -132,7 +133,7 @@ export default function AppCenterPage() {
       content: '删除后不可恢复，是否继续？',
       onOk: async () => {
         try {
-          const resp = await fetch(`/api/apps/${appId}`, { method: 'DELETE' });
+          const resp = await apiFetch(`/api/apps/${appId}`, { method: 'DELETE' });
           const data = await resp.json();
           if (data.success) {
             message.success('已删除');
@@ -154,7 +155,7 @@ export default function AppCenterPage() {
       content: '发布后员工即可在应用中心看到该应用，是否继续？',
       onOk: async () => {
         try {
-          const resp = await fetch(`/api/apps/${appId}/publish`, { method: 'POST' });
+          const resp = await apiFetch(`/api/apps/${appId}/publish`, { method: 'POST' });
           const data = await resp.json();
           if (data.success) {
             message.success('应用已发布');

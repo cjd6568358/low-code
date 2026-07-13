@@ -1,5 +1,5 @@
 import type { ComponentNode, ComponentDataSource, RenderContext } from '@low-code/shared';
-import type { DefaultExpressionEngine } from '@low-code/computation';
+import type { DefaultExpressionEngine } from '@low-code/shared';
 import type { DataBindingResolver } from './DataBindingResolver';
 
 /** 组件刷新结果 */
@@ -286,7 +286,7 @@ export class ComponentRefreshManager {
 
     // 处理 ${xxx} 语法
     if (template.includes('${')) {
-      return this.expressionEngine.safeEvaluate(template, context);
+      return this.expressionEngine.safeEvaluateSync(template, context);
     }
 
     // 处理 $xxx.yyy 语法

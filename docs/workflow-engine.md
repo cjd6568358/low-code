@@ -513,20 +513,63 @@ CREATE TABLE workflow_definitions (
 
 ```sql
 CREATE TABLE workflow_instances (
-  id               BIGINT PRIMARY KEY AUTO_INCREMENT,
-  workflow_def_id  BIGINT NOT NULL,        -- 流程定义ID（含版本）
-  workflow_key     VARCHAR(64) NOT NULL,    -- 流程标识
-  version          INT NOT NULL,            -- 使用的版本号
-  source_table     VARCHAR(64),             -- 关联业务表
-  source_id        VARCHAR(64),             -- 关联业务记录ID
-  current_snapshot_id BIGINT,               -- 当前最新流出快照ID
-  status           VARCHAR(32),             -- running | pending | completed | rejected | cancelled | failed（见 system-dictionaries.md workflow_instance_statuses）
-  started_by       BIGINT,
-  started_at       DATETIME DEFAULT NOW(),
-  completed_at     DATETIME,
+  id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+  workflow_def_id     INTEGER NOT NULL REFERENCES workflow_definitions(id),
+  workflow_key        TEXT NOT NULL,
+  version             INTEGER NOT NULL,
+  source_table        TEXT,
+  source_id           TEXT,
+  current_snapshot_id INTEGER,
+  current_node_id     TEXT,                  -- 当前执行节点ID
+  status              TEXT CHECK (status IN ('running', 'waiting', 'pending', 'completed', 'rejected', 'cancelled', 'failed', 'terminated')),
+  variables           TEXT,                  -- 流程变量（JSON）
+  checkpoint          TEXT,                  -- 检查点（JSON，延时节点等场景）
+  started_by          TEXT,
+  started_by_name     TEXT,
+  started_at          TEXT NOT NULL DEFAULT (datetime('now')),
+  completed_at        TEXT
+);
+```
 
-  INDEX idx_source (source_table, source_id),
-  INDEX idx_status (status)
+### 流程任务（审批任务）
+
+```sql
+CREATE TABLE workflow_tasks (
+  id            TEXT PRIMARY KEY,
+  instance_id   INTEGER NOT NULL REFERENCES workflow_instances(id),
+  node_id       TEXT NOT NULL,
+  node_name     TEXT,
+  assignee_id   TEXT,                        -- 审批人ID
+  assignee_name TEXT,
+  status        TEXT NOT NULL DEFAULT 'pending'
+                  CHECK (status IN ('pending', 'completed', 'rejected', 'cancelled')),
+  form_data     TEXT,                        -- 审批表单数据（JSON）
+  comment       TEXT,                        -- 审批意见
+  due_date      TEXT,
+  completed_at  TEXT,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+```
+
+### 节点执行记录（Job）
+
+参考 NocoBase 的 jobs 表设计，每个节点执行完产生一条 job 记录，用于审计追溯和重试机制。
+
+```sql
+CREATE TABLE workflow_jobs (
+  id            TEXT PRIMARY KEY,
+  instance_id   INTEGER NOT NULL REFERENCES workflow_instances(id),
+  node_id       TEXT NOT NULL,
+  node_key      TEXT,                        -- 跨版本稳定的节点引用
+  upstream_id   TEXT,                        -- 上游Job ID（链式记录执行路径）
+  status        TEXT NOT NULL
+                  CHECK (status IN ('pending', 'resolved', 'failed', 'error', 'aborted', 'retry_needed')),
+  result        TEXT,                        -- 节点输出结果（JSON）
+  meta          TEXT,                        -- 元数据（JSON，如审批意见、重试次数等）
+  error         TEXT,
+  retry_count   INTEGER NOT NULL DEFAULT 0,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 ```
 
@@ -630,7 +673,7 @@ const diff = await snapshotService.diff(snapshotId1, snapshotId2);
 | **多人审批** | `@low-code/workflow` | ✅ 完成 | 单人/会签/或签/竞签四种模式 |
 | **任务统计** | `@low-code/workflow` | ✅ 完成 | TaskStatsManager，用户维度待办/已办统计 |
 | **结束节点输出** | `@low-code/workflow` | ✅ 完成 | 结束节点支持 output 配置，定义终态数据 |
-| **变量作用域** | `@low-code/workflow` | ✅ 完成 | 条件网关支持 $env/$system 等作用域变量 |
+| **变量作用域** | `@low-code/workflow` | ✅ 完成 | 条件网关支持 $env/$now 等作用域变量 |
 | **数据操作执行器** | `@low-code/workflow` | ✅ 完成 | CreateRecord/UpdateRecord/QueryRecord/DeleteRecord，支持 FieldMappingItem[]/ConditionItem[] 设计器格式 |
 | **计算节点** | `@low-code/workflow` | ✅ 完成 | ScriptTaskExecutor，复用表达式引擎执行同步计算 |
 | **服务任务表达式** | `@low-code/workflow` | ✅ 完成 | ServiceTask 支持表达式模式（设计器输出）+ 扩展配置模式（回退） |
@@ -1026,7 +1069,7 @@ interface ConditionItem {
 | 变量 | 说明 |
 |------|------|
 | `$env` | 环境变量（NODE_ENV 等） |
-| `$system` | 系统信息（now、today） |
+| `$now` | 当前时间戳（Unix ms） |
 | `$initiator` | 流程发起人（id、name） |
 | `$operator` | 当前操作人（id、name） |
 | `$workflow` | 流程上下文（instanceId、nodeId、variables、snapshots） |

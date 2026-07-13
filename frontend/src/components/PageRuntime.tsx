@@ -11,8 +11,9 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Spin, App, Watermark } from 'antd';
 import type { PageSchema, RenderContext, WatermarkConfig } from '@low-code/shared';
 import { PageRenderer, componentRegistry, antdComponents, antdSchemas, antdComponentMethods, WebAdapter } from '@low-code/renderer';
-import { expressionEngine } from '@low-code/computation';
+import { expressionEngine } from '@low-code/shared';
 import { useNavigate } from 'react-router-dom';
+import { apiFetch } from '../utils/apiClient.js';
 
 interface PageRuntimeProps {
   appId: string;
@@ -81,7 +82,7 @@ export default function PageRuntime({ appId, pageId }: PageRuntimeProps) {
       setLoading(true);
       setDataReady(false);
       try {
-        const resp = await fetch(`/api/apps/${appId}/pages/${pageId}`);
+        const resp = await apiFetch(`/api/apps/${appId}/pages/${pageId}`);
         const data = await resp.json();
         if (!cancelled && data.success && data.resource) {
           const pageSchema = data.resource as PageSchema;

@@ -26,6 +26,7 @@ import type {
   DateFieldConstraints, EnumFieldConstraints, ValidationRule, TableIndex,
 } from '@low-code/shared';
 import { SYSTEM_ID_COLUMN, generateHexId, type TableFieldType } from '@low-code/shared';
+import { apiFetch } from '../utils/apiClient.js';
 import { PageComponentPicker, type PageComponentPickResult } from './components/PageComponentPicker';
 
 const { Text } = Typography;
@@ -124,7 +125,7 @@ export default function TableDesign({ appId, tableId, schema, onSaved }: TableDe
     let cancelled = false;
     (async () => {
       try {
-        const resp = await fetch(`/api/apps/${appId}/tables/${tableId}`);
+        const resp = await apiFetch(`/api/apps/${appId}/tables/${tableId}`);
         const data = await resp.json();
         if (!cancelled && data.success && data.resource) {
           setCurrentSchema(data.resource);
@@ -148,7 +149,7 @@ export default function TableDesign({ appId, tableId, schema, onSaved }: TableDe
     let cancelled = false;
     (async () => {
       try {
-        const resp = await fetch(`/api/apps/${appId}/pages/${pageId}`);
+        const resp = await apiFetch(`/api/apps/${appId}/pages/${pageId}`);
         const data = await resp.json();
         if (!cancelled && data.success && data.resource) {
           setSourcePageName(data.resource.name || pageId);
@@ -165,7 +166,7 @@ export default function TableDesign({ appId, tableId, schema, onSaved }: TableDe
     let cancelled = false;
     (async () => {
       try {
-        const resp = await fetch(`/api/apps/${appId}/tables`);
+        const resp = await apiFetch(`/api/apps/${appId}/tables`);
         const data = await resp.json();
         if (!cancelled && data.success && data.resources) {
           // 排除当前表，加载每张表的列名
@@ -174,7 +175,7 @@ export default function TableDesign({ appId, tableId, schema, onSaved }: TableDe
               .filter((t: any) => t.tableId !== tableId && !t._deleted)
               .map(async (t: any) => {
                 try {
-                  const schemaResp = await fetch(`/api/apps/${appId}/tables/${t.tableId}`);
+                  const schemaResp = await apiFetch(`/api/apps/${appId}/tables/${t.tableId}`);
                   const schemaData = await schemaResp.json();
                   if (schemaData.success && schemaData.resource) {
                     const columnNames = schemaData.resource.columns
@@ -382,7 +383,7 @@ export default function TableDesign({ appId, tableId, schema, onSaved }: TableDe
 
     setSaving(true);
     try {
-      const resp = await fetch(`/api/apps/${appId}/tables/${tableId}`, {
+      const resp = await apiFetch(`/api/apps/${appId}/tables/${tableId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(currentSchema),

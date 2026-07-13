@@ -8,7 +8,7 @@
  */
 
 import React from 'react';
-import type { DefaultExpressionEngine } from '@low-code/computation';
+import type { DefaultExpressionEngine } from '@low-code/shared';
 import { useBindings } from '../hooks/useBindings';
 import type { ReactiveEnvContext } from '../core/ReactiveEnvContext';
 

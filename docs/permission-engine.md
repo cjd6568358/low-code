@@ -2,7 +2,7 @@
 
 采用 RBAC (Role-Based Access Control) 模型，支持角色叠加继承，实现细粒度前端 UI 层权限控制。
 
-> **注意**：权限引擎仅控制前端 UI 层（菜单/按钮可见性），不做服务端鉴权。
+> **认证机制**：所有 API 请求必须携带 JWT Bearer Token（登录时签发）。权限引擎控制前端 UI 层（菜单/按钮可见性），服务端通过 JWT 中间件校验身份和租户归属。
 
 ## RBAC 模型
 
@@ -164,10 +164,52 @@ interface RoleRegistry {
 
 内置实现 `MemoryRoleRegistry` 预置所有内置角色和部门默认角色的权限。
 
+## 服务端认证流程
+
+```
+请求 ──▶ authMiddleware ──▶ tenantGuard ──▶ 路由处理
+  │            │                 │
+  │            ▼                 ▼
+  │      校验 JWT Token     校验 tenantId 匹配
+  │      ├─ 提取 Bearer Token  ├─ URL params / query / body
+  │      ├─ jwt.verify()       ├─ 与 token.tenantId 比对
+  │      └─ 挂载 ctx.state.user └─ platform_admin 跳过
+  │
+  ▼
+JWT Token Payload
+├─ userId
+├─ email
+├─ role
+└─ tenantId
+```
+
+**白名单路径**（不需要 Token）：
+- `POST /api/auth/login` — 登录
+- `GET /api/health` — 健康检查
+
+**租户守卫**：非平台管理员只能访问自己租户的资源，请求中的 `tenantId`（query/body）必须与 Token 中的 `tenantId` 一致。
+
+## 前端认证流程
+
+```
+登录 ──▶ 后端签发 JWT ──▶ 前端存储 Token (localStorage)
+  │                           │
+  │                           ▼
+  │                    apiFetch() 自动附带 Authorization: Bearer <token>
+  │                           │
+  │                           ▼
+  │                    401 响应 ──▶ 清除 Token ──▶ 跳转登录页
+  ▼
+UI 权限过滤（基于 user.role）
+├─ 菜单可见性
+├─ 按钮可用性
+└─ 页面访问控制
+```
+
 ## 数据鉴权流程
 
 ```
-请求 ──▶ 身份认证 ──▶ 角色解析 ──▶ 权限合并 ──▶ UI 过滤
+请求 ──▶ JWT 认证 ──▶ 租户守卫 ──▶ 角色解析 ──▶ 权限合并 ──▶ UI 过滤
   │                    │
   │                    ▼
   │              解析用户角色列表
@@ -176,13 +218,6 @@ interface RoleRegistry {
   │              ├─ 租户级角色
   │              ├─ 应用级角色（应用管理员/查看者）
   │              └─ 自定义业务角色（含继承链展开）
-  │
-  ▼
-JWT Token / Session
-├─ userId
-├─ tenantId
-├─ departmentId
-└─ currentAppId
 ```
 
 ## 数据权限范围

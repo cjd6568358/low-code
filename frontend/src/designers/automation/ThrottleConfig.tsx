@@ -10,6 +10,7 @@
 import React, { useCallback } from 'react';
 import {
   Form,
+  Input,
   InputNumber,
   Select,
   Switch,
@@ -254,14 +255,16 @@ export const ThrottleConfig: React.FC<ThrottleConfigProps> = ({
                   </Space>
                 }
               >
-                <InputNumber
-                  value={throttle?.cooldownSeconds || 60}
-                  onChange={(val) => handleThrottleChange('cooldownSeconds', val)}
-                  min={0}
-                  max={86400}
-                  addonAfter="秒"
-                  style={{ width: 200 }}
-                />
+                <Space.Compact>
+                  <InputNumber
+                    value={throttle?.cooldownSeconds || 60}
+                    onChange={(val) => handleThrottleChange('cooldownSeconds', val)}
+                    min={0}
+                    max={86400}
+                    style={{ width: 164 }}
+                  />
+                  <Input value="秒" disabled style={{ width: 36, textAlign: 'center' }} />
+                </Space.Compact>
               </Form.Item>
 
               <Form.Item
@@ -274,14 +277,16 @@ export const ThrottleConfig: React.FC<ThrottleConfigProps> = ({
                   </Space>
                 }
               >
-                <InputNumber
-                  value={throttle?.maxDailyTriggers || 0}
-                  onChange={(val) => handleThrottleChange('maxDailyTriggers', val)}
-                  min={0}
-                  max={100000}
-                  addonAfter="次"
-                  style={{ width: 200 }}
-                />
+                <Space.Compact>
+                  <InputNumber
+                    value={throttle?.maxDailyTriggers || 0}
+                    onChange={(val) => handleThrottleChange('maxDailyTriggers', val)}
+                    min={0}
+                    max={100000}
+                    style={{ width: 164 }}
+                  />
+                  <Input value="次" disabled style={{ width: 36, textAlign: 'center' }} />
+                </Space.Compact>
               </Form.Item>
             </>
           )}

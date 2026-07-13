@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "version": 1,
+  "name": "152",
+  "createdAt": 1783560154835,
+  "updatedAt": 1783560154835,
+  "references": {},
+  "automationId": "13328e78",
+  "status": "draft",
+  "trigger": {},
+  "condition": null,
+  "actions": [],
+  "throttle": null,
+  "effectiveTime": null
+}

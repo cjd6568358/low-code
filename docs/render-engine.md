@@ -1669,7 +1669,7 @@ type PropValue =
 | `$component` | `Record<string, ComponentState>` | 页面组件实例状态（通过组件 ID 引用） | 变量引用 + 表达式 |
 | `$data` | `any` | 页面数据源表达式执行结果（配置即自动加载，页面渲染前完成） | 变量引用 + 表达式 |
 | `$table` | `ServerVariableProxy` | 服务端表查询（惰性求值，运行时转换为 HTTP 请求） | **仅表达式** |
-| `$computation` | `ComputationEngine` | 运算引擎（执行服务端运算逻辑） | **仅表达式** |
+| `$computation` | `ExpressionEngine` | 运算引擎（表达式求值、校验、依赖分析） | **仅表达式** |
 | `$fetch` | `FetchProxy` | 第三方 HTTP 请求 | **仅表达式** |
 | `$workflow` | `WorkflowContext` | 流程上下文（流程页面内有效） | **仅表达式** |
 
@@ -1723,7 +1723,7 @@ interface RenderContext {
   $table: ServerVariableProxy;
 
   /** 运算引擎 */
-  $computation: ComputationEngine;
+  $computation: ExpressionEngine;
 
   /** 第三方请求 */
   $fetch: FetchProxy;

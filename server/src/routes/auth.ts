@@ -5,8 +5,10 @@
  */
 
 import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 import KoaRouter from '@koa/router';
 import { DatabaseManager } from '@low-code/data';
+import { JWT_SECRET, JWT_EXPIRES_IN } from '../config/index.js';
 
 /** 密码哈希(scrypt) */
 function hashPassword(password: string, salt: string): string {
@@ -93,8 +95,15 @@ export function createAuthRouter(manager: DatabaseManager): KoaRouter {
         .prepare(`UPDATE platform_admins SET updated_at = datetime('now') WHERE admin_id = ?`)
         .run(admin.admin_id);
 
+      const token = jwt.sign(
+        { userId: stripPrefix(admin.admin_id), email: admin.email, role: 'platform_admin', tenantId: '' },
+        JWT_SECRET,
+        { expiresIn: JWT_EXPIRES_IN },
+      );
+
       ctx.body = {
         success: true,
+        token,
         user: {
           id: stripPrefix(admin.admin_id),
           name: admin.name,
@@ -206,9 +215,15 @@ export function createAuthRouter(manager: DatabaseManager): KoaRouter {
         )
         .run(user.user_id);
 
-      // Return user info (strip prefixes from IDs)
+      const token = jwt.sign(
+        { userId: stripPrefix(user.user_id), email: user.email, role: roleRow?.role_id || 'department_default', tenantId: tenant.tenantId },
+        JWT_SECRET,
+        { expiresIn: JWT_EXPIRES_IN },
+      );
+
       ctx.body = {
         success: true,
+        token,
         user: {
           id: stripPrefix(user.user_id),
           name: user.name,

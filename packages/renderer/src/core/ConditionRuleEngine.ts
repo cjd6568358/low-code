@@ -1,5 +1,5 @@
 import type { PageRule, RenderContext } from '@low-code/shared';
-import type { DefaultExpressionEngine } from '@low-code/computation';
+import type { DefaultExpressionEngine } from '@low-code/shared';
 
 /** 条件规则求值结果 */
 export interface RuleEvaluationResult {
@@ -48,13 +48,13 @@ export class ConditionRuleEngine {
     if (componentVisible === false) {
       result.visible = false;
     } else if (typeof componentVisible === 'string') {
-      result.visible = !!this.expressionEngine.safeEvaluate(componentVisible, context);
+      result.visible = !!this.expressionEngine.safeEvaluateSync(componentVisible, context);
     }
 
     // 2. 再处理页面级规则
     const componentRules = this.sortedRules.filter((r) => r.targetId === componentId);
     for (const rule of componentRules) {
-      const conditionMet = !!this.expressionEngine.safeEvaluate(rule.condition, context);
+      const conditionMet = !!this.expressionEngine.safeEvaluateSync(rule.condition, context);
 
       switch (rule.action) {
         case 'visible':

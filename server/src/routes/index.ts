@@ -5,7 +5,9 @@
  */
 
 import type Koa from 'koa';
+import type KoaRouter from '@koa/router';
 import { getDbManager } from '../config/db.js';
+import { tenantGuard } from '../middlewares/auth.js';
 import { createAuthRouter } from './auth.js';
 import { createAppsRouter } from './apps.js';
 import { createTenantsRouter } from './tenants.js';
@@ -14,75 +16,67 @@ import { createWorkflowsRouter } from './workflows.js';
 import { createWorkflowInstancesRouter } from './workflow-instances.js';
 import { createWorkflowTasksRouter } from './workflow-tasks.js';
 import { createAutomationsRouter } from './automations.js';
-import { createComputationsRouter } from './computations.js';
 import { createQueryRouter } from './query.js';
 import { createMessagesRouter } from './messages.js';
 import { createRolesRouter } from './roles.js';
 import { createPermissionsRouter } from './permissions.js';
 
+/** 注册单个路由并应用租户守卫 */
+function useTenantRouter(app: Koa, router: KoaRouter): void {
+  app.use(tenantGuard);
+  app.use(router.routes());
+  app.use(router.allowedMethods());
+}
+
 // Register all routes
 export function registerRoutes(app: Koa): void {
   const manager = getDbManager();
 
-  // Auth routes
+  // Auth routes (login — 不需要租户守卫)
   const authRouter = createAuthRouter(manager);
   app.use(authRouter.routes());
   app.use(authRouter.allowedMethods());
 
-  // App routes (data source: tenants/ file system)
+  // App routes (含运算规则子路由: /api/apps/:appId/computations)
   const appsRouter = createAppsRouter(manager);
-  app.use(appsRouter.routes());
-  app.use(appsRouter.allowedMethods());
+  useTenantRouter(app, appsRouter);
 
-  // Tenant routes (data source: tenants/ file system)
+  // Tenant routes (data source: tenants/ file system — 平台级管理，不需要租户守卫)
   const tenantsRouter = createTenantsRouter();
   app.use(tenantsRouter.routes());
   app.use(tenantsRouter.allowedMethods());
 
   // Role routes
   const rolesRouter = createRolesRouter();
-  app.use(rolesRouter.routes());
-  app.use(rolesRouter.allowedMethods());
+  useTenantRouter(app, rolesRouter);
 
   // Permission routes
   const permissionsRouter = createPermissionsRouter();
-  app.use(permissionsRouter.routes());
-  app.use(permissionsRouter.allowedMethods());
+  useTenantRouter(app, permissionsRouter);
 
   // Workflow routes
   const workflowsRouter = createWorkflowsRouter();
-  app.use(workflowsRouter.routes());
-  app.use(workflowsRouter.allowedMethods());
+  useTenantRouter(app, workflowsRouter);
 
   const workflowInstancesRouter = createWorkflowInstancesRouter();
-  app.use(workflowInstancesRouter.routes());
-  app.use(workflowInstancesRouter.allowedMethods());
+  useTenantRouter(app, workflowInstancesRouter);
 
   const workflowTasksRouter = createWorkflowTasksRouter();
-  app.use(workflowTasksRouter.routes());
-  app.use(workflowTasksRouter.allowedMethods());
+  useTenantRouter(app, workflowTasksRouter);
 
   // Automation routes
   const automationsRouter = createAutomationsRouter();
-  app.use(automationsRouter.routes());
-  app.use(automationsRouter.allowedMethods());
-
-  // Computation routes
-  const computationsRouter = createComputationsRouter();
-  app.use(computationsRouter.routes());
-  app.use(computationsRouter.allowedMethods());
+  useTenantRouter(app, automationsRouter);
 
   // Message routes
   const messagesRouter = createMessagesRouter();
-  app.use(messagesRouter.routes());
-  app.use(messagesRouter.allowedMethods());
+  useTenantRouter(app, messagesRouter);
 
   // Data query routes
   const queryRouter = createQueryRouter(manager);
-  app.use(queryRouter.routes());
-  app.use(queryRouter.allowedMethods());
+  useTenantRouter(app, queryRouter);
 
-  // Health check
+  // Health check (公开接口)
   const healthRouter = createHealthRouter();
   app.use(healthRouter.routes());
   app.use(healthRouter.allowedMethods());

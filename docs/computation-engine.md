@@ -12,29 +12,41 @@
 
 - **统一语法**：全平台使用同一套 JavaScript 表达式语法，消除 SQL/JS/JSON 条件混用
 - **沙箱安全**：表达式在受限沙箱中执行，禁止访问全局对象（`window`、`process`、`require` 等）
-- **类型感知**：运算引擎感知字段的格式化类型（`email`、`currency` 等），提供语义化运算
 - **确定性**：相同输入始终产生相同输出，禁止使用 `Math.random()`、`Date.now()` 等非确定性 API
 
 ### 表达式类型
+
+**普通模式**（设计器 UI 直接配置）：
 
 | 类型 | 用途 | 示例 |
 |------|------|------|
 | **值表达式** | 计算一个值 | `quantity * unitPrice` |
 | **条件表达式** | 求值为布尔值 | `amount > 10000 && status === 'vip'` |
-| **聚合表达式** | 对集合数据做聚合计算 | `SUM(items.amount)` |
-| **管道表达式** | 链式数据变换 | `orders.filter(o => o.status === 'completed').map(o => o.amount)` |
 
-### 变量作用域
+**高级模式**（切换到代码编辑器，即 `ExpressionEditor` 组件）：
 
-| 变量 | 说明 | 可用场景 |
-|------|------|---------|
-| `this` | 当前记录 | 实体字段计算、表单联动 |
-| `this.fieldName` | 当前记录的字段值 | 所有场景 |
-| `record` | 同 `this`，别名 | 自动化引擎事件上下文 |
-| `event` | 事件数据 | 自动化引擎动作配置 |
-| `event.data.record` | 事件触发的记录数据 | 自动化引擎条件/动作 |
-| `currentUser` | 当前用户信息 | 条件表达式、显示逻辑 |
-| `currentDate` | 当前日期（`Date` 对象） | 日期运算 |
+支持完整 JavaScript 表达式语法，存储格式统一为：
+
+```typescript
+{
+  type: 'expression',
+  value: string,    // 表达式内容（函数体）
+  async: boolean    // 是否异步
+}
+```
+
+### 变量注入
+
+所有变量通过明确字段注入，不依赖隐式上下文（如 `this`）。各引擎在调用表达式时，将所需变量显式传入 context。
+
+**系统内置变量**（全局可用）：
+
+| 变量 | 说明 | 类型 |
+|------|------|------|
+| `$user` | 当前用户信息 | `{ id, name, roles, department, position }` |
+| `$now` | 当前时间戳（Unix ms） | `number` |
+
+**业务变量**：由各引擎通过 context 注入，如表单引擎注入 `$component`、`$route` 等页面变量。
 
 ### 运算符
 
@@ -68,92 +80,18 @@
 | `\|\|` | 逻辑或 | `isAdmin \|\| isOwner` |
 | `!` | 逻辑非 | `!isEmpty(name)` |
 
-#### 字符串运算符
-
-| 方法 | 说明 | 示例 |
-|------|------|------|
-| `.includes(sub)` | 包含 | `email.includes('@vip.com')` |
-| `.startsWith(prefix)` | 前缀匹配 | `code.startsWith('ORD-')` |
-| `.endsWith(suffix)` | 后缀匹配 | `file.endsWith('.pdf')` |
-| `.match(pattern)` | 正则匹配 | `phone.match(/^1[3-9]\d{9}$/)` |
-
-### 内置函数
-
-#### 聚合函数（用于集合数据）
-
-| 函数 | 说明 | 示例 |
-|------|------|------|
-| `SUM(array, field?)` | 求和 | `SUM(items, 'amount')` 或 `SUM(items.amount)` |
-| `AVG(array, field?)` | 平均值 | `AVG(scores, 'value')` |
-| `COUNT(array, filter?)` | 计数 | `COUNT(items)` 或 `COUNT(items, i => i.price > 100)` |
-| `MAX(array, field?)` | 最大值 | `MAX(orders, 'amount')` |
-| `MIN(array, field?)` | 最小值 | `MIN(orders, 'amount')` |
-| `COUNT_DISTINCT(array, field?)` | 去重计数 | `COUNT_DISTINCT(orders, 'customerId')` |
-
-#### 类型函数
-
-| 函数 | 说明 | 示例 |
-|------|------|------|
-| `isEmpty(value)` | 判断空值（null/undefined/空字符串/空数组） | `isEmpty(this.remark)` |
-| `isNotEmpty(value)` | 判断非空 | `isNotEmpty(this.phone)` |
-| `typeof(value)` | 类型判断 | `typeof(this.amount) === 'number'` |
-| `toString(value)` | 转字符串 | `toString(this.orderNo)` |
-| `toNumber(value)` | 转数字 | `toNumber(this.quantity)` |
-
-#### 日期函数
-
-| 函数 | 说明 | 示例 |
-|------|------|------|
-| `NOW()` | 当前时间 | `this.expireDate < NOW()` |
-| `TODAY()` | 今天日期 | `this.startDate >= TODAY()` |
-| `DAYS_BETWEEN(d1, d2)` | 两日期之间的天数 | `DAYS_BETWEEN(this.endDate, this.startDate)` |
-| `ADD_DAYS(date, n)` | 日期加 N 天 | `ADD_DAYS(this.createdAt, 30)` |
-| `FORMAT_DATE(date, pattern)` | 格式化日期 | `FORMAT_DATE(this.createdAt, 'YYYY-MM-DD')` |
-
-#### 字符串函数
-
-| 函数 | 说明 | 示例 |
-|------|------|------|
-| `UPPER(str)` | 转大写 | `UPPER(this.code)` |
-| `LOWER(str)` | 转小写 | `LOWER(this.email)` |
-| `TRIM(str)` | 去除首尾空格 | `TRIM(this.name)` |
-| `SUBSTRING(str, start, end)` | 截取子串 | `SUBSTRING(this.phone, 0, 3)` |
-| `CONCAT(...strs)` | 拼接字符串 | `CONCAT(this.firstName, ' ', this.lastName)` |
-| `REPLACE(str, search, replacement)` | 替换 | `REPLACE(this.address, ' ', '')` |
-
-#### 数学函数
-
-| 函数 | 说明 | 示例 |
-|------|------|------|
-| `ROUND(number, decimals?)` | 四舍五入 | `ROUND(this.amount, 2)` |
-| `CEIL(number)` | 向上取整 | `CEIL(this.pages)` |
-| `FLOOR(number)` | 向下取整 | `FLOOR(this.discount)` |
-| `ABS(number)` | 绝对值 | `ABS(this.difference)` |
-| `MAX(...numbers)` | 最大值 | `MAX(this.score1, this.score2)` |
-| `MIN(...numbers)` | 最小值 | `MIN(this.price, this.maxPrice)` |
-
-### 属性访问
-
-| 语法 | 说明 | 示例 |
-|------|------|------|
-| `this.field` | 访问当前记录字段 | `this.amount` |
-| `this.nested.field` | 嵌套字段访问 | `this.address.city` |
-| `this.array[index]` | 数组索引访问 | `this.items[0].name` |
-| `this.array.length` | 数组长度 | `this.items.length` |
-| `this.array[N].field` | 数组元素字段 | `this.items[0].quantity` |
-
 ### 条件表达式规范
 
 各引擎中的条件表达式统一使用 JS 语法：
 
 ```javascript
-// ✅ 正确 — JS 语法
+// ✅ 正确 — JS 语法，变量通过 context 注入
 amount > 10000 && status === 'confirmed'
 customer.email.includes('@vip.com')
-DAYS_BETWEEN(NOW(), this.createdAt) > 30
+$now - createdAt > 30 * 24 * 3600 * 1000
 
 // ❌ 错误 — 不再使用 SQL 语法
-// SUM(orders.amount) WHERE orders.customer_id = this.id
+// SUM(orders.amount) WHERE orders.customer_id = record.id
 // status = 'confirmed'
 ```
 
@@ -172,12 +110,12 @@ DAYS_BETWEEN(NOW(), this.createdAt) > 30
     {
       "branch": "high",
       "label": "大额订单",
-      "expression": "this.amount > 50000"
+      "expression": "amount > 50000"
     },
     {
       "branch": "vip",
       "label": "VIP 客户",
-      "expression": "this.customerLevel === 'vip' || this.customerLevel === 'svip'"
+      "expression": "customerLevel === 'vip' || customerLevel === 'svip'"
     }
   ],
   "defaultBranch": "normal"
@@ -251,44 +189,6 @@ DAYS_BETWEEN(NOW(), this.createdAt) > 30
 | `is_not_empty` | `isNotEmpty()` |
 | `between` | `>= && <=` |
 
-### 应用管理 — 计算字段
-
-```jsonc
-{
-  "fieldId": "field_order_amount",
-  "name": "累计订单金额",
-  "code": "order_amount",
-  "type": "number",
-  "format": "currency",
-  "computed": true,
-  "expression": "SUM(orders.filter(o => o.customer_id === this.id), 'amount')"
-}
-```
-
-### 数据引擎 — 类型感知运算
-
-格式化字段类型通过 `computation` 配置声明支持的运算，运算引擎据此提供类型感知的计算：
-
-```jsonc
-// 金额字段 (currency)
-{
-  "computation": {
-    "aggregations": ["sum", "avg", "min", "max"],
-    "operations": ["equal", "not_equal", "gt", "gte", "lt", "lte", "between"],
-    "casters": { "number": "toNumber", "string": "formatCurrency" }
-  }
-}
-
-// 邮箱字段 (email)
-{
-  "computation": {
-    "aggregations": ["count", "count_distinct"],
-    "operations": ["equal", "not_equal", "contains", "ends_with", "domain"],
-    "casters": { "string": "toString" }
-  }
-}
-```
-
 ---
 
 ## 表达式求值流程
@@ -311,7 +211,7 @@ DAYS_BETWEEN(NOW(), this.createdAt) > 30
 └──────┬───────┘
        ▼
 ┌──────────────┐
-│ 变量绑定      │  → 注入 this/record/event/currentUser 等上下文变量
+│ 变量绑定      │  → 注入 context 中的显式变量（$user、$now 等）
 └──────┬───────┘
        ▼
 ┌──────────────┐
@@ -319,7 +219,7 @@ DAYS_BETWEEN(NOW(), this.createdAt) > 30
 └──────┬───────┘
        ▼
 ┌──────────────┐
-│ 类型转换      │  → 根据字段格式化类型格式化输出
+│ 类型转换      │  → 根据输出配置格式化结果
 └──────────────┘
 ```
 
@@ -328,7 +228,7 @@ DAYS_BETWEEN(NOW(), this.createdAt) > 30
 | 约束 | 说明 |
 |------|------|
 | 禁止全局访问 | `window`、`global`、`process`、`require`、`import` 不可用 |
-| 禁止 `this` 逃逸 | 不允许 `this.constructor`、`this.__proto__` 等原型链访问 |
+| 禁止原型链访问 | 不允许 `constructor`、`__proto__`、`prototype` 等访问 |
 | 禁止副作用 | 不允许赋值（`=`）、`delete`、`new`（除 `new Date()`） |
 | 执行超时 | 单次表达式求值超时 100ms 自动终止 |
 | 调用栈限制 | 递归深度上限 10 层 |
@@ -339,81 +239,61 @@ DAYS_BETWEEN(NOW(), this.createdAt) > 30
 
 ### 求值 API
 
+表达式引擎接口定义于 `packages/shared/src/engine/expression.ts`，通过 `@low-code/shared` 导出：
+
 ```typescript
-interface ComputationEngine {
-  /**
-   * 求值表达式
-   * @param expression JS 表达式字符串
-   * @param context 变量上下文
-   * @param options 求值选项
-   */
-  evaluate<T = any>(
-    expression: string,
-    context: EvalContext,
-    options?: EvalOptions
-  ): Promise<T>;
-
-  /**
-   * 批量求值（共享编译缓存）
-   */
-  evaluateBatch<T = any>(
-    expressions: { id: string; expression: string }[],
-    context: EvalContext,
-    options?: EvalOptions
-  ): Promise<Map<string, T>>;
-
-  /**
-   * 校验表达式语法（不求值）
-   */
-  validate(expression: string): ValidationResult;
-
-  /**
-   * 分析表达式依赖的字段
-   */
+interface ExpressionEngine {
+  /** 求值表达式 */
+  evaluate(expression: string, context: Record<string, unknown>): Promise<unknown>;
+  /** 校验表达式语法 */
+  validate(expression: string): { valid: boolean; errors: string[] };
+  /** 分析表达式依赖的变量路径 */
   analyzeDependencies(expression: string): string[];
+  /** 安全求值（带超时） */
+  safeEvaluate(expression: string, context: Record<string, unknown>, timeout?: number): Promise<unknown>;
+  /** 异步求值（接受字符串或 ExpressionBinding） */
+  evaluateAsync(expression: string | ExpressionBinding, context: Record<string, unknown>, timeout?: number): Promise<unknown>;
+  /** 解析模板字符串中的 {{path}} 变量 */
+  resolveTemplate(template: string, context: Record<string, unknown>): string;
+  /** 递归解析模板参数对象中的 {{path}} 变量 */
+  resolveTemplateParams(params: Record<string, unknown>, context: Record<string, unknown>): Record<string, unknown>;
 }
+```
 
-interface EvalContext {
-  /** 当前记录数据 */
-  this?: Record<string, any>;
-  /** 别名 */
-  record?: Record<string, any>;
-  /** 事件数据 */
-  event?: { type: string; data: Record<string, any> };
-  /** 当前用户 */
-  currentUser?: { id: string; name: string; roles: string[] };
-  /** 关联数据 */
-  relations?: Record<string, any[]>;
-}
+全局单例：
 
-interface EvalOptions {
-  /** 求值超时（ms），默认 100 */
-  timeout?: number;
-  /** 期望返回类型 */
-  expectedType?: 'string' | 'number' | 'boolean' | 'array' | 'object';
-  /** 是否允许聚合函数（集合场景才开启） */
-  allowAggregation?: boolean;
-}
+```typescript
+import { expressionEngine } from '@low-code/shared';
+```
 
-interface ValidationResult {
-  valid: boolean;
-  errors?: { message: string; position?: { line: number; column: number } }[];
-  warnings?: { message: string }[];
-}
+工厂函数（带自定义配置）：
+
+```typescript
+import { createExpressionEngine } from '@low-code/shared';
+const engine = createExpressionEngine({ defaultTimeout: 3000, strictMode: true });
 ```
 
 ---
 
 ## 与现有模块的关系
 
-| 模块 | 关系 |
+### 模块职责划分
+
+| 包 | 职责 |
+|---|------|
+| `@low-code/shared`（`engine/expression.ts`） | **表达式引擎**：表达式求值、校验、依赖分析、模板解析。全局单例 `expressionEngine` |
+| `@low-code/computation`（`operators.ts`） | **条件运算符**：结构化条件规则的比较运算（eq/gt/contains 等），供自动化引擎和流程引擎的结构化条件使用 |
+
+### 各引擎的表达式使用
+
+| 引擎 | 关系 |
 |------|------|
-| **流程引擎** | 条件分支、排他网关的条件表达式由运算引擎求值 |
-| **表单引擎** | 字段联动规则、跨字段校验、计算字段由运算引擎求值 |
-| **自动化引擎** | 结构化条件转换为 JS 表达式后由运算引擎求值；动作中的变量插值也由运算引擎处理 |
-| **数据引擎** | 格式化字段类型的 `computation` 配置定义该类型支持的运算，运算引擎据此提供类型感知计算 |
-| **渲染引擎** | 条件规则（显隐/禁用）中的表达式由运算引擎求值 |
-| **权限引擎** | 自定义数据权限规则中的条件表达式由运算引擎求值 |
+| **流程引擎** | 条件分支、排他网关的条件表达式由表达式引擎求值；结构化条件由 `evaluateCondition` 运算 |
+| **表单引擎** | 字段联动规则、跨字段校验、计算字段由表达式引擎求值 |
+| **自动化引擎** | 结构化条件由 `evaluateCondition` 运算；表达式条件和动作中的变量插值由表达式引擎处理 |
+| **数据引擎** | 数据表字段的计算字段由表达式引擎求值 |
+| **渲染引擎** | 条件规则（显隐/禁用）中的表达式由表达式引擎求值 |
+| **权限引擎** | 自定义数据权限规则中的条件表达式由表达式引擎求值 |
 
 ---
 
@@ -426,7 +306,7 @@ interface ValidationResult {
 - **4 种运算类型**：字段计算、公式规则、聚合计算、数据转换
 - **输入字段配置**：手动定义变量名、类型、描述
 - **表达式编辑器**：复用 ExpressionEditor 组件，支持语法高亮、自动补全、类型推断
-- **环境变量过滤**：只保留系统基础变量（`$user`、`$system`、`$env`），去掉页面相关变量
+- **环境变量过滤**：只保留系统基础变量（`$user`、`$now`、`$env`），去掉页面相关变量
 - **输出配置**：支持多种数据类型和格式化选项（货币、百分比、日期等）
 - **预览功能**：实时预览运算结果，支持测试数据输入
 - **流程节点引用**：流程计算节点可选择已定义的运算规则
@@ -522,18 +402,19 @@ interface ExpressionBinding {
 | `$user.department` | 部门 ID |
 | `$user.departmentName` | 部门名称 |
 | `$user.position` | 岗位名称 |
-| `$system.now` | 当前时间（ISO 8601） |
-| `$system.today` | 当前日期（YYYY-MM-DD） |
+| `$now` | 当前时间戳（Unix ms） |
 | `$env.NODE_ENV` | 运行环境 |
 
 > **注意**：运算表达式不支持 `$component`、`$route`、`$data`、`$table`、`$fetch`、`$workflow` 等页面相关变量。
 
 ### API 接口
 
+所有运算接口统一走应用路由，路径格式：`/api/apps/:appId/computations`
+
 #### 列表查询
 
 ```http
-GET /api/computations?appId={appId}
+GET /api/apps/:appId/computations
 
 Response:
 {
@@ -545,7 +426,7 @@ Response:
 #### 获取详情
 
 ```http
-GET /api/computations/{id}?appId={appId}
+GET /api/apps/:appId/computations/:id
 
 Response:
 {
@@ -557,7 +438,7 @@ Response:
 #### 创建
 
 ```http
-POST /api/computations?appId={appId}
+POST /api/apps/:appId/computations
 Content-Type: application/json
 
 {
@@ -582,7 +463,7 @@ Response:
 #### 更新
 
 ```http
-PUT /api/computations/{id}?appId={appId}
+PUT /api/apps/:appId/computations/:id
 Content-Type: application/json
 
 { ... }
@@ -597,7 +478,7 @@ Response:
 #### 删除
 
 ```http
-DELETE /api/computations/{id}?appId={appId}
+DELETE /api/apps/:appId/computations/:id
 
 Response:
 {
@@ -608,7 +489,7 @@ Response:
 #### 执行运算
 
 ```http
-POST /api/computations/{id}/execute?appId={appId}
+POST /api/apps/:appId/computations/:id/execute
 Content-Type: application/json
 
 {
@@ -629,7 +510,7 @@ Response:
 #### 预览表达式
 
 ```http
-POST /api/computations/preview
+POST /api/apps/:appId/computations/preview
 Content-Type: application/json
 
 {

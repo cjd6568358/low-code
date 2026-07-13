@@ -30,6 +30,7 @@ import {
 } from '@ant-design/icons';
 import { FlowChart } from '@low-code/renderer';
 import type { BpmnDocument } from '@low-code/workflow';
+import { apiFetch } from '../utils/apiClient.js';
 
 const { Text, Title } = Typography;
 
@@ -132,9 +133,9 @@ export default function WorkflowInstanceDetailPage() {
       try {
         // 并行加载
         const [instanceRes, historyRes, jobsRes] = await Promise.all([
-          fetch(`/api/apps/${appId}/workflow-instances/${instanceId}`),
-          fetch(`/api/apps/${appId}/workflow-instances/${instanceId}/history`),
-          fetch(`/api/apps/${appId}/workflow-instances/${instanceId}/jobs`),
+          apiFetch(`/api/apps/${appId}/workflow-instances/${instanceId}`),
+          apiFetch(`/api/apps/${appId}/workflow-instances/${instanceId}/history`),
+          apiFetch(`/api/apps/${appId}/workflow-instances/${instanceId}/jobs`),
         ]);
 
         const instanceData = await instanceRes.json();
@@ -148,7 +149,7 @@ export default function WorkflowInstanceDetailPage() {
 
         // 加载流程定义
         if (inst?.workflowDefId) {
-          const defRes = await fetch(`/api/apps/${appId}/workflows/${inst.workflowDefId}`);
+          const defRes = await apiFetch(`/api/apps/${appId}/workflows/${inst.workflowDefId}`);
           const defData = await defRes.json();
           setDefinition(defData.data || defData.resource || null);
         }

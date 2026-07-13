@@ -41,6 +41,7 @@ import { ConditionConfig } from './automation/ConditionConfig';
 import { ActionConfig } from './automation/ActionConfig';
 import { ThrottleConfig } from './automation/ThrottleConfig';
 import { AutomationLogViewer } from './automation/AutomationLogViewer';
+import { apiFetch } from '../utils/apiClient.js';
 
 const { Text, Title } = Typography;
 const { Option } = Select;
@@ -114,7 +115,7 @@ export const AutomationDesign: React.FC<AutomationDesignProps> = ({
 
     setLoading(true);
     try {
-      const response = await fetch(`${apiBase}/${ruleId}`);
+      const response = await apiFetch(`${apiBase}/${ruleId}`);
       const data = await response.json();
 
       if (data.data) {
@@ -153,7 +154,7 @@ export const AutomationDesign: React.FC<AutomationDesignProps> = ({
       const url = ruleId ? `${apiBase}/${ruleId}` : apiBase;
       const method = ruleId ? 'PUT' : 'POST';
 
-      const response = await fetch(url, {
+      const response = await apiFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(ruleData),
@@ -181,7 +182,7 @@ export const AutomationDesign: React.FC<AutomationDesignProps> = ({
     const action = newStatus === 'enabled' ? 'enable' : 'disable';
 
     try {
-      const response = await fetch(`/api/automations/${ruleId}/${action}?appId=${appId}`, {
+      const response = await apiFetch(`/api/automations/${ruleId}/${action}?appId=${appId}`, {
         method: 'POST',
       });
 
@@ -350,7 +351,7 @@ export const AutomationDesign: React.FC<AutomationDesignProps> = ({
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 400 }}>
-        <Spin size="large" tip="加载中..." />
+        <Spin size="large" description="加载中..." />
       </div>
     );
   }

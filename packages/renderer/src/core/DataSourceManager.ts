@@ -1,5 +1,5 @@
 import type { DataSourceConfig } from '@low-code/shared';
-import type { DefaultExpressionEngine } from '@low-code/computation';
+import type { DefaultExpressionEngine } from '@low-code/shared';
 
 /** 数据源状态 */
 export interface DataSourceState {

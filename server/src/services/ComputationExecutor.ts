@@ -115,7 +115,6 @@ function evaluateExpression(
     }
 
     // 注入系统变量
-    const now = new Date();
     const systemVars = {
       $user: {
         id: '',
@@ -125,10 +124,7 @@ function evaluateExpression(
         departmentName: '',
         position: '',
       },
-      $system: {
-        now: now.toISOString(),
-        today: now.toISOString().split('T')[0],
-      },
+      $now: Date.now(),
       $env: {
         NODE_ENV: process.env.NODE_ENV || 'development',
       },

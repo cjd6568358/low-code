@@ -7,7 +7,7 @@
  */
 
 import type { ComponentNode } from '@low-code/shared';
-import type { DefaultExpressionEngine } from '@low-code/computation';
+import type { DefaultExpressionEngine } from '@low-code/shared';
 import { extractDependencies } from './DependencyGraph';
 import { bindingCache } from './BindingCache';
 import { isExpressionBinding } from '../hooks/useExpressionValue';
@@ -156,7 +156,7 @@ export async function preEvaluateForm(
         );
       } else {
         // 同步表达式：safeEvaluate
-        result = expressionEngine.safeEvaluate(expr.value, context);
+        result = await expressionEngine.safeEvaluate(expr.value, context);
       }
 
       results.push({

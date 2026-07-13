@@ -243,10 +243,7 @@ export class WorkflowEngine {
           NODE_ENV: process.env.NODE_ENV || 'development',
           ...(params.variables?.$env || {}),
         },
-        $system: {
-          now: new Date().toISOString(),
-          today: new Date().toISOString().split('T')[0],
-        },
+        $now: Date.now(),
         $initiator: {
           id: params.startedBy,
           name: params.startedByName || '',
@@ -400,10 +397,7 @@ export class WorkflowEngine {
         id: params.operatorId,
         name: params.operatorName || '',
       },
-      $system: {
-        now: new Date().toISOString(),
-        today: new Date().toISOString().split('T')[0],
-      },
+      $now: Date.now(),
     };
 
     const context: ExecutionContext = {

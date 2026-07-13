@@ -139,24 +139,21 @@ class EnvironmentRegistryImpl {
       ],
     });
 
-    // $env — 环境变量（流程表达式）
+    // $now — 当前时间戳
+    this.register({
+      name: '$now',
+      description: '当前时间戳（Unix ms）',
+      modes: ['expression'],
+      type: 'number',
+    });
+
+    // $env — 环境变量
     this.register({
       name: '$env',
       description: '环境变量，包含系统级配置和自定义环境变量',
       modes: ['expression'],
       properties: [
         { name: 'NODE_ENV', type: 'string', description: '运行环境（development/production）' },
-      ],
-    });
-
-    // $system — 系统信息（流程表达式）
-    this.register({
-      name: '$system',
-      description: '系统级信息，包含当前时间等系统运行时数据',
-      modes: ['expression'],
-      properties: [
-        { name: 'now', type: 'string', description: '当前时间（ISO 8601 格式）' },
-        { name: 'today', type: 'string', description: '当前日期（YYYY-MM-DD）' },
       ],
     });
 
@@ -426,11 +423,11 @@ class EnvironmentRegistryImpl {
    * 获取运算模式可用的变量定义
    *
    * 运算模式只保留系统基础变量，去掉页面相关的变量：
-   * - 保留：$user、$system、$env
+   * - 保留：$user、$now、$env
    * - 去掉：$component、$route、$data、$table、$fetch、$workflow、$event、$result、$platform
    */
   getComputationVariables(): VariableDefinition[] {
-    const allowedVars = ['$user', '$system', '$env'];
+    const allowedVars = ['$user', '$now', '$env'];
     return Array.from(this.definitions.values()).filter((def) =>
       allowedVars.includes(def.name)
     );

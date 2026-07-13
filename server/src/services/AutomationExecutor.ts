@@ -4,7 +4,7 @@
  * 负责执行自动化规则，支持：
  * - 定时触发（Cron 调度）
  * - 触发流程（调用工作流引擎）
- * - 执行脚本（使用表达式引擎）
+ * - 执行表达式（使用公共表达式引擎）
  *
  * 执行流程：
  * 1. 读取启用的自动化规则
@@ -21,15 +21,18 @@ import { createExpressionEngine, interpolateTemplate, type ExpressionEngine } fr
 import { TENANTS_DIR } from '../config/index.js';
 import { getDbManager } from '../config/db.js';
 import { generateHexId } from '@low-code/shared';
+import { insertRecord, updateRecord, softDeleteRecord } from '@low-code/data';
+import type {
+  AutomationRuleStatus,
+  TriggerType,
+  ActionType,
+  NotificationChannel,
+  NotificationPriority,
+  DataOperationType,
+} from '@low-code/automation';
 
 /** 自动化规则状态 */
-type AutomationStatus = 'draft' | 'enabled' | 'disabled';
-
-/** 触发器类型 */
-type TriggerType = 'schedule' | 'data_change' | 'form_event' | 'workflow_event' | 'custom_event';
-
-/** 动作类型 */
-type ActionType = 'trigger_workflow' | 'execute_script' | 'send_notification' | 'data_operation' | 'api_call' | 'webhook';
+type AutomationStatus = AutomationRuleStatus;
 
 /** 自动化规则 */
 interface AutomationRule {
@@ -65,20 +68,6 @@ interface TriggerConfig {
     operations: string[];
     watchFields?: string[];
   };
-  formEvent?: {
-    pageId: string;
-    events: string[];
-    fieldCode?: string;
-  };
-  workflowEvent?: {
-    workflowId?: string;
-    events: string[];
-    nodeCode?: string;
-  };
-  customEvent?: {
-    eventType: string;
-    source?: string;
-  };
 }
 
 /** 条件配置 */
@@ -105,35 +94,24 @@ interface ActionConfig {
     variables?: Record<string, unknown>;
     initiator?: string;
   };
-  executeScript?: {
+  executeExpression?: {
     script: string;
     context?: Record<string, unknown>;
   };
   sendNotification?: {
     templateId?: string;
-    channels: string[];
+    channels: NotificationChannel[];
     recipients: Array<{ type: string; value: string }>;
     title?: string;
     content?: string;
-    priority?: string;
+    priority?: NotificationPriority;
     variables?: Record<string, unknown>;
   };
   dataOperation?: {
     entityCode: string;
-    operation: string;
+    operation: DataOperationType;
     data?: Record<string, unknown>;
     filter?: Record<string, unknown>;
-  };
-  apiCall?: {
-    method: string;
-    url: string;
-    headers?: Record<string, string>;
-    body?: Record<string, unknown>;
-    timeout?: number;
-  };
-  webhook?: {
-    webhookId: string;
-    payload?: Record<string, unknown>;
   };
 }
 
@@ -481,20 +459,14 @@ export class AutomationExecutor {
           case 'trigger_workflow':
             result = await this.executeTriggerWorkflow(action, context);
             break;
-          case 'execute_script':
-            result = await this.executeScript(action, context);
+          case 'execute_expression':
+            result = await this.executeExpression(action, context);
             break;
           case 'send_notification':
             result = await this.executeSendNotification(action, context);
             break;
           case 'data_operation':
             result = await this.executeDataOperation(action, context);
-            break;
-          case 'api_call':
-            result = await this.executeApiCall(action, context);
-            break;
-          case 'webhook':
-            result = await this.executeWebhook(action, context);
             break;
           default:
             throw new Error(`不支持的动作类型: ${action.type}`);
@@ -571,17 +543,19 @@ export class AutomationExecutor {
   }
 
   /**
-   * 执行脚本动作
+   * 执行表达式动作
+   *
+   * 复用公共表达式引擎执行自定义表达式。
    */
-  private async executeScript(
+  private async executeExpression(
     action: ActionConfig,
     context: ExecutionContext
   ): Promise<unknown> {
     const { expressionEngine } = this.config;
-    const config = action.executeScript;
+    const config = action.executeExpression;
 
     if (!config?.script) {
-      throw new Error('未指定脚本内容');
+      throw new Error('未指定表达式内容');
     }
 
     // 构建执行上下文
@@ -598,14 +572,16 @@ export class AutomationExecutor {
       ...(config.context || {}),
     };
 
-    // 使用表达式引擎执行脚本
-    const result = expressionEngine.evaluate(config.script, scriptContext);
+    // 使用公共表达式引擎执行
+    const result = await expressionEngine.evaluate(config.script, scriptContext);
 
     return result;
   }
 
   /**
    * 执行发送通知动作
+   *
+   * 将消息写入租户 SQLite 的 messages 表。
    */
   private async executeSendNotification(
     action: ActionConfig,
@@ -619,24 +595,43 @@ export class AutomationExecutor {
     // 处理模板插值
     const title = config.title
       ? interpolateTemplate(config.title, context.eventData || {})
-      : undefined;
+      : '自动化通知';
     const content = config.content
       ? interpolateTemplate(config.content, context.eventData || {})
-      : undefined;
+      : '';
+    const priority = config.priority || 'normal';
+    const messageIds: string[] = [];
 
-    // TODO: 调用通知服务发送消息
-    console.log(`[AutomationExecutor] 发送通知: ${title || '无标题'}`);
+    const manager = getDbManager();
+    const db = manager.getTenantDb(context.tenantId);
 
-    return {
-      channels: config.channels,
-      recipients: config.recipients.length,
-      title,
-      content,
-    };
+    // 每个 recipient × channel 组合生成一条消息
+    for (const recipient of config.recipients) {
+      for (const channel of config.channels) {
+        const result = db.prepare(
+          `INSERT INTO messages (recipient_id, category, title, content, channel, status, priority, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+        ).run(
+          recipient.value,
+          'automation',
+          title,
+          content,
+          channel,
+          'sent',
+          priority,
+          new Date().toISOString(),
+        );
+        messageIds.push(String(result.lastInsertRowid));
+      }
+    }
+
+    return { messageIds, channels: config.channels, recipientCount: config.recipients.length };
   }
 
   /**
    * 执行数据操作动作
+   *
+   * 调用 @low-code/data 的 CRUD 函数操作实体记录。
    */
   private async executeDataOperation(
     action: ActionConfig,
@@ -647,81 +642,38 @@ export class AutomationExecutor {
       throw new Error('数据操作配置缺失');
     }
 
-    // TODO: 调用数据服务执行操作
-    console.log(`[AutomationExecutor] 数据操作: ${config.operation} ${config.entityCode}`);
-
-    return {
-      entityCode: config.entityCode,
-      operation: config.operation,
-    };
-  }
-
-  /**
-   * 执行 API 调用动作
-   */
-  private async executeApiCall(
-    action: ActionConfig,
-    context: ExecutionContext
-  ): Promise<unknown> {
-    const config = action.apiCall;
-    if (!config) {
-      throw new Error('API 调用配置缺失');
-    }
-
-    // 处理 URL 插值
-    const url = interpolateTemplate(config.url, context.eventData || {});
-    const timeout = config.timeout || 30000;
-
-    // 处理请求体插值
-    const body = config.body
-      ? this.interpolateVariables(config.body, context)
+    // 处理变量插值
+    const data = config.data
+      ? this.interpolateVariables(config.data, context)
+      : undefined;
+    const filter = config.filter
+      ? this.interpolateVariables(config.filter, context)
       : undefined;
 
-    // 发起 HTTP 请求
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    const manager = getDbManager();
+    const db = manager.getTenantDb(context.tenantId);
+    const tableId = config.entityCode;
 
-    try {
-      const response = await fetch(url, {
-        method: config.method,
-        headers: config.headers,
-        body: body ? JSON.stringify(body) : undefined,
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      const data = await response.json().catch(() => null);
-
-      return {
-        status: response.status,
-        statusText: response.statusText,
-        data,
-      };
-    } catch (error) {
-      clearTimeout(timeoutId);
-      throw error;
+    switch (config.operation) {
+      case 'create': {
+        if (!data) throw new Error('创建操作缺少 data');
+        const result = insertRecord(db, tableId, data);
+        return { operation: 'create', entityCode: config.entityCode, id: result.id };
+      }
+      case 'update': {
+        if (!data) throw new Error('更新操作缺少 data');
+        if (!filter?.id) throw new Error('更新操作缺少 filter.id');
+        const changes = updateRecord(db, tableId, filter.id as string, data);
+        return { operation: 'update', entityCode: config.entityCode, changes };
+      }
+      case 'delete': {
+        if (!filter?.id) throw new Error('删除操作缺少 filter.id');
+        softDeleteRecord(db, tableId, filter.id as string);
+        return { operation: 'delete', entityCode: config.entityCode, changes: 1 };
+      }
+      default:
+        throw new Error(`不支持的数据操作: ${config.operation}`);
     }
-  }
-
-  /**
-   * 执行 Webhook 动作
-   */
-  private async executeWebhook(
-    action: ActionConfig,
-    context: ExecutionContext
-  ): Promise<unknown> {
-    const config = action.webhook;
-    if (!config?.webhookId) {
-      throw new Error('未指定 Webhook ID');
-    }
-
-    // TODO: 查找 Webhook 配置并调用
-    console.log(`[AutomationExecutor] 触发 Webhook: ${config.webhookId}`);
-
-    return {
-      webhookId: config.webhookId,
-    };
   }
 
   /**
@@ -811,12 +763,6 @@ export class AutomationExecutor {
     switch (trigger.type) {
       case 'data_change':
         return this.matchesDataChangeTrigger(trigger.dataChange!, eventType, eventData);
-      case 'form_event':
-        return this.matchesFormEventTrigger(trigger.formEvent!, eventType, eventData);
-      case 'workflow_event':
-        return this.matchesWorkflowEventTrigger(trigger.workflowEvent!, eventType, eventData);
-      case 'custom_event':
-        return this.matchesCustomEventTrigger(trigger.customEvent!, eventType);
       default:
         return false;
     }
@@ -838,52 +784,6 @@ export class AutomationExecutor {
     if (config.entityCode && eventData.entityCode !== config.entityCode) return false;
 
     return true;
-  }
-
-  /**
-   * 匹配表单事件触发器
-   */
-  private matchesFormEventTrigger(
-    config: NonNullable<TriggerConfig['formEvent']>,
-    eventType: string,
-    eventData: Record<string, unknown>
-  ): boolean {
-    if (!eventType.startsWith('form.')) return false;
-
-    const event = eventType.split('.')[1]; // form.submitted -> submitted
-    if (!config.events.includes(event)) return false;
-
-    if (config.pageId && eventData.pageId !== config.pageId) return false;
-
-    return true;
-  }
-
-  /**
-   * 匹配审批事件触发器
-   */
-  private matchesWorkflowEventTrigger(
-    config: NonNullable<TriggerConfig['workflowEvent']>,
-    eventType: string,
-    eventData: Record<string, unknown>
-  ): boolean {
-    if (!eventType.startsWith('workflow.')) return false;
-
-    const event = eventType.split('.')[1]; // workflow.approved -> approved
-    if (!config.events.includes(event)) return false;
-
-    if (config.workflowId && eventData.workflowId !== config.workflowId) return false;
-
-    return true;
-  }
-
-  /**
-   * 匹配自定义事件触发器
-   */
-  private matchesCustomEventTrigger(
-    config: NonNullable<TriggerConfig['customEvent']>,
-    eventType: string
-  ): boolean {
-    return config.eventType === eventType;
   }
 
   /**
@@ -1003,24 +903,23 @@ export class AutomationExecutor {
       const manager = getDbManager();
       const db = manager.getTenantDb(tenantId);
 
-      db.run(
+      db.prepare(
         `INSERT INTO automation_execution_logs (
           id, rule_id, rule_name, event_type, event_source, event_data,
           condition_result, action_results, status, total_duration_ms, created_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          result.executionId,
-          result.ruleId,
-          result.ruleName,
-          result.eventType,
-          result.eventSource,
-          JSON.stringify(result.eventData),
-          result.conditionResult ? JSON.stringify(result.conditionResult) : null,
-          JSON.stringify(result.actionResults),
-          result.status,
-          result.totalDurationMs,
-          result.createdAt,
-        ]
+      ).run(
+        result.executionId,
+        result.ruleId,
+        result.ruleName,
+        result.eventType,
+        result.eventSource,
+        JSON.stringify(result.eventData),
+        result.conditionResult ? JSON.stringify(result.conditionResult) : null,
+        JSON.stringify(result.actionResults),
+        result.status,
+        result.totalDurationMs,
+        result.createdAt,
       );
 
       console.log(`[AutomationExecutor] 保存执行日志: ${result.executionId}`);
@@ -1042,18 +941,16 @@ export class AutomationExecutor {
       const manager = getDbManager();
       const db = manager.getTenantDb(tenantId);
 
-      const logs = db.all(
+      const logs = db.prepare(
         `SELECT * FROM automation_execution_logs
          WHERE rule_id = ?
          ORDER BY created_at DESC
          LIMIT ? OFFSET ?`,
-        [ruleId, limit, offset]
-      );
+      ).all(ruleId, limit, offset);
 
-      const total = db.get(
+      const total = db.prepare(
         'SELECT COUNT(*) as count FROM automation_execution_logs WHERE rule_id = ?',
-        [ruleId]
-      );
+      ).get(ruleId);
 
       return {
         logs: (logs as any[]).map(log => ({
@@ -1084,7 +981,7 @@ export class AutomationExecutor {
       const manager = getDbManager();
       const db = manager.getTenantDb(tenantId);
 
-      const stats = db.get(
+      const stats = db.prepare(
         `SELECT
           COUNT(*) as total,
           SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as success,
@@ -1093,8 +990,7 @@ export class AutomationExecutor {
           AVG(total_duration_ms) as avg_duration
         FROM automation_execution_logs
         WHERE rule_id = ?`,
-        [ruleId]
-      );
+      ).get(ruleId);
 
       return {
         total: (stats as any)?.total || 0,

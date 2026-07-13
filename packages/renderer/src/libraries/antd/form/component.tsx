@@ -19,7 +19,7 @@ import { FormContext } from '../../../components/platform/FormContext';
 import type { FormRegistry } from '../../../core/FormRegistry';
 import type { ComponentNode } from '@low-code/shared';
 import { FormDataContextManager } from '../../../core/FormDataContext';
-import { expressionEngine } from '@low-code/computation';
+import { expressionEngine } from '@low-code/shared';
 import { LinkageEngine } from '../../../core/LinkageEngine';
 import { preEvaluateForm } from '../../../core/FormPreEvaluator';
 

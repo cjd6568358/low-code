@@ -32,6 +32,7 @@ import { PageDesign, TableDesign, CardDesign, WorkflowDesign, AutomationDesign, 
 import { PageComponentPicker, type PageComponentPickResult } from '../designers/components/PageComponentPicker';
 import { ThemeConfigPanel, type ThemeConfig } from '../components/ThemeConfigPanel';
 import { RESOURCE_TYPES as EXPOSED_RESOURCE_KEYS, RESOURCE_META_MAP, generateHexId } from '@low-code/shared';
+import { apiFetch } from '../utils/apiClient.js';
 
 const { Sider, Content } = Layout;
 
@@ -180,7 +181,7 @@ export default function AppDesignPage() {
   const loadApp = useCallback(async () => {
     setLoading(true);
     try {
-      const resp = await fetch(`/api/apps/${appId}`);
+      const resp = await apiFetch(`/api/apps/${appId}`);
       const data = await resp.json();
       if (data.success) {
         setAppName(data.app?.name || '');
@@ -264,7 +265,7 @@ export default function AppDesignPage() {
     }
 
     try {
-      const resp = await fetch(`/api/apps/${appId}/${newResourceModal.type}`, {
+      const resp = await apiFetch(`/api/apps/${appId}/${newResourceModal.type}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -295,7 +296,7 @@ export default function AppDesignPage() {
   const handleCreateTableFromPage = async (result: PageComponentPickResult) => {
     try {
       // 先创建空白数据表
-      const resp = await fetch(`/api/apps/${appId}/tables`, {
+      const resp = await apiFetch(`/api/apps/${appId}/tables`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newResourceName }),
@@ -308,7 +309,7 @@ export default function AppDesignPage() {
 
       // 加载完整 schema 并注入字段
       const tableId = data.resource.id;
-      const loadResp = await fetch(`/api/apps/${appId}/tables/${tableId}`);
+      const loadResp = await apiFetch(`/api/apps/${appId}/tables/${tableId}`);
       const loadData = await loadResp.json();
 
       if (loadData.success && loadData.resource) {
@@ -325,7 +326,7 @@ export default function AppDesignPage() {
           },
         }));
 
-        const saveResp = await fetch(`/api/apps/${appId}/tables/${tableId}`, {
+        const saveResp = await apiFetch(`/api/apps/${appId}/tables/${tableId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(tableSchema),
@@ -362,7 +363,7 @@ export default function AppDesignPage() {
   // 删除资源
   const handleDeleteResource = async (resourceType: string, resourceId: string, resourceName: string) => {
     try {
-      const resp = await fetch(`/api/apps/${appId}/${resourceType}/${resourceId}`, {
+      const resp = await apiFetch(`/api/apps/${appId}/${resourceType}/${resourceId}`, {
         method: 'DELETE',
       });
       const data = await resp.json();

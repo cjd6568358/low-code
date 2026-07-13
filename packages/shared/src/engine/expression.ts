@@ -11,28 +11,24 @@
  * - 类型推断
  */
 
+import type { ExpressionBinding } from '../types/schema.js';
+
 /** 表达式引擎接口 */
 export interface ExpressionEngine {
   /** 求值表达式 */
-  evaluate(expression: string, context: Record<string, unknown>): unknown;
+  evaluate(expression: string, context: Record<string, unknown>): Promise<unknown>;
   /** 校验表达式语法 */
   validate(expression: string): { valid: boolean; errors: string[] };
   /** 分析表达式依赖的变量路径 */
   analyzeDependencies(expression: string): string[];
   /** 安全求值（带超时） */
-  safeEvaluate(expression: string, context: Record<string, unknown>, timeout?: number): unknown;
-  /** 异步求值 */
-  evaluateAsync(expression: string, context: Record<string, unknown>, timeout?: number): Promise<unknown>;
-}
-
-/** 表达式绑定定义 */
-export interface ExpressionBinding {
-  /** 表达式类型 */
-  type: 'expression';
-  /** 表达式内容（函数体） */
-  value: string;
-  /** 是否异步 */
-  async?: boolean;
+  safeEvaluate(expression: string, context: Record<string, unknown>, timeout?: number): Promise<unknown>;
+  /** 异步求值（接受字符串或 ExpressionBinding） */
+  evaluateAsync(expression: string | ExpressionBinding, context: Record<string, unknown>, timeout?: number): Promise<unknown>;
+  /** 解析模板字符串中的 {{path}} 变量 */
+  resolveTemplate(template: string, context: Record<string, unknown>): string;
+  /** 递归解析模板参数对象中的 {{path}} 变量 */
+  resolveTemplateParams(params: Record<string, unknown>, context: Record<string, unknown>): Record<string, unknown>;
 }
 
 /** 表达式校验错误 */
@@ -111,7 +107,7 @@ const VARIABLE_PATH_REGEX = /\$[a-zA-Z_][a-zA-Z0-9_.]*/g;
 /**
  * 默认表达式引擎实现
  */
-class DefaultExpressionEngine implements ExpressionEngine {
+export class DefaultExpressionEngine implements ExpressionEngine {
   private options: Required<ExpressionEngineOptions>;
 
   constructor(options?: ExpressionEngineOptions) {
@@ -129,7 +125,7 @@ class DefaultExpressionEngine implements ExpressionEngine {
    * @param context 上下文变量
    * @returns 求值结果
    */
-  evaluate(expression: string, context: Record<string, unknown>): unknown {
+  async evaluate(expression: string, context: Record<string, unknown>): Promise<unknown> {
     const sanitized = this.sanitizeExpression(expression);
     const wrapped = this.wrapExpression(sanitized, context);
 
@@ -216,18 +212,11 @@ class DefaultExpressionEngine implements ExpressionEngine {
    * @param timeout 超时时间（毫秒）
    * @returns 求值结果
    */
-  safeEvaluate(expression: string, context: Record<string, unknown>, timeout?: number): unknown {
+  async safeEvaluate(expression: string, context: Record<string, unknown>, timeout?: number): Promise<unknown> {
     const timeoutMs = timeout ?? this.options.defaultTimeout;
 
     // 使用 Promise.race 实现超时控制
-    const evaluationPromise = new Promise<unknown>((resolve, reject) => {
-      try {
-        const result = this.evaluate(expression, context);
-        resolve(result);
-      } catch (error) {
-        reject(error);
-      }
-    });
+    const evaluationPromise = this.evaluate(expression, context);
 
     const timeoutPromise = new Promise<never>((_, reject) => {
       setTimeout(() => {
@@ -239,22 +228,68 @@ class DefaultExpressionEngine implements ExpressionEngine {
   }
 
   /**
+   * 同步安全求值（不带超时控制）
+   *
+   * 用于渲染路径等同步上下文。内部直接调用 new Function()，
+   * 不经过 Promise 包装，性能与原 evaluate 一致。
+   */
+  safeEvaluateSync(expression: string, context: Record<string, unknown>): unknown {
+    const sanitized = this.sanitizeExpression(expression);
+    const wrapped = this.wrapExpression(sanitized, context);
+
+    // 检查禁止的全局引用
+    const forbiddenRefs = this.findForbiddenReferences(sanitized);
+    if (forbiddenRefs.length > 0) {
+      throw this.createError('runtime', `禁止访问以下全局对象: ${forbiddenRefs.join(', ')}`);
+    }
+
+    try {
+      const fn = new Function(...Object.keys(context), `return ${wrapped}`);
+      return fn(...Object.values(context));
+    } catch (error) {
+      throw this.createError('runtime', `表达式求值失败: ${(error as Error).message}`);
+    }
+  }
+
+  /**
    * 异步求值
    *
-   * @param expression 表达式绑定
+   * 支持两种调用方式：
+   * - evaluateAsync('表达式字符串', context) — 直接求值
+   * - evaluateAsync({ type: 'expression', value: '函数体', async: true }, context) — 按 ExpressionBinding 模式执行
+   *
+   * @param expression 表达式字符串或 ExpressionBinding
    * @param context 上下文变量
    * @param timeout 超时时间（毫秒）
    * @returns 求值结果
    */
-  async evaluateAsync(expression: string, context: Record<string, unknown>, timeout?: number): Promise<unknown> {
+  async evaluateAsync(expression: string | ExpressionBinding, context: Record<string, unknown>, timeout?: number): Promise<unknown> {
     const timeoutMs = timeout ?? this.options.defaultTimeout;
+
+    // 判断调用模式
+    const isBinding = typeof expression === 'object' && expression !== null && 'value' in expression;
+    const exprStr = isBinding ? (expression as ExpressionBinding).value : expression as string;
+    const isAsync = isBinding ? (expression as ExpressionBinding).async !== false : true;
 
     const evaluationPromise = (async () => {
       try {
-        const sanitized = this.sanitizeExpression(expression);
-        const wrapped = this.wrapAsyncExpression(sanitized, context);
-        const fn = new AsyncFunction(...Object.keys(context), `return ${wrapped}`);
-        return await fn(...Object.values(context));
+        if (isBinding) {
+          // ExpressionBinding 模式：拼接为 async ({params}) => { body } 形式
+          const params = Object.keys(context).join(', ');
+          const prefix = isAsync ? 'async' : '';
+          const fullExpr = `${prefix} ({${params}}) => { ${exprStr} }`;
+          const contextKeys = Object.keys(context);
+          const contextValues = contextKeys.map(k => context[k]);
+          const sandboxCode = `"use strict"; return (${fullExpr})({${contextKeys.join(',')}});`;
+          const fn = new Function(...contextKeys, sandboxCode);
+          return await fn(...contextValues);
+        } else {
+          // 字符串模式：原有行为
+          const sanitized = this.sanitizeExpression(exprStr);
+          const wrapped = this.wrapAsyncExpression(sanitized, context);
+          const fn = new AsyncFunction(...Object.keys(context), `return ${wrapped}`);
+          return await fn(...Object.values(context));
+        }
       } catch (error) {
         throw this.createError('runtime', `异步表达式求值失败: ${(error as Error).message}`);
       }
@@ -267,6 +302,40 @@ class DefaultExpressionEngine implements ExpressionEngine {
     });
 
     return Promise.race([evaluationPromise, timeoutPromise]);
+  }
+
+  /**
+   * 解析模板字符串中的 {{path}} 变量
+   */
+  resolveTemplate(template: string, context: Record<string, unknown>): string {
+    if (!template) return '';
+    return template.replace(/\{\{([^}]+)\}\}/g, (_match, path: string) => {
+      const trimmedPath = path.trim();
+      try {
+        const value = this.getNestedValue(context, trimmedPath);
+        return value != null ? String(value) : '';
+      } catch {
+        return '';
+      }
+    });
+  }
+
+  /**
+   * 递归解析模板参数对象中的 {{path}} 变量
+   */
+  resolveTemplateParams(params: Record<string, unknown>, context: Record<string, unknown>): Record<string, unknown> {
+    if (!params) return {};
+    const resolved: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(params)) {
+      if (typeof value === 'string') {
+        resolved[key] = this.resolveTemplate(value, context);
+      } else if (typeof value === 'object' && value !== null) {
+        resolved[key] = this.resolveTemplateParams(value as Record<string, unknown>, context);
+      } else {
+        resolved[key] = value;
+      }
+    }
+    return resolved;
   }
 
   /**
@@ -399,6 +468,16 @@ class DefaultExpressionEngine implements ExpressionEngine {
   }
 
   /**
+   * 获取嵌套对象的值（支持 "a.b.c" 路径）
+   */
+  private getNestedValue(obj: Record<string, unknown>, path: string): unknown {
+    return path.split('.').reduce((current: unknown, key) => {
+      if (current === null || current === undefined) return undefined;
+      return (current as Record<string, unknown>)[key];
+    }, obj);
+  }
+
+  /**
    * 创建错误对象
    */
   private createError(type: ExpressionError['type'], message: string): ExpressionError {
@@ -473,22 +552,34 @@ export function isValidExpression(expression: string): boolean {
  * @param context 上下文变量
  * @returns 替换后的字符串
  */
-export function interpolateTemplate(template: string, context: Record<string, unknown>): string {
+export async function interpolateTemplate(template: string, context: Record<string, unknown>): Promise<string> {
   if (!template || typeof template !== 'string') {
     return template;
   }
 
-  const engine = createExpressionEngine();
-
-  return template.replace(/\{\{([^}]+)\}\}/g, (match, expression) => {
-    try {
-      const result = engine.evaluate(expression.trim(), context);
-      if (result === undefined || result === null) {
-        return '';
-      }
-      return String(result);
-    } catch {
-      return match; // 求值失败保留原始模板
-    }
+  // 先收集所有匹配项，再批量求值（避免 replace 回调中调用 async）
+  const matches: Array<{ placeholder: string; expression: string }> = [];
+  template.replace(/\{\{([^}]+)\}\}/g, (match, expression) => {
+    matches.push({ placeholder: match, expression: expression.trim() });
+    return match;
   });
+
+  let result = template;
+  for (const { placeholder, expression } of matches) {
+    try {
+      const value = await expressionEngine.evaluate(expression, context);
+      result = result.replace(placeholder, value == null ? '' : String(value));
+    } catch {
+      // 求值失败保留原始模板
+    }
+  }
+
+  return result;
 }
+
+/**
+ * 全局单例表达式引擎实例
+ *
+ * 前端渲染器、后端自动化引擎统一使用此实例。
+ */
+export const expressionEngine = new DefaultExpressionEngine();

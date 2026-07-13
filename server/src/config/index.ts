@@ -18,3 +18,9 @@ export const DATA_DIR = path.resolve(__dirname, '../../../data');
 
 /** 租户根目录(每个租户下有 data/ 和 apps/) */
 export const TENANTS_DIR = path.resolve(__dirname, '../../../tenants');
+
+/** JWT 签名密钥 — 生产环境务必通过环境变量覆盖 */
+export const JWT_SECRET = process.env.JWT_SECRET || 'low-code-dev-secret-key';
+
+/** JWT 过期时间 */
+export const JWT_EXPIRES_IN = '24h';

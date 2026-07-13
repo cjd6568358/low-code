@@ -24,6 +24,7 @@ import {
 } from '@low-code/shared';
 import { VariableTree } from '@low-code/renderer';
 import type { VariableTreeNode } from '@low-code/renderer';
+import { apiFetch } from '../../../utils/apiClient.js';
 
 const { Text } = Typography;
 
@@ -254,7 +255,7 @@ export function PageComponentPicker({
     (async () => {
       setLoading(true);
       try {
-        const resp = await fetch(`/api/apps/${appId}`);
+        const resp = await apiFetch(`/api/apps/${appId}`);
         const data = await resp.json();
         if (!cancelled && data.success) {
           setPages((data.resources?.pages || []).map((p: PageInfo) => ({
@@ -278,7 +279,7 @@ export function PageComponentPicker({
     (async () => {
       setLoading(true);
       try {
-        const resp = await fetch(`/api/apps/${appId}/pages/${selectedPageId}`);
+        const resp = await apiFetch(`/api/apps/${appId}/pages/${selectedPageId}`);
         const data = await resp.json();
         if (!cancelled && data.success && data.resource) {
           const entries = extractComponentProps(data.resource as PageSchema);

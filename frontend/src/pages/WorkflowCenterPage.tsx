@@ -17,6 +17,7 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { apiFetch } from '../utils/apiClient.js';
 
 /** 应用信息 */
 interface AppInfo {
@@ -75,7 +76,7 @@ export default function WorkflowCenterPage() {
 
   // 加载应用列表
   useEffect(() => {
-    fetch('/api/apps')
+    apiFetch('/api/apps')
       .then((res) => res.json())
       .then((data) => {
         const appList = (data.data || data.resources || []).map((a: any) => ({
@@ -93,7 +94,7 @@ export default function WorkflowCenterPage() {
   // 加载流程定义（用于显示流程名称）
   const loadDefinitions = useCallback(async (appId: string) => {
     try {
-      const res = await fetch(`/api/apps/${appId}/workflows`);
+      const res = await apiFetch(`/api/apps/${appId}/workflows`);
       const data = await res.json();
       setDefinitions(data.data || data.resources || []);
     } catch {
@@ -106,7 +107,7 @@ export default function WorkflowCenterPage() {
     if (!appId) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/apps/${appId}/workflow-instances`);
+      const res = await apiFetch(`/api/apps/${appId}/workflow-instances`);
       const data = await res.json();
       setInstances(data.data || []);
     } catch {
@@ -147,7 +148,7 @@ export default function WorkflowCenterPage() {
   const handleTerminate = useCallback(
     async (instanceId: string) => {
       try {
-        const res = await fetch(`/api/apps/${selectedAppId}/workflow-instances/${instanceId}/terminate`, {
+        const res = await apiFetch(`/api/apps/${selectedAppId}/workflow-instances/${instanceId}/terminate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

@@ -29,6 +29,7 @@ import {
 import type {
   CustomCardDefinition, ExposedProp, MethodDefinition, EventDefinition, MethodParam,
 } from '@low-code/shared';
+import { apiFetch } from '../utils/apiClient.js';
 
 const { Text, Title } = Typography;
 const { TextArea } = Input;
@@ -119,7 +120,7 @@ export default function CardDesign({ appId, cardId, onSaved }: CardDesignProps) 
     let cancelled = false;
     (async () => {
       try {
-        const resp = await fetch(`/api/apps/${appId}/cards/${cardId}`);
+        const resp = await apiFetch(`/api/apps/${appId}/cards/${cardId}`);
         const data = await resp.json();
         if (!cancelled && data.success && data.resource) {
           setCard(data.resource);
@@ -315,7 +316,7 @@ export default function CardDesign({ appId, cardId, onSaved }: CardDesignProps) 
 
     setSaving(true);
     try {
-      const resp = await fetch(`/api/apps/${appId}/cards/${cardId}`, {
+      const resp = await apiFetch(`/api/apps/${appId}/cards/${cardId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(card),

@@ -20,11 +20,12 @@ import type {
   ComponentState,
   DataSourceItem,
   ServerVariableProxy,
-  ComputationEngine,
+  ExpressionEngine,
   FetchProxy,
   WorkflowContext,
   EnvironmentContext,
 } from '@low-code/shared';
+import { createExpressionEngine } from '@low-code/shared';
 import { createQueryProxy } from './QueryProxy';
 
 /** 认证服务接口 */
@@ -59,7 +60,7 @@ export interface ServerVariableResolver {
 /** 运算引擎接口 */
 export interface ComputationEngineService {
   /** 获取运算引擎实例 */
-  getEngine(): ComputationEngine;
+  getEngine(): ExpressionEngine;
 }
 
 /** 请求服务接口 */
@@ -303,17 +304,7 @@ export function createDefaultRenderContextBuilder(): RenderContextBuilder {
     },
     computationEngineService: {
       getEngine() {
-        return {
-          async evaluate(expression: string, context?: Record<string, any>) {
-            // 简单的表达式求值（生产环境应使用安全的沙箱）
-            try {
-              const fn = new Function(...Object.keys(context || {}), `return ${expression}`);
-              return fn(...Object.values(context || {}));
-            } catch {
-              return undefined;
-            }
-          },
-        };
+        return createExpressionEngine();
       },
     },
     fetchService: {

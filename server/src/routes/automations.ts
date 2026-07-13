@@ -370,18 +370,16 @@ export function createAutomationsRouter(): KoaRouter {
       const manager = getDbManager();
       const db = manager.getTenantDb(tenantId);
 
-      const logs = db.all(
+      const logs = db.prepare(
         `SELECT * FROM automation_execution_logs
          WHERE rule_id = ?
          ORDER BY created_at DESC
          LIMIT ? OFFSET ?`,
-        [ruleId, limit, offset]
-      );
+      ).all(ruleId, limit, offset);
 
-      const total = db.get(
+      const total = db.prepare(
         'SELECT COUNT(*) as count FROM automation_execution_logs WHERE rule_id = ?',
-        [ruleId]
-      );
+      ).get(ruleId);
 
       ctx.body = {
         data: logs,
@@ -410,10 +408,9 @@ export function createAutomationsRouter(): KoaRouter {
       const manager = getDbManager();
       const db = manager.getTenantDb(tenantId);
 
-      const log = db.get(
+      const log = db.prepare(
         'SELECT * FROM automation_execution_logs WHERE id = ?',
-        [logId]
-      );
+      ).get(logId);
 
       if (!log) {
         ctx.status = 404;

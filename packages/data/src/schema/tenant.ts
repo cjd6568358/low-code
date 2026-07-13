@@ -295,8 +295,12 @@ CREATE TABLE IF NOT EXISTS workflow_instances (
   source_table        TEXT,
   source_id           TEXT,
   current_snapshot_id INTEGER,
-  status              TEXT CHECK (status IN ('running', 'pending', 'completed', 'rejected', 'cancelled', 'failed')),
+  current_node_id     TEXT,
+  status              TEXT CHECK (status IN ('running', 'waiting', 'pending', 'completed', 'rejected', 'cancelled', 'failed', 'terminated')),
+  variables           TEXT,
+  checkpoint          TEXT,
   started_by          TEXT,
+  started_by_name     TEXT,
   started_at          TEXT NOT NULL DEFAULT (datetime('now')),
   completed_at        TEXT
 );
@@ -323,6 +327,47 @@ CREATE TABLE IF NOT EXISTS workflow_snapshots (
 
 CREATE INDEX IF NOT EXISTS idx_wf_snap_instance ON workflow_snapshots(instance_id);
 CREATE INDEX IF NOT EXISTS idx_wf_snap_source ON workflow_snapshots(source_table, source_id);
+
+-- 流程任务表（审批任务）
+CREATE TABLE IF NOT EXISTS workflow_tasks (
+  id            TEXT PRIMARY KEY,
+  instance_id   INTEGER NOT NULL REFERENCES workflow_instances(id),
+  node_id       TEXT NOT NULL,
+  node_name     TEXT,
+  assignee_id   TEXT,
+  assignee_name TEXT,
+  status        TEXT NOT NULL DEFAULT 'pending'
+                  CHECK (status IN ('pending', 'completed', 'rejected', 'cancelled')),
+  form_data     TEXT,
+  comment       TEXT,
+  due_date      TEXT,
+  completed_at  TEXT,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_wf_tasks_instance ON workflow_tasks(instance_id);
+CREATE INDEX IF NOT EXISTS idx_wf_tasks_assignee ON workflow_tasks(assignee_id, status);
+CREATE INDEX IF NOT EXISTS idx_wf_tasks_node ON workflow_tasks(instance_id, node_id);
+
+-- 流程节点执行记录表（Job）
+CREATE TABLE IF NOT EXISTS workflow_jobs (
+  id            TEXT PRIMARY KEY,
+  instance_id   INTEGER NOT NULL REFERENCES workflow_instances(id),
+  node_id       TEXT NOT NULL,
+  node_key      TEXT,
+  upstream_id   TEXT,
+  status        TEXT NOT NULL
+                  CHECK (status IN ('pending', 'resolved', 'failed', 'error', 'aborted', 'retry_needed')),
+  result        TEXT,
+  meta          TEXT,
+  error         TEXT,
+  retry_count   INTEGER NOT NULL DEFAULT 0,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_wf_jobs_instance ON workflow_jobs(instance_id);
+CREATE INDEX IF NOT EXISTS idx_wf_jobs_node ON workflow_jobs(instance_id, node_id);
 
 -- ============================================================
 -- 自动化引擎

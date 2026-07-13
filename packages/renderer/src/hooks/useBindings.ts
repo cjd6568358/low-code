@@ -10,7 +10,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { ExpressionBinding } from '@low-code/shared';
-import type { DefaultExpressionEngine } from '@low-code/computation';
+import type { DefaultExpressionEngine } from '@low-code/shared';
 import { dependencyGraph, extractDependencies } from '../core/DependencyGraph';
 import { DataBindingResolver } from '../core/DataBindingResolver';
 import { bindingCache } from '../core/BindingCache';

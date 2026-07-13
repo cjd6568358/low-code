@@ -198,11 +198,33 @@
 | code | name | 说明 |
 |------|------|------|
 | running | 运行中 | 流程执行中 |
+| waiting | 等待中 | 等待外部输入（定时器、回调等） |
 | pending | 待处理 | 等待审批/操作 |
 | completed | 已完成 | 正常结束 |
 | rejected | 已拒绝 | 审批拒绝 |
-| cancelled | 已取消 | 手动终止 |
+| cancelled | 已取消 | 手动取消 |
 | failed | 执行失败 | 异常终止 |
+| terminated | 已终止 | 超时或手动终止 |
+
+### 流程任务状态字典 (workflow_task_statuses)
+
+| code | name | 说明 |
+|------|------|------|
+| pending | 待处理 | 等待审批 |
+| completed | 已完成 | 审批通过 |
+| rejected | 已拒绝 | 审批驳回 |
+| cancelled | 已取消 | 任务取消（转办/终止等） |
+
+### 流程 Job 状态字典 (workflow_job_statuses)
+
+| code | name | 说明 |
+|------|------|------|
+| pending | 等待执行 | 人工节点等待审批 |
+| resolved | 执行成功 | 节点正常完成 |
+| failed | 执行失败 | 业务层面失败（如条件不满足） |
+| error | 执行异常 | 系统层面异常（超时、网络错误等） |
+| aborted | 已中止 | 超时或手动终止 |
+| retry_needed | 需要重试 | 待重试执行 |
 
 ---
 

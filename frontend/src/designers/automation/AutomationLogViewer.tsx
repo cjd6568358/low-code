@@ -33,6 +33,7 @@ import {
   ClockCircleOutlined,
   RightOutlined,
 } from '@ant-design/icons';
+import { apiFetch } from '../../../utils/apiClient.js';
 
 const { Text, Paragraph } = Typography;
 const { Option } = Select;
@@ -172,7 +173,7 @@ export const AutomationLogViewer: React.FC<AutomationLogViewerProps> = ({
         params.append('status', statusFilter);
       }
 
-      const response = await fetch(`${apiBase}/${ruleId}/logs?${params}`);
+      const response = await apiFetch(`${apiBase}/${ruleId}/logs?${params}`);
       const data = await response.json();
 
       setLogs(data.data || []);

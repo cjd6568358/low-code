@@ -2,13 +2,13 @@
  * 运算规则路由
  *
  * 提供运算规则的 CRUD 和执行功能：
- * - GET /api/computations — 列表
- * - GET /api/computations/:id — 详情
- * - POST /api/computations — 创建
- * - PUT /api/computations/:id — 更新
- * - DELETE /api/computations/:id — 删除
- * - POST /api/computations/:id/execute — 执行
- * - POST /api/computations/preview — 预览
+ * - GET /api/apps/:appId/computations — 列表
+ * - GET /api/apps/:appId/computations/:id — 详情
+ * - POST /api/apps/:appId/computations — 创建
+ * - PUT /api/apps/:appId/computations/:id — 更新
+ * - DELETE /api/apps/:appId/computations/:id — 删除
+ * - POST /api/apps/:appId/computations/:id/execute — 执行
+ * - POST /api/apps/:appId/computations/preview — 预览
  */
 
 import KoaRouter from '@koa/router';
@@ -16,17 +16,6 @@ import { TENANTS_DIR } from '../config/index.js';
 import { computationExecutor } from '../services/ComputationExecutor.js';
 import fs from 'fs';
 import path from 'path';
-
-/** 获取第一个活跃租户 ID */
-function getFirstTenantId(): string | null {
-  try {
-    const entries = fs.readdirSync(TENANTS_DIR, { withFileTypes: true });
-    const tenant = entries.find((e) => e.isDirectory() && e.name.startsWith('tenant_'));
-    return tenant?.name || null;
-  } catch {
-    return null;
-  }
-}
 
 /** 查找应用目录和租户 ID */
 function findAppDir(appId: string): [string, string] | null {
@@ -51,16 +40,17 @@ function generateHexId(): string {
   return Math.random().toString(16).substring(2, 10);
 }
 
-/** 创建运算路由 */
+/**
+ * 创建运算路由
+ *
+ * 挂载在 /api/apps/:appId 下，路径为 /api/apps/:appId/computations
+ */
 export function createComputationsRouter(): KoaRouter {
-  const router = new KoaRouter({ prefix: '/api/computations' });
+  const router = new KoaRouter({ prefix: '/computations' });
 
-  /**
-   * GET /api/computations
-   * 获取运算规则列表
-   */
-  router.get('/', async (ctx) => {
-    const appId = ctx.query.appId as string;
+  // 中间件：从路由参数获取 appId 并验证应用存在
+  router.use(async (ctx, next) => {
+    const appId = ctx.params.appId;
     if (!appId) {
       ctx.status = 400;
       ctx.body = { success: false, error: 'appId is required' };
@@ -74,7 +64,18 @@ export function createComputationsRouter(): KoaRouter {
       return;
     }
 
-    const [, appDir] = result;
+    // 将 appDir 挂载到 ctx.state 供后续路由使用
+    ctx.state.appDir = result[1];
+    ctx.state.appId = appId;
+    await next();
+  });
+
+  /**
+   * GET /api/apps/:appId/computations
+   * 获取运算规则列表
+   */
+  router.get('/', async (ctx) => {
+    const appDir = ctx.state.appDir as string;
     const computationsDir = path.join(appDir, 'computations');
 
     try {
@@ -90,35 +91,21 @@ export function createComputationsRouter(): KoaRouter {
       });
 
       ctx.body = { success: true, data: computations };
-    } catch (error) {
+    } catch {
       ctx.status = 500;
       ctx.body = { success: false, error: '加载运算规则失败' };
     }
   });
 
   /**
-   * GET /api/computations/:id
+   * GET /api/apps/:appId/computations/:id
    * 获取单个运算规则
    */
   router.get('/:id', async (ctx) => {
     const { id } = ctx.params;
-    const appId = ctx.query.appId as string;
-
-    if (!appId) {
-      ctx.status = 400;
-      ctx.body = { success: false, error: 'appId is required' };
-      return;
-    }
-
-    const result = findAppDir(appId);
-    if (!result) {
-      ctx.status = 404;
-      ctx.body = { success: false, error: '应用不存在' };
-      return;
-    }
-
-    const [, appDir] = result;
-    const computationFile = path.join(appDir, 'computations', `${id}.json`);
+    const appDir = ctx.state.appDir as string;
+    const dirName = id.startsWith('computation_') ? id : `computation_${id}`;
+    const computationFile = path.join(appDir, 'computations', `${dirName}.json`);
 
     try {
       if (!fs.existsSync(computationFile)) {
@@ -129,36 +116,22 @@ export function createComputationsRouter(): KoaRouter {
 
       const content = fs.readFileSync(computationFile, 'utf-8');
       ctx.body = { success: true, data: JSON.parse(content) };
-    } catch (error) {
+    } catch {
       ctx.status = 500;
       ctx.body = { success: false, error: '加载运算规则失败' };
     }
   });
 
   /**
-   * POST /api/computations
+   * POST /api/apps/:appId/computations
    * 创建运算规则
    */
   router.post('/', async (ctx) => {
-    const appId = ctx.query.appId as string;
-    if (!appId) {
-      ctx.status = 400;
-      ctx.body = { success: false, error: 'appId is required' };
-      return;
-    }
-
-    const result = findAppDir(appId);
-    if (!result) {
-      ctx.status = 404;
-      ctx.body = { success: false, error: '应用不存在' };
-      return;
-    }
-
-    const [, appDir] = result;
+    const appId = ctx.state.appId as string;
+    const appDir = ctx.state.appDir as string;
     const computationsDir = path.join(appDir, 'computations');
 
     try {
-      // 确保目录存在
       if (!fs.existsSync(computationsDir)) {
         fs.mkdirSync(computationsDir, { recursive: true });
       }
@@ -188,35 +161,22 @@ export function createComputationsRouter(): KoaRouter {
       fs.writeFileSync(filePath, JSON.stringify(computation, null, 2), 'utf-8');
 
       ctx.body = { success: true, data: computation };
-    } catch (error) {
+    } catch {
       ctx.status = 500;
       ctx.body = { success: false, error: '创建运算规则失败' };
     }
   });
 
   /**
-   * PUT /api/computations/:id
+   * PUT /api/apps/:appId/computations/:id
    * 更新运算规则
    */
   router.put('/:id', async (ctx) => {
     const { id } = ctx.params;
-    const appId = ctx.query.appId as string;
-
-    if (!appId) {
-      ctx.status = 400;
-      ctx.body = { success: false, error: 'appId is required' };
-      return;
-    }
-
-    const result = findAppDir(appId);
-    if (!result) {
-      ctx.status = 404;
-      ctx.body = { success: false, error: '应用不存在' };
-      return;
-    }
-
-    const [, appDir] = result;
-    const computationFile = path.join(appDir, 'computations', `${id}.json`);
+    const appId = ctx.state.appId as string;
+    const appDir = ctx.state.appDir as string;
+    const dirName = id.startsWith('computation_') ? id : `computation_${id}`;
+    const computationFile = path.join(appDir, 'computations', `${dirName}.json`);
 
     try {
       if (!fs.existsSync(computationFile)) {
@@ -241,35 +201,21 @@ export function createComputationsRouter(): KoaRouter {
       fs.writeFileSync(computationFile, JSON.stringify(updated, null, 2), 'utf-8');
 
       ctx.body = { success: true, data: updated };
-    } catch (error) {
+    } catch {
       ctx.status = 500;
       ctx.body = { success: false, error: '更新运算规则失败' };
     }
   });
 
   /**
-   * DELETE /api/computations/:id
+   * DELETE /api/apps/:appId/computations/:id
    * 删除运算规则
    */
   router.delete('/:id', async (ctx) => {
     const { id } = ctx.params;
-    const appId = ctx.query.appId as string;
-
-    if (!appId) {
-      ctx.status = 400;
-      ctx.body = { success: false, error: 'appId is required' };
-      return;
-    }
-
-    const result = findAppDir(appId);
-    if (!result) {
-      ctx.status = 404;
-      ctx.body = { success: false, error: '应用不存在' };
-      return;
-    }
-
-    const [, appDir] = result;
-    const computationFile = path.join(appDir, 'computations', `${id}.json`);
+    const appDir = ctx.state.appDir as string;
+    const dirName = id.startsWith('computation_') ? id : `computation_${id}`;
+    const computationFile = path.join(appDir, 'computations', `${dirName}.json`);
 
     try {
       if (!fs.existsSync(computationFile)) {
@@ -280,25 +226,19 @@ export function createComputationsRouter(): KoaRouter {
 
       fs.unlinkSync(computationFile);
       ctx.body = { success: true };
-    } catch (error) {
+    } catch {
       ctx.status = 500;
       ctx.body = { success: false, error: '删除运算规则失败' };
     }
   });
 
   /**
-   * POST /api/computations/:id/execute
+   * POST /api/apps/:appId/computations/:id/execute
    * 执行运算规则
    */
   router.post('/:id/execute', async (ctx) => {
     const { id } = ctx.params;
-    const appId = ctx.query.appId as string;
-
-    if (!appId) {
-      ctx.status = 400;
-      ctx.body = { success: false, error: 'appId is required' };
-      return;
-    }
+    const appId = ctx.state.appId as string;
 
     const body = ctx.request.body as Record<string, unknown>;
     const params = (body.params || {}) as Record<string, unknown>;
@@ -308,10 +248,11 @@ export function createComputationsRouter(): KoaRouter {
   });
 
   /**
-   * POST /api/computations/preview
+   * POST /api/apps/:appId/computations/preview
    * 预览表达式执行结果
    */
   router.post('/preview', async (ctx) => {
+    const appId = ctx.state.appId as string;
     const body = ctx.request.body as {
       expression?: string;
       context?: Record<string, unknown>;
@@ -326,7 +267,7 @@ export function createComputationsRouter(): KoaRouter {
 
     const result = await computationExecutor.preview(
       body.expression,
-      body.context || {},
+      { ...body.context, appId },
       body.outputType || 'string'
     );
 

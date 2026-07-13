@@ -120,12 +120,12 @@ export class ConditionExpressionEvaluator implements IExpressionEvaluator {
   /**
    * 替换变量
    *
-   * 使用统一的流程变量体系，$env/$system/$initiator/$operator 已在 WorkflowEngine 中注入到 variables
+   * 使用统一的流程变量体系，$env/$now/$initiator/$operator 已在 WorkflowEngine 中注入到 variables
    */
   private resolveVariables(expression: string, context: EvaluationContext): string {
     const { variables, formData } = context;
 
-    // 合并所有变量来源（$env/$system/$initiator/$operator 已在 variables 中）
+    // 合并所有变量来源（$env/$now/$initiator/$operator 已在 variables 中）
     const allVariables: Record<string, unknown> = {
       ...variables,
       ...formData,

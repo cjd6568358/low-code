@@ -2,7 +2,7 @@
  * 触发器匹配器
  *
  * 负责检查事件是否匹配规则的触发器配置。
- * 支持 5 种触发器类型：data_change、schedule、form_event、workflow_event、custom_event。
+ * 支持 2 种触发器类型：data_change、schedule。
  */
 
 import type { AutomationTrigger, PlatformEvent, TriggerType } from '../types/trigger';
@@ -46,12 +46,6 @@ export class TriggerMatcher {
         return this.matchDataChange(event, trigger);
       case 'schedule':
         return this.matchSchedule(event, trigger);
-      case 'form_event':
-        return this.matchFormEvent(event, trigger);
-      case 'workflow_event':
-        return this.matchWorkflowEvent(event, trigger);
-      case 'custom_event':
-        return this.matchCustomEvent(event, trigger);
       default:
         return false;
     }
@@ -135,93 +129,12 @@ export class TriggerMatcher {
   }
 
   /**
-   * 匹配表单事件触发器
-   *
-   * 事件格式：form.submitted / form.field_changed
-   */
-  private matchFormEvent(event: PlatformEvent, trigger: AutomationTrigger): boolean {
-    const config = trigger.formEvent;
-    if (!config) return false;
-
-    // 检查事件类型前缀
-    if (!event.type.startsWith('form.')) return false;
-
-    // 提取事件子类型
-    const subEvent = event.type.split('.')[1] as 'submitted' | 'field_changed';
-    if (!config.events.includes(subEvent)) return false;
-
-    // 检查页面 ID
-    const eventPageId = event.data.pageId as string;
-    if (eventPageId !== config.pageId) return false;
-
-    // 检查字段编码（仅 field_changed 时有效）
-    if (subEvent === 'field_changed' && config.fieldCode) {
-      const eventFieldCode = event.data.fieldCode as string;
-      if (eventFieldCode !== config.fieldCode) return false;
-    }
-
-    return true;
-  }
-
-  /**
-   * 匹配审批事件触发器
-   *
-   * 事件格式：workflow.approved / workflow.rejected / workflow.completed / workflow.started
-   */
-  private matchWorkflowEvent(event: PlatformEvent, trigger: AutomationTrigger): boolean {
-    const config = trigger.workflowEvent;
-    if (!config) return false;
-
-    // 检查事件类型前缀
-    if (!event.type.startsWith('workflow.')) return false;
-
-    // 提取事件子类型
-    const subEvent = event.type.split('.')[1] as 'approved' | 'rejected' | 'completed' | 'started';
-    if (!config.events.includes(subEvent)) return false;
-
-    // 检查流程 ID（可选）
-    if (config.workflowId) {
-      const eventWorkflowId = event.data.workflowId as string;
-      if (eventWorkflowId !== config.workflowId) return false;
-    }
-
-    // 检查节点编码（可选）
-    if (config.nodeCode) {
-      const eventNodeCode = event.data.nodeCode as string;
-      if (eventNodeCode !== config.nodeCode) return false;
-    }
-
-    return true;
-  }
-
-  /**
-   * 匹配自定义事件触发器
-   *
-   * 直接匹配事件类型和来源。
-   */
-  private matchCustomEvent(event: PlatformEvent, trigger: AutomationTrigger): boolean {
-    const config = trigger.customEvent;
-    if (!config) return false;
-
-    // 检查事件类型
-    if (event.type !== config.eventType) return false;
-
-    // 检查事件来源（可选）
-    if (config.source && event.source !== config.source) return false;
-
-    return true;
-  }
-
-  /**
    * 获取触发器类型的显示名称
    */
   getTriggerTypeLabel(type: TriggerType): string {
     const labels: Record<TriggerType, string> = {
       'data_change': '数据变更',
       'schedule': '定时触发',
-      'form_event': '表单事件',
-      'workflow_event': '审批事件',
-      'custom_event': '自定义事件',
     };
     return labels[type] || type;
   }

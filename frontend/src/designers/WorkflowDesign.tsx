@@ -12,6 +12,7 @@ import { WorkflowDesigner, useBpmnConverter } from '@low-code/renderer';
 import type { BpmnDocument } from '@low-code/workflow';
 import type { INode } from 'react-flow-builder';
 import { generateNodeId } from '@low-code/shared';
+import { apiFetch } from '../utils/apiClient.js';
 
 /** 服务端返回的流程定义结构 */
 interface WorkflowDefinition {
@@ -79,7 +80,7 @@ export default function WorkflowDesign({ appId, workflowId, tenantId, onSaved }:
     let cancelled = false;
     (async () => {
       try {
-        const resp = await fetch(`/api/apps/${appId}/workflows/${workflowId}`);
+        const resp = await apiFetch(`/api/apps/${appId}/workflows/${workflowId}`);
         const data = await resp.json();
         const resource = data.data || data.resource;
         if (!cancelled && resource) {
@@ -117,7 +118,7 @@ export default function WorkflowDesign({ appId, workflowId, tenantId, onSaved }:
       // nodes -> schema
       const schema = toBpmnDocument(nodes);
 
-      const resp = await fetch(`/api/apps/${appId}/workflows/${workflowId}`, {
+      const resp = await apiFetch(`/api/apps/${appId}/workflows/${workflowId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ schema }),
@@ -143,7 +144,7 @@ export default function WorkflowDesign({ appId, workflowId, tenantId, onSaved }:
     if (!workflow) return;
     setPublishing(true);
     try {
-      const resp = await fetch(`/api/workflows/${workflowId}/publish?appId=${appId}`, {
+      const resp = await apiFetch(`/api/workflows/${workflowId}/publish?appId=${appId}`, {
         method: 'POST',
       });
       const data = await resp.json();

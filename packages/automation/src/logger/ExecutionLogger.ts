@@ -12,7 +12,13 @@ import type {
 } from '../types/execution';
 import type { ConditionEvaluationResult } from '../types/condition';
 import type { ActionResult } from '../types/action';
-import type { DatabaseAdapter } from '../types/engine';
+
+/** 数据库适配器接口 */
+export interface DatabaseAdapter {
+  run(sql: string, params?: unknown[]): Promise<{ changes: number; lastID: number }>;
+  get<T>(sql: string, params?: unknown[]): Promise<T | undefined>;
+  all<T>(sql: string, params?: unknown[]): Promise<T[]>;
+}
 
 /**
  * 执行日志记录器

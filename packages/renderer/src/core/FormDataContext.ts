@@ -1,7 +1,7 @@
 import type { FormDataContext as IFormDataContext } from '@low-code/shared';
 import { ValidationEngine } from './ValidationEngine';
 import { LinkageEngine, type LinkageResult } from './LinkageEngine';
-import type { DefaultExpressionEngine } from '@low-code/computation';
+import type { DefaultExpressionEngine } from '@low-code/shared';
 
 /** 初始值来源（优先级从低到高） */
 export type InitialValueSource = 'schema' | 'url' | 'draft' | 'edit' | 'snapshot';
@@ -77,7 +77,7 @@ export class FormDataContextManager {
     // Schema defaultValueExpression
     if (config.schemaDefaultExpressions) {
       for (const [field, expr] of Object.entries(config.schemaDefaultExpressions)) {
-        values[field] = this.expressionEngine.safeEvaluate(expr, values);
+        values[field] = this.expressionEngine.safeEvaluateSync(expr, values);
       }
     }
 

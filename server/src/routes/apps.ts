@@ -13,6 +13,7 @@ import { TENANTS_DIR } from '../config/index.js';
 import type { DatabaseManager } from '@low-code/data';
 import { TableService } from '../services/TableService.js';
 import { generateHexId, RESOURCE_TYPES } from '@low-code/shared';
+import { createComputationsRouter } from './computations.js';
 
 /** Add prefix for directory/file names */
 function withPrefix(uuid: string, prefix: string): string {
@@ -653,6 +654,55 @@ export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
   });
 
   /**
+   * GET /api/apps/:appId/automations/:ruleId/logs
+   * 获取自动化规则执行日志
+   */
+  router.get('/:appId/automations/:ruleId/logs', async (ctx) => {
+    const { appId, ruleId } = ctx.params;
+    const tenantId = getFirstTenantId();
+
+    if (!tenantId) {
+      ctx.status = 404;
+      ctx.body = { error: '没有找到租户' };
+      return;
+    }
+
+    if (!manager) {
+      ctx.status = 500;
+      ctx.body = { error: '数据库未初始化' };
+      return;
+    }
+
+    const limit = parseInt(ctx.query.limit as string) || 20;
+    const offset = parseInt(ctx.query.offset as string) || 0;
+
+    try {
+      const db = manager.getTenantDb(tenantId);
+
+      const logs = db.prepare(
+        `SELECT * FROM automation_execution_logs
+         WHERE rule_id = ?
+         ORDER BY created_at DESC
+         LIMIT ? OFFSET ?`,
+      ).all(ruleId, limit, offset);
+
+      const total = db.prepare(
+        'SELECT COUNT(*) as count FROM automation_execution_logs WHERE rule_id = ?',
+      ).get(ruleId);
+
+      ctx.body = {
+        data: logs,
+        total: (total as Record<string, unknown>)?.count || 0,
+        limit,
+        offset,
+      };
+    } catch (error) {
+      console.error('[Apps] 查询自动化日志失败:', error);
+      ctx.body = { data: [], total: 0 };
+    }
+  });
+
+  /**
    * GET /api/apps/:appId/:resourceType/:resourceId
    * 获取单个资源内容
    */
@@ -1007,6 +1057,13 @@ export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
 
     ctx.body = { success: true, affectedApps };
   });
+
+  // 挂载运算规则子路由
+  router.use(
+    '/:appId/computations',
+    createComputationsRouter().routes(),
+    createComputationsRouter().allowedMethods()
+  );
 
   return router;
 }

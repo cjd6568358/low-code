@@ -180,9 +180,10 @@ frontend/        ← 前端门户（Vite + React，端口 5173）
   src/layouts/     布局（MainLayout）
   src/pages/       页面（LoginPage、WorkspacePage、AppCenterPage、WorkflowCenterPage、ConfigCenterPage、AppDesignPage）
   src/styles/      全局样式
+  src/utils/       工具函数（apiClient — 统一 fetch 封装）
 server/          ← 后端 API（Koa，端口 3001）
   src/config/      配置（端口、DB 单例）
-  src/middlewares/  中间件（错误、CORS、日志）
+  src/middlewares/  中间件（错误、CORS、日志、JWT 认证、租户守卫）
   src/routes/      路由（auth、health）
   src/services/    业务服务层（预留）
 packages/        ← 引擎层（纯逻辑，无框架依赖）
@@ -222,8 +223,10 @@ TODO.md          ← 技术难点与工作计划
 1. 前端 POST `/api/auth/login` { email, password, tenantId? }
 2. 若指定 tenantId，只在该租户库中查找用户；否则查找系统用户
 3. scrypt 验证密码，查询角色/部门/岗位
-4. 返回用户信息（含角色），前端存 sessionStorage
-5. 前端根据角色渲染菜单和权限（PermissionGuard）
+4. 后端签发 JWT（payload: userId, email, role, tenantId），返回 token + 用户信息
+5. 前端存储 token 到 localStorage，后续请求通过 `apiFetch()` 自动附带 `Authorization: Bearer <token>`
+6. 服务端 `authMiddleware` 校验 JWT，`tenantGuard` 校验租户归属
+7. 前端根据角色渲染菜单和权限（PermissionGuard）
 
 ---
 

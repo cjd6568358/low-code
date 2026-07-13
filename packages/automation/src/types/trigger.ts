@@ -1,25 +1,16 @@
 /**
  * 自动化引擎 — 触发器类型定义
  *
- * 定义 5 种触发器类型及其配置结构。
+ * 定义 2 种触发器类型及其配置结构。
  */
 
 /** 触发器类型 */
 export type TriggerType =
   | 'data_change'
-  | 'schedule'
-  | 'form_event'
-  | 'workflow_event'
-  | 'custom_event';
+  | 'schedule';
 
 /** 数据变更操作类型 */
 export type DataChangeOperation = 'create' | 'update' | 'delete';
-
-/** 表单事件类型 */
-export type FormEventType = 'submitted' | 'field_changed';
-
-/** 审批事件类型 */
-export type WorkflowEventType = 'approved' | 'rejected' | 'completed' | 'started';
 
 /** 数据变更触发器配置 */
 export interface DataChangeTriggerConfig {
@@ -43,38 +34,10 @@ export interface ScheduleTriggerConfig {
   endDate?: string;
 }
 
-/** 表单事件触发器配置 */
-export interface FormEventTriggerConfig {
-  /** 关联页面 ID */
-  pageId: string;
-  /** 监听的事件类型 */
-  events: FormEventType[];
-  /** field_changed 时指定字段编码 */
-  fieldCode?: string;
-}
-
-/** 审批事件触发器配置 */
-export interface WorkflowEventTriggerConfig {
-  /** 指定流程定义 ID（为空则监听所有） */
-  workflowId?: string;
-  /** 监听的事件类型 */
-  events: WorkflowEventType[];
-  /** 指定节点编码 */
-  nodeCode?: string;
-}
-
-/** 自定义事件触发器配置 */
-export interface CustomEventTriggerConfig {
-  /** 事件类型 */
-  eventType: string;
-  /** 事件来源过滤 */
-  source?: string;
-}
-
 /**
  * 自动化触发器配置
  *
- * 描述规则的触发条件，支持 5 种触发器类型。
+ * 描述规则的触发条件，支持 2 种触发器类型。
  */
 export interface AutomationTrigger {
   /** 触发器类型 */
@@ -85,15 +48,6 @@ export interface AutomationTrigger {
 
   /** 定时触发器配置 */
   schedule?: ScheduleTriggerConfig;
-
-  /** 表单事件触发器配置 */
-  formEvent?: FormEventTriggerConfig;
-
-  /** 审批事件触发器配置 */
-  workflowEvent?: WorkflowEventTriggerConfig;
-
-  /** 自定义事件触发器配置 */
-  customEvent?: CustomEventTriggerConfig;
 }
 
 /**

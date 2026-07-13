@@ -1,7 +1,7 @@
 /**
  * 自动化引擎 — 动作类型定义
  *
- * 定义 5 种动作类型及其配置结构。
+ * 定义 4 种动作类型及其配置结构。
  */
 
 import type { AutomationCondition } from './condition';
@@ -11,8 +11,7 @@ export type ActionType =
   | 'trigger_workflow'
   | 'send_notification'
   | 'data_operation'
-  | 'api_call'
-  | 'webhook';
+  | 'execute_expression';
 
 /** 通知渠道 */
 export type NotificationChannel = 'site' | 'email' | 'sms' | 'wecom' | 'dingtalk' | 'feishu';
@@ -22,12 +21,6 @@ export type NotificationPriority = 'low' | 'normal' | 'high' | 'urgent';
 
 /** 数据操作类型 */
 export type DataOperationType = 'create' | 'update' | 'delete';
-
-/** HTTP 方法 */
-export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
-
-/** 认证类型 */
-export type AuthType = 'bearer' | 'basic' | 'api_key';
 
 /** 动作执行状态 */
 export type ActionExecutionStatus = 'success' | 'failed' | 'skipped' | 'retrying';
@@ -102,41 +95,13 @@ export interface DataOperationConfig {
 }
 
 /**
- * API 调用认证配置
+ * 执行表达式动作配置
  */
-export interface ApiAuthConfig {
-  /** 认证类型 */
-  type: AuthType;
-  /** 认证配置 */
-  config: Record<string, string>;
-}
-
-/**
- * API 调用动作配置
- */
-export interface ApiCallConfig {
-  /** HTTP 方法 */
-  method: HttpMethod;
-  /** 请求 URL（支持变量插值） */
-  url: string;
-  /** 请求头 */
-  headers?: Record<string, string>;
-  /** 请求体（支持变量插值） */
-  body?: Record<string, unknown>;
-  /** 超时时间（毫秒） */
-  timeout?: number;
-  /** 认证配置 */
-  auth?: ApiAuthConfig;
-}
-
-/**
- * Webhook 动作配置
- */
-export interface WebhookConfig {
-  /** 已配置的 Webhook ID */
-  webhookId: string;
-  /** 自定义载荷（支持变量插值） */
-  payload?: Record<string, unknown>;
+export interface ExecuteExpressionConfig {
+  /** 表达式内容（JavaScript 表达式或语句） */
+  script: string;
+  /** 额外上下文变量 */
+  context?: Record<string, unknown>;
 }
 
 /**
@@ -169,11 +134,8 @@ export interface AutomationAction {
   /** 数据操作配置 */
   dataOperation?: DataOperationConfig;
 
-  /** API 调用配置 */
-  apiCall?: ApiCallConfig;
-
-  /** Webhook 配置 */
-  webhook?: WebhookConfig;
+  /** 执行表达式配置 */
+  executeExpression?: ExecuteExpressionConfig;
 }
 
 /**

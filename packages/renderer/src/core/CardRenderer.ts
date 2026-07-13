@@ -5,7 +5,7 @@ import type {
   RenderContext,
   MethodDefinition,
 } from '@low-code/shared';
-import type { DefaultExpressionEngine } from '@low-code/computation';
+import type { DefaultExpressionEngine } from '@low-code/shared';
 import type { DataBindingResolver } from './DataBindingResolver';
 import type { ComponentMethodRegistry, MethodHandler } from './ComponentMethodRegistry';
 
@@ -57,7 +57,7 @@ export class CardRenderer {
       const propName = binding.target.split('.')[1];
       return scope.$props?.[propName];
     }
-    return this.expressionEngine.safeEvaluate(binding.expression, scope);
+    return this.expressionEngine.safeEvaluateSync(binding.expression, scope);
   }
 
   /**
@@ -76,7 +76,7 @@ export class CardRenderer {
         let data = event;
         if (eventDef.transform) {
           const scope = { $this: event, $props: consumerProps };
-          data = this.expressionEngine.safeEvaluate(eventDef.transform, scope);
+          data = this.expressionEngine.safeEvaluateSync(eventDef.transform, scope);
         }
         emitEvent(eventDef.emit, data);
       };

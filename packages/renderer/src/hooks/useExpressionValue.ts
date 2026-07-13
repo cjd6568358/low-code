@@ -13,7 +13,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { RenderContext } from '@low-code/shared';
 import type { ExpressionBinding } from '@low-code/shared';
-import type { DefaultExpressionEngine } from '@low-code/computation';
+import type { DefaultExpressionEngine } from '@low-code/shared';
 import { dependencyGraph, extractDependencies } from '../core/DependencyGraph';
 
 /** Hook 配置 */

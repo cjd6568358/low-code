@@ -165,7 +165,7 @@ export const ComputationSelector: React.FC<ComputationSelectorProps> = ({
 
     setLoading(true);
     try {
-      const response = await fetch(`/api/computations?appId=${appId}`);
+      const response = await fetch(`/api/apps/${appId}/computations`);
       const data = await response.json();
 
       if (data.success && Array.isArray(data.data)) {

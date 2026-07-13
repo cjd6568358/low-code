@@ -1,12 +1,9 @@
 /**
  * 触发器配置组件
  *
- * 支持 5 种触发器类型的可视化配置：
+ * 支持 2 种触发器类型的可视化配置：
  * - 数据变更 (data_change)
  * - 定时触发 (schedule)
- * - 表单事件 (form_event)
- * - 审批事件 (workflow_event)
- * - 自定义事件 (custom_event)
  */
 
 import React, { useCallback } from 'react';
@@ -25,9 +22,6 @@ import {
 import {
   DatabaseOutlined,
   ClockCircleOutlined,
-  FormOutlined,
-  ApiOutlined,
-  ThunderboltOutlined,
   QuestionCircleOutlined,
   DeleteOutlined,
 } from '@ant-design/icons';
@@ -39,9 +33,6 @@ const { Option } = Select;
 const TRIGGER_TYPES = [
   { value: 'data_change', label: '数据变更', icon: <DatabaseOutlined />, description: '监听实体记录的创建/更新/删除' },
   { value: 'schedule', label: '定时触发', icon: <ClockCircleOutlined />, description: '基于 Cron 表达式的定时任务' },
-  { value: 'form_event', label: '表单事件', icon: <FormOutlined />, description: '表单提交、字段值变更' },
-  { value: 'workflow_event', label: '审批事件', icon: <ApiOutlined />, description: '流程审批通过/拒绝/完成' },
-  { value: 'custom_event', label: '自定义事件', icon: <ThunderboltOutlined />, description: '平台事件总线中的任意事件' },
 ];
 
 /** 数据变更操作选项 */
@@ -49,20 +40,6 @@ const DATA_CHANGE_OPERATIONS = [
   { value: 'create', label: '创建' },
   { value: 'update', label: '更新' },
   { value: 'delete', label: '删除' },
-];
-
-/** 表单事件选项 */
-const FORM_EVENTS = [
-  { value: 'submitted', label: '表单提交' },
-  { value: 'field_changed', label: '字段变更' },
-];
-
-/** 审批事件选项 */
-const WORKFLOW_EVENTS = [
-  { value: 'started', label: '流程启动' },
-  { value: 'approved', label: '审批通过' },
-  { value: 'rejected', label: '审批拒绝' },
-  { value: 'completed', label: '流程完成' },
 ];
 
 /** 组件属性 */
@@ -73,10 +50,6 @@ export interface TriggerConfigProps {
   onChange?: (value: Record<string, unknown>) => void;
   /** 可选的实体列表（用于数据变更触发器） */
   entities?: Array<{ code: string; name: string; fields?: Array<{ code: string; name: string }> }>;
-  /** 可选的页面列表（用于表单事件触发器） */
-  pages?: Array<{ id: string; name: string }>;
-  /** 可选的流程列表（用于审批事件触发器） */
-  workflows?: Array<{ id: string; name: string }>;
 }
 
 /**
@@ -86,8 +59,6 @@ export const TriggerConfig: React.FC<TriggerConfigProps> = ({
   value = {},
   onChange,
   entities = [],
-  pages = [],
-  workflows = [],
 }) => {
   const triggerType = value.type as string;
 
@@ -203,112 +174,6 @@ export const TriggerConfig: React.FC<TriggerConfigProps> = ({
     );
   };
 
-  /** 渲染表单事件触发器配置 */
-  const renderFormEventConfig = () => {
-    const config = (value.formEvent || {}) as Record<string, unknown>;
-
-    return (
-      <div style={{ marginTop: 16, padding: 16, background: '#fafafa', borderRadius: 8 }}>
-        <Form.Item label="关联页面" required>
-          <Select
-            value={config.pageId as string}
-            onChange={(val) => handleChange('formEvent', { ...config, pageId: val })}
-            placeholder="选择关联的页面"
-          >
-            {pages.map(page => (
-              <Option key={page.id} value={page.id}>
-                {page.name}
-              </Option>
-            ))}
-          </Select>
-        </Form.Item>
-
-        <Form.Item label="监听事件" required>
-          <Checkbox.Group
-            value={(config.events as string[]) || []}
-            onChange={(vals) => handleChange('formEvent', { ...config, events: vals })}
-            options={FORM_EVENTS}
-          />
-        </Form.Item>
-
-        {(config.events as string[])?.includes('field_changed') && (
-          <Form.Item label="指定字段">
-            <Input
-              value={config.fieldCode as string}
-              onChange={(e) => handleChange('formEvent', { ...config, fieldCode: e.target.value })}
-              placeholder="输入字段编码"
-            />
-          </Form.Item>
-        )}
-      </div>
-    );
-  };
-
-  /** 渲染审批事件触发器配置 */
-  const renderWorkflowEventConfig = () => {
-    const config = (value.workflowEvent || {}) as Record<string, unknown>;
-
-    return (
-      <div style={{ marginTop: 16, padding: 16, background: '#fafafa', borderRadius: 8 }}>
-        <Form.Item label="指定流程">
-          <Select
-            value={config.workflowId as string}
-            onChange={(val) => handleChange('workflowEvent', { ...config, workflowId: val })}
-            placeholder="选择流程（留空则监听所有）"
-            allowClear
-          >
-            {workflows.map(wf => (
-              <Option key={wf.id} value={wf.id}>
-                {wf.name}
-              </Option>
-            ))}
-          </Select>
-        </Form.Item>
-
-        <Form.Item label="监听事件" required>
-          <Checkbox.Group
-            value={(config.events as string[]) || []}
-            onChange={(vals) => handleChange('workflowEvent', { ...config, events: vals })}
-            options={WORKFLOW_EVENTS}
-          />
-        </Form.Item>
-
-        <Form.Item label="指定节点">
-          <Input
-            value={config.nodeCode as string}
-            onChange={(e) => handleChange('workflowEvent', { ...config, nodeCode: e.target.value })}
-            placeholder="输入节点编码（可选）"
-          />
-        </Form.Item>
-      </div>
-    );
-  };
-
-  /** 渲染自定义事件触发器配置 */
-  const renderCustomEventConfig = () => {
-    const config = (value.customEvent || {}) as Record<string, unknown>;
-
-    return (
-      <div style={{ marginTop: 16, padding: 16, background: '#fafafa', borderRadius: 8 }}>
-        <Form.Item label="事件类型" required>
-          <Input
-            value={config.eventType as string}
-            onChange={(e) => handleChange('customEvent', { ...config, eventType: e.target.value })}
-            placeholder="输入事件类型（如 order.cancelled）"
-          />
-        </Form.Item>
-
-        <Form.Item label="事件来源">
-          <Input
-            value={config.source as string}
-            onChange={(e) => handleChange('customEvent', { ...config, source: e.target.value })}
-            placeholder="过滤事件来源（可选）"
-          />
-        </Form.Item>
-      </div>
-    );
-  };
-
   /** 根据触发器类型渲染对应配置 */
   const renderTriggerConfig = () => {
     switch (triggerType) {
@@ -316,12 +181,6 @@ export const TriggerConfig: React.FC<TriggerConfigProps> = ({
         return renderDataChangeConfig();
       case 'schedule':
         return renderScheduleConfig();
-      case 'form_event':
-        return renderFormEventConfig();
-      case 'workflow_event':
-        return renderWorkflowEventConfig();
-      case 'custom_event':
-        return renderCustomEventConfig();
       default:
         return null;
     }

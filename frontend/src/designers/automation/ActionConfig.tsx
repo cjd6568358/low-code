@@ -1,13 +1,11 @@
 /**
  * 动作配置组件
  *
- * 支持 6 种动作类型的可视化配置：
+ * 支持 4 种动作类型的可视化配置：
  * - 触发流程 (trigger_workflow)
- * - 执行脚本 (execute_script)
+ * - 执行表达式 (execute_expression)
  * - 发送通知 (send_notification)
  * - 数据操作 (data_operation)
- * - API 调用 (api_call)
- * - Webhook (webhook)
  *
  * 支持：
  * - 动作列表拖拽排序
@@ -44,8 +42,6 @@ import {
   CodeOutlined,
   SendOutlined,
   DatabaseOutlined,
-  ApiOutlined,
-  LinkOutlined,
   QuestionCircleOutlined,
 } from '@ant-design/icons';
 import { ExpressionEditor } from '@low-code/renderer';
@@ -58,11 +54,9 @@ const { Panel } = Collapse;
 /** 动作类型选项 */
 const ACTION_TYPES = [
   { value: 'trigger_workflow', label: '触发流程', icon: <PlayCircleOutlined />, description: '启动指定流程引擎实例' },
-  { value: 'execute_script', label: '执行脚本', icon: <CodeOutlined />, description: '使用表达式引擎执行自定义脚本' },
+  { value: 'execute_expression', label: '执行表达式', icon: <CodeOutlined />, description: '使用公共表达式引擎执行自定义表达式' },
   { value: 'send_notification', label: '发送通知', icon: <SendOutlined />, description: '通过消息中心发送多渠道通知' },
   { value: 'data_operation', label: '数据操作', icon: <DatabaseOutlined />, description: '创建/更新/删除实体记录' },
-  { value: 'api_call', label: 'API 调用', icon: <ApiOutlined />, description: '调用外部 HTTP API' },
-  { value: 'webhook', label: 'Webhook', icon: <LinkOutlined />, description: '推送事件到外部 Webhook' },
 ];
 
 /** 通知渠道选项 */
@@ -90,15 +84,6 @@ const DATA_OPERATIONS = [
   { value: 'delete', label: '删除记录' },
 ];
 
-/** HTTP 方法选项 */
-const HTTP_METHODS = [
-  { value: 'GET', label: 'GET' },
-  { value: 'POST', label: 'POST' },
-  { value: 'PUT', label: 'PUT' },
-  { value: 'PATCH', label: 'PATCH' },
-  { value: 'DELETE', label: 'DELETE' },
-];
-
 /** 动作配置接口 */
 interface ActionConfig {
   type: string;
@@ -114,7 +99,7 @@ interface ActionConfig {
     variables?: Record<string, unknown>;
     initiator?: string;
   };
-  executeScript?: {
+  executeExpression?: {
     script: string;
     context?: Record<string, unknown>;
   };
@@ -133,21 +118,6 @@ interface ActionConfig {
     data?: Record<string, unknown>;
     filter?: Record<string, unknown>;
   };
-  apiCall?: {
-    method: string;
-    url: string;
-    headers?: Record<string, string>;
-    body?: Record<string, unknown>;
-    timeout?: number;
-    auth?: {
-      type: string;
-      config: Record<string, string>;
-    };
-  };
-  webhook?: {
-    webhookId: string;
-    payload?: Record<string, unknown>;
-  };
 }
 
 /** 组件属性 */
@@ -160,8 +130,6 @@ export interface ActionConfigProps {
   workflows?: Array<{ id: string; name: string }>;
   /** 可选的实体列表 */
   entities?: Array<{ code: string; name: string }>;
-  /** 可选的 Webhook 列表 */
-  webhooks?: Array<{ id: string; name: string }>;
 }
 
 /**
@@ -172,7 +140,6 @@ export const ActionConfig: React.FC<ActionConfigProps> = ({
   onChange,
   workflows = [],
   entities = [],
-  webhooks = [],
 }) => {
   /** 通知值变更 */
   const handleChange = useCallback(
@@ -282,9 +249,9 @@ export const ActionConfig: React.FC<ActionConfigProps> = ({
     );
   };
 
-  /** 渲染执行脚本配置 */
-  const renderExecuteScriptConfig = (action: ActionConfig, index: number) => {
-    const config = action.executeScript || { script: '' };
+  /** 渲染执行表达式配置 */
+  const renderExecuteExpressionConfig = (action: ActionConfig, index: number) => {
+    const config = action.executeExpression || { script: '' };
     const [editorVisible, setEditorVisible] = useState(false);
 
     return (
@@ -343,7 +310,7 @@ export const ActionConfig: React.FC<ActionConfigProps> = ({
             onChange={(e) => {
               try {
                 const ctx = e.target.value ? JSON.parse(e.target.value) : undefined;
-                handleActionChange(index, 'executeScript', { ...config, context: ctx });
+                handleActionChange(index, 'executeExpression', { ...config, context: ctx });
               } catch {
                 // 忽略 JSON 解析错误
               }
@@ -357,11 +324,11 @@ export const ActionConfig: React.FC<ActionConfigProps> = ({
           visible={editorVisible}
           value={config.script}
           onChange={(val) => {
-            handleActionChange(index, 'executeScript', { ...config, script: val.value });
+            handleActionChange(index, 'executeExpression', { ...config, script: val.value });
             setEditorVisible(false);
           }}
           onClear={() => {
-            handleActionChange(index, 'executeScript', { ...config, script: '' });
+            handleActionChange(index, 'executeExpression', { ...config, script: '' });
             setEditorVisible(false);
           }}
           onClose={() => setEditorVisible(false)}
@@ -484,85 +451,17 @@ export const ActionConfig: React.FC<ActionConfigProps> = ({
     );
   };
 
-  /** 渲染 API 调用配置 */
-  const renderApiCallConfig = (action: ActionConfig, index: number) => {
-    const config = action.apiCall || { method: 'GET', url: '' };
-
-    return (
-      <>
-        <Space style={{ width: '100%' }}>
-          <Form.Item label="HTTP 方法" required style={{ marginBottom: 0 }}>
-            <Select
-              value={config.method}
-              onChange={(val) => handleActionChange(index, 'apiCall', { ...config, method: val })}
-              style={{ width: 120 }}
-            >
-              {HTTP_METHODS.map(m => (
-                <Option key={m.value} value={m.value}>
-                  {m.label}
-                </Option>
-              ))}
-            </Select>
-          </Form.Item>
-
-          <Form.Item label="请求 URL" required style={{ marginBottom: 0, flex: 1 }}>
-            <Input
-              value={config.url}
-              onChange={(e) => handleActionChange(index, 'apiCall', { ...config, url: e.target.value })}
-              placeholder="https://api.example.com/endpoint"
-            />
-          </Form.Item>
-        </Space>
-
-        <Form.Item label="超时时间 (ms)" style={{ marginTop: 16 }}>
-          <InputNumber
-            value={config.timeout || 30000}
-            onChange={(val) => handleActionChange(index, 'apiCall', { ...config, timeout: val })}
-            min={1000}
-            max={300000}
-            style={{ width: 200 }}
-          />
-        </Form.Item>
-      </>
-    );
-  };
-
-  /** 渲染 Webhook 配置 */
-  const renderWebhookConfig = (action: ActionConfig, index: number) => {
-    const config = action.webhook || { webhookId: '' };
-
-    return (
-      <Form.Item label="选择 Webhook" required>
-        <Select
-          value={config.webhookId}
-          onChange={(val) => handleActionChange(index, 'webhook', { ...config, webhookId: val })}
-          placeholder="选择 Webhook"
-        >
-          {webhooks.map(wh => (
-            <Option key={wh.id} value={wh.id}>
-              {wh.name}
-            </Option>
-          ))}
-        </Select>
-      </Form.Item>
-    );
-  };
-
   /** 渲染动作特定配置 */
   const renderActionSpecificConfig = (action: ActionConfig, index: number) => {
     switch (action.type) {
       case 'trigger_workflow':
         return renderTriggerWorkflowConfig(action, index);
-      case 'execute_script':
-        return renderExecuteScriptConfig(action, index);
+      case 'execute_expression':
+        return renderExecuteExpressionConfig(action, index);
       case 'send_notification':
         return renderSendNotificationConfig(action, index);
       case 'data_operation':
         return renderDataOperationConfig(action, index);
-      case 'api_call':
-        return renderApiCallConfig(action, index);
-      case 'webhook':
-        return renderWebhookConfig(action, index);
       default:
         return null;
     }
@@ -667,16 +566,18 @@ export const ActionConfig: React.FC<ActionConfigProps> = ({
             </Form.Item>
 
             <Form.Item label="失败重试" style={{ marginBottom: 0 }}>
-              <InputNumber
-                value={action.retryPolicy?.maxRetries || 0}
-                onChange={(val) => handleActionChange(index, 'retryPolicy', {
-                  maxRetries: val || 0,
-                  backoffMs: [1000, 3000, 5000],
-                })}
-                min={0}
-                max={10}
-                addonAfter="次"
-              />
+              <Space.Compact>
+                <InputNumber
+                  value={action.retryPolicy?.maxRetries || 0}
+                  onChange={(val) => handleActionChange(index, 'retryPolicy', {
+                    maxRetries: val || 0,
+                    backoffMs: [1000, 3000, 5000],
+                  })}
+                  min={0}
+                  max={10}
+                />
+                <Input value="次" disabled style={{ width: 36, textAlign: 'center' }} />
+              </Space.Compact>
             </Form.Item>
           </Space>
         </Form>

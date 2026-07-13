@@ -11,6 +11,7 @@ import { PORT } from './config/index.js';
 import { errorMiddleware } from './middlewares/error.js';
 import { corsMiddleware } from './middlewares/cors.js';
 import { loggerMiddleware } from './middlewares/logger.js';
+import { authMiddleware } from './middlewares/auth.js';
 import { registerRoutes } from './routes/index.js';
 import { CronScheduler } from './services/CronScheduler.js';
 import { AutomationExecutor, type WorkflowExecutor } from './services/AutomationExecutor.js';
@@ -102,6 +103,7 @@ async function main() {
   app.use(corsMiddleware);
   app.use(loggerMiddleware);
   app.use(bodyParser());
+  app.use(authMiddleware);
 
   // ─── 路由 ──────────────────────────────────────
   registerRoutes(app);

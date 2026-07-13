@@ -8,7 +8,7 @@ import type {
   RequiredRule,
   AttributeRule,
 } from '@low-code/shared';
-import type { DefaultExpressionEngine } from '@low-code/computation';
+import type { DefaultExpressionEngine } from '@low-code/shared';
 
 /** 联动执行结果 */
 export interface LinkageResult {
@@ -213,7 +213,7 @@ export class LinkageEngine {
 
       case 'expression':
         if (!rule.expression) return;
-        value = this.expressionEngine.safeEvaluate(rule.expression, values);
+        value = this.expressionEngine.safeEvaluateSync(rule.expression, values);
         break;
 
       case 'conditional':
@@ -274,7 +274,7 @@ export class LinkageEngine {
     targetField: string,
     result: LinkageResult,
   ): void {
-    const visible = !!this.expressionEngine.safeEvaluate(rule.condition, values);
+    const visible = !!this.expressionEngine.safeEvaluateSync(rule.condition, values);
     if (!result.stateUpdates[targetField]) {
       result.stateUpdates[targetField] = {};
     }
@@ -290,7 +290,7 @@ export class LinkageEngine {
     targetField: string,
     result: LinkageResult,
   ): void {
-    const disabled = !!this.expressionEngine.safeEvaluate(rule.condition, values);
+    const disabled = !!this.expressionEngine.safeEvaluateSync(rule.condition, values);
     if (!result.stateUpdates[targetField]) {
       result.stateUpdates[targetField] = {};
     }
@@ -306,7 +306,7 @@ export class LinkageEngine {
     targetField: string,
     result: LinkageResult,
   ): void {
-    const required = !!this.expressionEngine.safeEvaluate(rule.condition, values);
+    const required = !!this.expressionEngine.safeEvaluateSync(rule.condition, values);
     if (!result.stateUpdates[targetField]) {
       result.stateUpdates[targetField] = {};
     }
@@ -322,7 +322,7 @@ export class LinkageEngine {
     targetField: string,
     result: LinkageResult,
   ): void {
-    const conditionMet = !!this.expressionEngine.safeEvaluate(rule.condition, values);
+    const conditionMet = !!this.expressionEngine.safeEvaluateSync(rule.condition, values);
     if (conditionMet) {
       if (!result.attributeUpdates[targetField]) {
         result.attributeUpdates[targetField] = {};
@@ -382,7 +382,7 @@ export class LinkageEngine {
       const params: Record<string, any> = {};
       if (rule.queryConfig.params) {
         for (const [key, path] of Object.entries(rule.queryConfig.params)) {
-          params[key] = this.expressionEngine.safeEvaluate(path, values);
+          params[key] = this.expressionEngine.safeEvaluateSync(path, values);
         }
       }
 
@@ -440,13 +440,13 @@ export class LinkageEngine {
     if (!branches) return defaultValue;
 
     for (const branch of branches) {
-      const conditionMet = this.expressionEngine.safeEvaluate(branch.condition, values);
+      const conditionMet = this.expressionEngine.safeEvaluateSync(branch.condition, values);
       if (conditionMet) {
         switch (branch.valueType) {
           case 'expression':
-            return this.expressionEngine.safeEvaluate(branch.value, values);
+            return this.expressionEngine.safeEvaluateSync(branch.value, values);
           case 'variable':
-            return this.expressionEngine.safeEvaluate(branch.value, values);
+            return this.expressionEngine.safeEvaluateSync(branch.value, values);
           case 'literal':
           default:
             return branch.value;

@@ -15,6 +15,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { App, Spin } from 'antd';
 import { Designer } from '@low-code/renderer';
 import type { PageSchema } from '@low-code/shared';
+import { apiFetch } from '../utils/apiClient.js';
 
 interface PageDesignProps {
   appId: string;
@@ -39,7 +40,7 @@ export default function PageDesign({ appId, pageId, tenantId, schema, onChange, 
     let cancelled = false;
     (async () => {
       try {
-        const resp = await fetch(`/api/apps/${appId}/pages/${pageId}`);
+        const resp = await apiFetch(`/api/apps/${appId}/pages/${pageId}`);
         const data = await resp.json();
         if (!cancelled && data.success && data.resource) {
           setCurrentSchema(data.resource);
@@ -65,7 +66,7 @@ export default function PageDesign({ appId, pageId, tenantId, schema, onChange, 
     if (!currentSchema) return;
     setSaving(true);
     try {
-      const resp = await fetch(`/api/apps/${appId}/pages/${pageId}`, {
+      const resp = await apiFetch(`/api/apps/${appId}/pages/${pageId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(currentSchema),

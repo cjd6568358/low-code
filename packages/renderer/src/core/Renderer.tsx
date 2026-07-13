@@ -8,7 +8,7 @@ import type {
   ActionContext,
   ComponentRegistration,
 } from '@low-code/shared';
-import { expressionEngine } from '@low-code/computation';
+import { expressionEngine } from '@low-code/shared';
 import { ComponentRegistryImpl } from './ComponentRegistry';
 import { DataBindingResolver } from './DataBindingResolver';
 import { ConditionRuleEngine } from './ConditionRuleEngine';
@@ -739,7 +739,7 @@ function resolveTemplate(template: string, context: RenderContext): any {
 
   // 处理 ${xxx} 语法
   if (template.includes('${')) {
-    return expressionEngine.safeEvaluate(template, context);
+    return expressionEngine.safeEvaluateSync(template, context);
   }
 
   // 处理 $xxx.yyy 语法

@@ -18,6 +18,7 @@ import {
   RightOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '../auth/AuthContext';
+import { apiFetch } from '../utils/apiClient.js';
 
 const { Text, Title } = Typography;
 
@@ -85,9 +86,9 @@ export default function WorkspacePage() {
     try {
       // 并行加载待办、通知、应用列表
       const [todoResp, msgResp, appResp] = await Promise.allSettled([
-        fetch('/api/workflow-tasks?status=pending'),
-        fetch(`/api/messages?recipientId=${user.id}&limit=10`),
-        fetch('/api/apps'),
+        apiFetch('/api/workflow-tasks?status=pending'),
+        apiFetch(`/api/messages?recipientId=${user.id}&limit=10`),
+        apiFetch('/api/apps'),
       ]);
 
       // 待办事项

@@ -31,7 +31,7 @@ tenants/
                     ├── roles / permissions / user_roles  ← 权限系统
                     ├── dictionaries / dict_items         ← 租户字典
                     ├── open_keys / open_key_permissions  ← API 密钥
-                    ├── workflow_definitions / instances / snapshots ← 流程引擎
+                    ├── workflow_definitions / instances / snapshots / tasks / jobs ← 流程引擎
                     ├── automation_rules / execution_logs ← 自动化引擎
                     ├── messages                          ← 消息中心
                     └── audit_logs                        ← 审计日志

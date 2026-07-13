@@ -1,4 +1,5 @@
 import type { FormDataContext } from './form';
+import type { ExpressionEngine } from '../engine/expression.js';
 
 /**
  * 环境变量类型定义
@@ -104,12 +105,6 @@ interface ServerVariableProxy {
   };
 }
 
-/** 运算引擎代理 */
-interface ComputationEngine {
-  evaluate: (expression: string, context?: Record<string, any>) => Promise<any>;
-  [key: string]: any;
-}
-
 /** 请求代理 */
 interface FetchProxy {
   get: (url: string, config?: any) => Promise<any>;
@@ -135,7 +130,7 @@ interface EnvironmentContext {
   $component: Record<string, ComponentState>;
   $data: Record<string, DataSourceItem>;
   $table: ServerVariableProxy;
-  $computation: ComputationEngine;
+  $computation: ExpressionEngine;
   $fetch: FetchProxy;
   $workflow?: WorkflowContext;
 }
@@ -150,7 +145,6 @@ export type {
   ComponentState,
   DataSourceItem,
   ServerVariableProxy,
-  ComputationEngine,
   FetchProxy,
   WorkflowContext,
   EnvironmentContext,

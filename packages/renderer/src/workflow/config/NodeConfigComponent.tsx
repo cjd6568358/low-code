@@ -298,7 +298,7 @@ function ComputationParamMapper({
     if (!computationId || !appId) return;
 
     setLoading(true);
-    fetch(`/api/computations/${computationId}?appId=${appId}`)
+    fetch(`/api/apps/${appId}/computations/${computationId}`)
       .then((res) => res.json())
       .then((data) => {
         if (data.success && data.data?.inputs) {

@@ -8,7 +8,12 @@
  */
 
 import type { AutomationRule, ThrottleConfig } from '../types/rule';
-import type { LogStore } from '../types/engine';
+
+/** 日志存储接口 */
+export interface LogStore {
+  getLastExecutionTime(ruleId: string): Promise<string | undefined>;
+  getTodayExecutionCount(ruleId: string): Promise<number>;
+}
 
 /**
  * 限流检查结果

@@ -132,21 +132,21 @@
   - 输出配置（字段名、类型、格式化选项）
   - 运算结果预览
 - ✅ **环境变量过滤**（`packages/renderer/src/core/EnvironmentRegistry.ts`）
-  - 运算模式只保留 `$user`、`$system`、`$env`
+  - 运算模式只保留 `$user`、`$now`、`$env`
   - 去掉 `$component`、`$route`、`$data` 等页面相关变量
 - ✅ **存储格式**：PropValue 格式 `{ type: 'expression', value: '...', async: false }`
 - ✅ **运算执行器**（`server/src/services/ComputationExecutor.ts`）
   - 沙箱执行，禁止危险操作
   - 类型转换和格式化
   - 依赖分析
-- ✅ **完整 CRUD API**
-  - `GET /api/computations` — 列表
-  - `GET /api/computations/:id` — 详情
-  - `POST /api/computations` — 创建
-  - `PUT /api/computations/:id` — 更新
-  - `DELETE /api/computations/:id` — 删除
-  - `POST /api/computations/:id/execute` — 执行
-  - `POST /api/computations/preview` — 预览
+- ✅ **完整 CRUD API**（统一走 apps 路由）
+  - `GET /api/apps/:appId/computations` — 列表
+  - `GET /api/apps/:appId/computations/:id` — 详情
+  - `POST /api/apps/:appId/computations` — 创建
+  - `PUT /api/apps/:appId/computations/:id` — 更新
+  - `DELETE /api/apps/:appId/computations/:id` — 删除
+  - `POST /api/apps/:appId/computations/:id/execute` — 执行
+  - `POST /api/apps/:appId/computations/preview` — 预览
 - ✅ **流程节点集成**
   - `ComputationSelector` 组件（运算规则选择器）
   - `ComputationParamMapper` 组件（参数映射）

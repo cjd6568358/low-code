@@ -13,6 +13,7 @@ import { App, Layout, Menu, Spin } from 'antd';
 import { FileOutlined } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import PageRuntime from '../components/PageRuntime';
+import { apiFetch } from '../utils/apiClient.js';
 
 const { Sider, Content } = Layout;
 
@@ -45,7 +46,7 @@ export default function AppDetailPage() {
     if (!appId) return;
     setLoading(true);
     try {
-      const resp = await fetch(`/api/apps/${appId}`);
+      const resp = await apiFetch(`/api/apps/${appId}`);
       const data = await resp.json();
       if (data.success) {
         setAppMeta(data.app);

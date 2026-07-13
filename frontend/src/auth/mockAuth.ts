@@ -1,8 +1,10 @@
 /**
  * 认证服务 — 调用后端 API
  *
- * POST /api/auth/login → 后端自动识别租户和角色。
+ * POST /api/auth/login → 后端自动识别租户和角色，签发 JWT。
  */
+
+import { setToken, clearToken as clearJwtToken } from '../utils/apiClient.js';
 
 /** 用户角色类型 */
 export type UserRole = 'platform_admin' | 'tenant_admin' | 'department_default' | string;
@@ -53,6 +55,11 @@ export async function loginRequest(params: LoginParams): Promise<LoginResult> {
       return { success: false, error: data.error || '登录失败' };
     }
 
+    // 存储 JWT token
+    if (data.token) {
+      setToken(data.token);
+    }
+
     return { success: true, user: data.user as AuthUser };
   } catch (err) {
     return { success: false, error: '网络错误，请检查服务是否启动' };
@@ -84,4 +91,5 @@ export function storeUser(user: AuthUser): void {
  */
 export function clearUser(): void {
   localStorage.removeItem('auth_user');
+  clearJwtToken();
 }

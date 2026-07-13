@@ -9,7 +9,7 @@
  * - 运算结果预览
  *
  * 存储格式：PropValue 格式 { type: 'expression', value: '...', async: false }
- * 环境变量：只保留 $user/$system/$env，去掉页面相关变量
+ * 环境变量：只保留 $user/$now/$env，去掉页面相关变量
  *
  * Props:
  *   appId        — 应用 ID
@@ -57,6 +57,7 @@ import type {
   ExpressionBinding,
 } from '@low-code/shared';
 import type { TableSchema } from '@low-code/shared';
+import { apiFetch } from '../utils/apiClient.js';
 
 const { Text, Title } = Typography;
 const { TextArea } = Input;
@@ -72,7 +73,7 @@ export interface ComputationDesignProps {
   computationId?: string;
   /** 租户 ID */
   tenantId?: string;
-  /** API 基础路径 */
+  /** API 基础路径（默认 /api/apps/:appId/computations） */
   apiBase?: string;
   /** 返回回调 */
   onBack?: () => void;
@@ -357,11 +358,14 @@ export const ComputationDesign: React.FC<ComputationDesignProps> = ({
   appId,
   computationId,
   tenantId,
-  apiBase = '/api/computations',
+  apiBase,
   onBack,
   onSave,
 }) => {
   const { message } = App.useApp();
+
+  // API 基础路径：/api/apps/:appId/computations
+  const computedApiBase = apiBase || `/api/apps/${appId}/computations`;
 
   // ─── 状态 ─────────────────────────────────────────────
 
@@ -385,11 +389,11 @@ export const ComputationDesign: React.FC<ComputationDesignProps> = ({
 
     setLoading(true);
     try {
-      const response = await fetch(`${apiBase}/${computationId}?appId=${appId}`);
+      const response = await apiFetch(`${computedApiBase}/${computationId}`);
       const data = await response.json();
 
       if (data.data) {
-        setComputation(data.data);
+        setComputation((prev) => ({ ...prev, ...data.data }));
       }
     } catch {
       message.error('加载运算规则失败');
@@ -415,8 +419,7 @@ export const ComputationDesign: React.FC<ComputationDesignProps> = ({
       '$user.department',
       '$user.departmentName',
       '$user.position',
-      '$system.now',
-      '$system.today',
+      '$now',
       '$env.NODE_ENV',
     ];
 
@@ -483,11 +486,11 @@ export const ComputationDesign: React.FC<ComputationDesignProps> = ({
     setSaving(true);
     try {
       const url = computationId
-        ? `${apiBase}/${computationId}?appId=${appId}`
-        : `${apiBase}?appId=${appId}`;
+        ? `${computedApiBase}/${computationId}`
+        : `${computedApiBase}`;
       const method = computationId ? 'PUT' : 'POST';
 
-      const response = await fetch(url, {
+      const response = await apiFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -547,7 +550,7 @@ export const ComputationDesign: React.FC<ComputationDesignProps> = ({
       });
 
       // 调用预览 API
-      const response = await fetch(`${apiBase}/preview?appId=${appId}`, {
+      const response = await apiFetch(`${computedApiBase}/preview`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -593,7 +596,7 @@ export const ComputationDesign: React.FC<ComputationDesignProps> = ({
           height: 400,
         }}
       >
-        <Spin size="large" tip="加载中..." />
+        <Spin size="large" description="加载中..." />
       </div>
     );
   }
@@ -772,7 +775,7 @@ export const ComputationDesign: React.FC<ComputationDesignProps> = ({
           />
         )}
         <div style={{ marginTop: 8, fontSize: 12, color: '#999' }}>
-          💡 表达式中可使用输入字段变量和系统变量（$user、$system），不支持页面相关变量
+          💡 表达式中可使用输入字段变量和系统变量（$user、$now），不支持页面相关变量
         </div>
       </Card>
 
@@ -794,7 +797,7 @@ export const ComputationDesign: React.FC<ComputationDesignProps> = ({
           style={cardStyle}
         >
           {previewResult.error ? (
-            <Alert message="预览失败" description={previewResult.error} type="error" />
+            <Alert title="预览失败" description={previewResult.error} type="error" />
           ) : (
             <div style={previewBoxStyle}>
               <div style={{ marginBottom: 8, color: '#666', fontSize: 12 }}>

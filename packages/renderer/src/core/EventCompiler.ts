@@ -1,6 +1,6 @@
 import type { ActionChain, ActionStep, ActionContext } from '@low-code/shared';
 import type { ActionRegistryImpl } from './ActionRegistry';
-import type { DefaultExpressionEngine } from '@low-code/computation';
+import type { DefaultExpressionEngine } from '@low-code/shared';
 
 /** 编译后的事件处理器 */
 export type CompiledEventHandler = (
@@ -109,7 +109,7 @@ export class EventCompiler {
 
     // 1. 条件判断
     if (step.condition) {
-      const conditionResult = this.expressionEngine.safeEvaluate(
+      const conditionResult = await this.expressionEngine.safeEvaluate(
         step.condition,
         { ...context.renderContext, $result, $event: context.event },
       );
@@ -125,7 +125,7 @@ export class EventCompiler {
     // 2. 条件分支动作（特殊处理）
     if (step.action === 'condition' && step.params) {
       const { condition, then: thenActions, else: elseActions } = step.params;
-      const conditionResult = this.expressionEngine.safeEvaluate(
+      const conditionResult = await this.expressionEngine.safeEvaluate(
         condition,
         { ...context.renderContext, $result, $event: context.event },
       );
@@ -148,20 +148,20 @@ export class EventCompiler {
         if (qp.type === 'variable') {
           paramsToResolve.queryParams = resolveVariablePath(qp.value, evalCtx);
         } else if (qp.type === 'expression') {
-          // 函数体 → safeEvaluate 自动包裹为 IIFE 同步求值
-          paramsToResolve.queryParams = this.expressionEngine.safeEvaluate(qp.value, evalCtx);
+          // 函数体 → safeEvaluate 自动包裹为 IIFE 求值
+          paramsToResolve.queryParams = await this.expressionEngine.safeEvaluate(qp.value, evalCtx);
         }
       }
     }
 
     // triggerWorkflow 的 inputData 解析（支持变量/表达式格式）
     if (step.action === 'triggerWorkflow' && paramsToResolve.inputData) {
-      paramsToResolve.inputData = resolvePropValue(paramsToResolve.inputData, { ...context.renderContext, $result, $event: context.event }, this.expressionEngine);
+      paramsToResolve.inputData = await resolvePropValue(paramsToResolve.inputData, { ...context.renderContext, $result, $event: context.event }, this.expressionEngine);
     }
 
     // showModal 的 data 解析（支持变量/表达式格式）
     if (step.action === 'showModal' && paramsToResolve.data) {
-      paramsToResolve.data = resolvePropValue(paramsToResolve.data, { ...context.renderContext, $result, $event: context.event }, this.expressionEngine);
+      paramsToResolve.data = await resolvePropValue(paramsToResolve.data, { ...context.renderContext, $result, $event: context.event }, this.expressionEngine);
     }
 
     const resolvedParams = this.resolveParams(paramsToResolve, {
@@ -228,17 +228,17 @@ function resolveVariablePath(path: string, renderContext: Record<string, any>): 
  * - 多选变量：{ type: 'variable', value: { a: '$data.a', b: '$data.b' } } → 逐个取值合并
  * - 表达式：{ type: 'expression', value: '...' } → 求值
  */
-function resolvePropValue(
+async function resolvePropValue(
   val: unknown,
   evalCtx: Record<string, any>,
-  expressionEngine: InstanceType<typeof import('@low-code/computation').DefaultExpressionEngine>,
-): any {
+  expressionEngine: InstanceType<typeof import('@low-code/shared').DefaultExpressionEngine>,
+): Promise<any> {
   if (val == null || typeof val !== 'object' || !('type' in val) || !('value' in val)) return val;
 
   const { type, value } = val as { type: string; value: unknown };
 
   if (type === 'expression' && typeof value === 'string') {
-    return expressionEngine.safeEvaluate(value, evalCtx);
+    return await expressionEngine.safeEvaluate(value, evalCtx);
   }
 
   if (type === 'variable') {

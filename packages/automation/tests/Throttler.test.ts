@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Throttler } from '../src/engine/Throttler';
 import type { AutomationRule } from '../src/types/rule';
-import type { LogStore } from '../src/types/engine';
+import type { LogStore } from '../src/engine/Throttler';
 
 describe('Throttler', () => {
   let throttler: Throttler;

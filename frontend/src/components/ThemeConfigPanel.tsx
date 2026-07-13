@@ -1,5 +1,5 @@
 import React from 'react';
-import { InputNumber, ColorPicker, Space } from 'antd';
+import { InputNumber, Input, ColorPicker, Space } from 'antd';
 
 /** 主题配置（应用级） */
 export interface ThemeConfig {
@@ -54,34 +54,37 @@ export function ThemeConfigPanel({ value, onChange }: ThemeConfigPanelProps) {
             />
           </FieldRow>
           <FieldRow label="圆角">
-            <InputNumber
-              value={t.borderRadius}
-              onChange={(v) => v !== null && update('borderRadius', v)}
-              min={0} max={24}
-              size="small"
-              addonAfter="px"
-              style={{ width: 120 }}
-            />
+            <Space.Compact size="small">
+              <InputNumber
+                value={t.borderRadius}
+                onChange={(v) => v !== null && update('borderRadius', v)}
+                min={0} max={24}
+                style={{ width: 90 }}
+              />
+              <Input value="px" disabled style={{ width: 36, textAlign: 'center' }} />
+            </Space.Compact>
           </FieldRow>
           <FieldRow label="字号">
-            <InputNumber
-              value={t.fontSize}
-              onChange={(v) => v !== null && update('fontSize', v)}
-              min={12} max={24}
-              size="small"
-              addonAfter="px"
-              style={{ width: 120 }}
-            />
+            <Space.Compact size="small">
+              <InputNumber
+                value={t.fontSize}
+                onChange={(v) => v !== null && update('fontSize', v)}
+                min={12} max={24}
+                style={{ width: 90 }}
+              />
+              <Input value="px" disabled style={{ width: 36, textAlign: 'center' }} />
+            </Space.Compact>
           </FieldRow>
           <FieldRow label="间距">
-            <InputNumber
-              value={t.spacing}
-              onChange={(v) => v !== null && update('spacing', v)}
-              min={0} max={48}
-              size="small"
-              addonAfter="px"
-              style={{ width: 120 }}
-            />
+            <Space.Compact size="small">
+              <InputNumber
+                value={t.spacing}
+                onChange={(v) => v !== null && update('spacing', v)}
+                min={0} max={48}
+                style={{ width: 90 }}
+              />
+              <Input value="px" disabled style={{ width: 36, textAlign: 'center' }} />
+            </Space.Compact>
           </FieldRow>
         </div>
       </div>
