@@ -5,20 +5,26 @@
  * 用于 WorkflowEngine 的快照管理。
  */
 
-import fs from 'fs';
 import path from 'path';
 import { generateHexId } from '@low-code/shared';
 import type { SnapshotService, CaptureSnapshotParams, SnapshotRecord, SnapshotDiff, FieldChange } from '@low-code/workflow';
+import { existsAsync, readFile, writeFile, mkdir } from '../utils/fs-utils.js';
 
 /**
  * 文件系统快照服务
  */
 export class FileSnapshotService implements SnapshotService {
-  constructor(private readonly baseDir: string) {
-    // 确保快照目录存在
-    const snapshotsDir = path.join(baseDir, 'snapshots');
-    if (!fs.existsSync(snapshotsDir)) {
-      fs.mkdirSync(snapshotsDir, { recursive: true });
+  constructor(private readonly baseDir: string) {}
+
+  /**
+   * 初始化快照服务，确保快照目录存在
+   *
+   * 必须在使用其他方法前调用。
+   */
+  async init(): Promise<void> {
+    const snapshotsDir = path.join(this.baseDir, 'snapshots');
+    if (!await existsAsync(snapshotsDir)) {
+      await mkdir(snapshotsDir, { recursive: true });
     }
   }
 
@@ -59,10 +65,10 @@ export class FileSnapshotService implements SnapshotService {
 
     // 写入文件
     const filePath = this.getSnapshotFilePath(id);
-    fs.writeFileSync(filePath, JSON.stringify(snapshot, null, 2), 'utf-8');
+    await writeFile(filePath, JSON.stringify(snapshot, null, 2), 'utf-8');
 
     // 同时维护一个实例快照索引
-    this.addToInstanceIndex(params.instanceId, id);
+    await this.addToInstanceIndex(params.instanceId, id);
 
     return snapshot;
   }
@@ -80,19 +86,19 @@ export class FileSnapshotService implements SnapshotService {
    */
   async getChain(instanceId: string): Promise<SnapshotRecord[]> {
     const indexFilePath = this.getInstanceIndexPath(instanceId);
-    if (!fs.existsSync(indexFilePath)) {
+    if (!await existsAsync(indexFilePath)) {
       return [];
     }
 
     try {
-      const index: string[] = JSON.parse(fs.readFileSync(indexFilePath, 'utf-8'));
+      const index: string[] = JSON.parse(await readFile(indexFilePath, 'utf-8'));
       const snapshots: SnapshotRecord[] = [];
 
       for (const snapshotId of index) {
         const filePath = this.getSnapshotFilePath(snapshotId);
-        if (fs.existsSync(filePath)) {
+        if (await existsAsync(filePath)) {
           try {
-            const snapshot = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+            const snapshot = JSON.parse(await readFile(filePath, 'utf-8'));
             snapshots.push(snapshot);
           } catch {
             // 跳过损坏的快照
@@ -177,8 +183,8 @@ export class FileSnapshotService implements SnapshotService {
 
     // 写入业务表目录
     const sourceTableDir = path.join(this.baseDir, 'source_tables', finalSnapshot.sourceTable);
-    if (!fs.existsSync(sourceTableDir)) {
-      fs.mkdirSync(sourceTableDir, { recursive: true });
+    if (!await existsAsync(sourceTableDir)) {
+      await mkdir(sourceTableDir, { recursive: true });
     }
 
     const filePath = path.join(sourceTableDir, `${finalSnapshot.sourceId}.json`);
@@ -189,7 +195,7 @@ export class FileSnapshotService implements SnapshotService {
       _committedAt: new Date().toISOString(),
     };
 
-    fs.writeFileSync(filePath, JSON.stringify(record, null, 2), 'utf-8');
+    await writeFile(filePath, JSON.stringify(record, null, 2), 'utf-8');
   }
 
   // ==================== 私有方法 ====================
@@ -211,20 +217,20 @@ export class FileSnapshotService implements SnapshotService {
   /**
    * 添加到实例快照索引
    */
-  private addToInstanceIndex(instanceId: string, snapshotId: string): void {
+  private async addToInstanceIndex(instanceId: string, snapshotId: string): Promise<void> {
     const indexPath = this.getInstanceIndexPath(instanceId);
     let index: string[] = [];
 
-    if (fs.existsSync(indexPath)) {
+    if (await existsAsync(indexPath)) {
       try {
-        index = JSON.parse(fs.readFileSync(indexPath, 'utf-8'));
+        index = JSON.parse(await readFile(indexPath, 'utf-8'));
       } catch {
         index = [];
       }
     }
 
     index.push(snapshotId);
-    fs.writeFileSync(indexPath, JSON.stringify(index, null, 2), 'utf-8');
+    await writeFile(indexPath, JSON.stringify(index, null, 2), 'utf-8');
   }
 
   /**
@@ -232,12 +238,12 @@ export class FileSnapshotService implements SnapshotService {
    */
   private async getSnapshotById(snapshotId: string): Promise<SnapshotRecord | undefined> {
     const filePath = this.getSnapshotFilePath(snapshotId);
-    if (!fs.existsSync(filePath)) {
+    if (!await existsAsync(filePath)) {
       return undefined;
     }
 
     try {
-      return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+      return JSON.parse(await readFile(filePath, 'utf-8'));
     } catch {
       return undefined;
     }

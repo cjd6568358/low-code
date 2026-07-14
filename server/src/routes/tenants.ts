@@ -2,7 +2,7 @@
 // Data source: tenants/{tenantId}/tenant.json
 // 租户级资源：用户、部门、岗位、角色、权限
 
-import fs from 'fs';
+import { readFile } from '../utils/fs-utils.js';
 import path from 'path';
 import crypto from 'crypto';
 import KoaRouter from '@koa/router';
@@ -11,11 +11,11 @@ import { getDbManager } from '../config/db.js';
 import { generateHexId } from '@low-code/shared';
 
 // Read tenant.json (shortId -> directory: tenant_{shortId})
-function readTenantMeta(shortId: string): any | null {
+async function readTenantMeta(shortId: string): Promise<any | null> {
   const dirName = shortId.startsWith('tenant_') ? shortId : `tenant_${shortId}`;
   const filePath = path.join(TENANTS_DIR, dirName, 'tenant.json');
   try {
-    return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    return JSON.parse(await readFile(filePath, 'utf-8'));
   } catch {
     return null;
   }
@@ -35,7 +35,7 @@ export function createTenantsRouter(): KoaRouter {
   // GET /api/tenants/:tenantId
   router.get('/:tenantId', async (ctx) => {
     const { tenantId } = ctx.params;
-    const meta = readTenantMeta(tenantId);
+    const meta = await readTenantMeta(tenantId);
 
     if (!meta) {
       ctx.status = 404;

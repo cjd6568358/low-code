@@ -14,26 +14,8 @@
 import KoaRouter from '@koa/router';
 import { TENANTS_DIR } from '../config/index.js';
 import { computationExecutor } from '../services/ComputationExecutor.js';
-import fs from 'fs';
+import { existsAsync, resolveAppDir, readFile, writeFile, readdir, mkdir, unlink } from '../utils/fs-utils.js';
 import path from 'path';
-
-/** 查找应用目录和租户 ID */
-function findAppDir(appId: string): [string, string] | null {
-  const dirName = appId.startsWith('app_') ? appId : `app_${appId}`;
-  try {
-    const entries = fs.readdirSync(TENANTS_DIR, { withFileTypes: true });
-    for (const entry of entries) {
-      if (!entry.isDirectory() || !entry.name.startsWith('tenant_')) continue;
-      const appDir = path.join(TENANTS_DIR, entry.name, 'apps', dirName);
-      if (fs.existsSync(path.join(appDir, 'app.json'))) {
-        return [entry.name, appDir];
-      }
-    }
-  } catch {
-    // ignore
-  }
-  return null;
-}
 
 /** 生成 8 位 hex ID */
 function generateHexId(): string {
@@ -57,15 +39,16 @@ export function createComputationsRouter(): KoaRouter {
       return;
     }
 
-    const result = findAppDir(appId);
-    if (!result) {
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
+    const appDir = tenantId ? await resolveAppDir(tenantId, appId) : null;
+    if (!appDir) {
       ctx.status = 404;
       ctx.body = { success: false, error: '应用不存在' };
       return;
     }
 
     // 将 appDir 挂载到 ctx.state 供后续路由使用
-    ctx.state.appDir = result[1];
+    ctx.state.appDir = appDir;
     ctx.state.appId = appId;
     await next();
   });
@@ -79,16 +62,17 @@ export function createComputationsRouter(): KoaRouter {
     const computationsDir = path.join(appDir, 'computations');
 
     try {
-      if (!fs.existsSync(computationsDir)) {
+      if (!await existsAsync(computationsDir)) {
         ctx.body = { success: true, data: [] };
         return;
       }
 
-      const files = fs.readdirSync(computationsDir).filter((f) => f.endsWith('.json'));
-      const computations = files.map((file) => {
-        const content = fs.readFileSync(path.join(computationsDir, file), 'utf-8');
+      const allFiles = await readdir(computationsDir);
+      const files = allFiles.filter((f) => f.endsWith('.json'));
+      const computations = await Promise.all(files.map(async (file) => {
+        const content = await readFile(path.join(computationsDir, file), 'utf-8');
         return JSON.parse(content);
-      });
+      }));
 
       ctx.body = { success: true, data: computations };
     } catch {
@@ -108,13 +92,13 @@ export function createComputationsRouter(): KoaRouter {
     const computationFile = path.join(appDir, 'computations', `${dirName}.json`);
 
     try {
-      if (!fs.existsSync(computationFile)) {
+      if (!await existsAsync(computationFile)) {
         ctx.status = 404;
         ctx.body = { success: false, error: '运算规则不存在' };
         return;
       }
 
-      const content = fs.readFileSync(computationFile, 'utf-8');
+      const content = await readFile(computationFile, 'utf-8');
       ctx.body = { success: true, data: JSON.parse(content) };
     } catch {
       ctx.status = 500;
@@ -132,8 +116,8 @@ export function createComputationsRouter(): KoaRouter {
     const computationsDir = path.join(appDir, 'computations');
 
     try {
-      if (!fs.existsSync(computationsDir)) {
-        fs.mkdirSync(computationsDir, { recursive: true });
+      if (!await existsAsync(computationsDir)) {
+        await mkdir(computationsDir, { recursive: true });
       }
 
       const body = ctx.request.body as Record<string, unknown>;
@@ -158,7 +142,7 @@ export function createComputationsRouter(): KoaRouter {
       };
 
       const filePath = path.join(computationsDir, `${computationId}.json`);
-      fs.writeFileSync(filePath, JSON.stringify(computation, null, 2), 'utf-8');
+      await writeFile(filePath, JSON.stringify(computation, null, 2), 'utf-8');
 
       ctx.body = { success: true, data: computation };
     } catch {
@@ -179,13 +163,13 @@ export function createComputationsRouter(): KoaRouter {
     const computationFile = path.join(appDir, 'computations', `${dirName}.json`);
 
     try {
-      if (!fs.existsSync(computationFile)) {
+      if (!await existsAsync(computationFile)) {
         ctx.status = 404;
         ctx.body = { success: false, error: '运算规则不存在' };
         return;
       }
 
-      const existingContent = fs.readFileSync(computationFile, 'utf-8');
+      const existingContent = await readFile(computationFile, 'utf-8');
       const existing = JSON.parse(existingContent);
 
       const body = ctx.request.body as Record<string, unknown>;
@@ -198,7 +182,7 @@ export function createComputationsRouter(): KoaRouter {
         updatedAt: new Date().toISOString(),
       };
 
-      fs.writeFileSync(computationFile, JSON.stringify(updated, null, 2), 'utf-8');
+      await writeFile(computationFile, JSON.stringify(updated, null, 2), 'utf-8');
 
       ctx.body = { success: true, data: updated };
     } catch {
@@ -218,13 +202,13 @@ export function createComputationsRouter(): KoaRouter {
     const computationFile = path.join(appDir, 'computations', `${dirName}.json`);
 
     try {
-      if (!fs.existsSync(computationFile)) {
+      if (!await existsAsync(computationFile)) {
         ctx.status = 404;
         ctx.body = { success: false, error: '运算规则不存在' };
         return;
       }
 
-      fs.unlinkSync(computationFile);
+      await unlink(computationFile);
       ctx.body = { success: true };
     } catch {
       ctx.status = 500;
@@ -243,7 +227,8 @@ export function createComputationsRouter(): KoaRouter {
     const body = ctx.request.body as Record<string, unknown>;
     const params = (body.params || {}) as Record<string, unknown>;
 
-    const result = await computationExecutor.execute(appId, id, params);
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
+    const result = await computationExecutor.execute(appId, id, params, tenantId);
     ctx.body = result;
   });
 

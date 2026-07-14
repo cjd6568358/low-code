@@ -6,10 +6,10 @@
 // PUT  /api/apps/:appId
 // DELETE /api/apps/:appId
 
-import fs from 'fs';
 import path from 'path';
 import KoaRouter from '@koa/router';
 import { TENANTS_DIR } from '../config/index.js';
+import { existsAsync, resolveAppDir, stripPrefix, readFile, writeFile, readdir, mkdir, unlink, rm } from '../utils/fs-utils.js';
 import type { DatabaseManager } from '@low-code/data';
 import { TableService } from '../services/TableService.js';
 import { generateHexId, RESOURCE_TYPES } from '@low-code/shared';
@@ -21,46 +21,31 @@ function withPrefix(uuid: string, prefix: string): string {
 }
 
 /** 读取单个应用的 app.json */
-function readAppMeta(tenantId: string, appId: string): any | null {
+async function readAppMeta(tenantId: string, appId: string): Promise<any | null> {
   // 兼容裸 ID 和带前缀 ID
   const dirName = appId.startsWith('app_') ? appId : `app_${appId}`;
   const appJsonPath = path.join(TENANTS_DIR, tenantId, 'apps', dirName, 'app.json');
   try {
-    return JSON.parse(fs.readFileSync(appJsonPath, 'utf-8'));
+    return JSON.parse(await readFile(appJsonPath, 'utf-8'));
   } catch {
     return null;
   }
 }
 
 /** 扫描租户下的所有应用 */
-function scanTenantApps(tenantId: string): any[] {
+async function scanTenantApps(tenantId: string): Promise<any[]> {
   const appsDir = path.join(TENANTS_DIR, tenantId, 'apps');
   try {
-    const entries = fs.readdirSync(appsDir, { withFileTypes: true });
-    return entries
-      .filter((e) => e.isDirectory())
-      .map((e) => readAppMeta(tenantId, e.name))
-      .filter((meta) => meta !== null);
+    const entries = await readdir(appsDir, { withFileTypes: true });
+    const metas = await Promise.all(
+      entries
+        .filter((e) => e.isDirectory())
+        .map((e) => readAppMeta(tenantId, e.name)),
+    );
+    return metas.filter((meta) => meta !== null);
   } catch {
     return [];
   }
-}
-
-/** 获取第一个活跃租户 ID */
-function getFirstTenantId(): string | null {
-  try {
-    const entries = fs.readdirSync(TENANTS_DIR, { withFileTypes: true });
-    const tenant = entries.find((e) => e.isDirectory() && e.name.startsWith('tenant_'));
-    return tenant?.name || null;
-  } catch {
-    return null;
-  }
-}
-
-/** Strip prefix from ID (e.g., "app_80e88653" -> "80e88653") */
-function stripPrefix(id: string): string {
-  const idx = id.indexOf('_');
-  return idx >= 0 ? id.substring(idx + 1) : id;
 }
 
 /**
@@ -80,9 +65,9 @@ function resourceIdFromFilename(filename: string): string {
  * @param filename 文件名（如 page_abc12345.json）
  * @returns 资源内容，读取失败返回 null
  */
-function readResourceFile(typeDir: string, filename: string): any | null {
+async function readResourceFile(typeDir: string, filename: string): Promise<any | null> {
   try {
-    return JSON.parse(fs.readFileSync(path.join(typeDir, filename), 'utf-8'));
+    return JSON.parse(await readFile(path.join(typeDir, filename), 'utf-8'));
   } catch {
     return null;
   }
@@ -94,16 +79,16 @@ function readResourceFile(typeDir: string, filename: string): any | null {
  * @param appDir 应用目录路径
  * @returns 按类型分组的资源 Map（key 为裸 ID，value 为资源内容）
  */
-function scanAllResources(appDir: string): Map<string, Map<string, any>> {
+async function scanAllResources(appDir: string): Promise<Map<string, Map<string, any>>> {
   const result = new Map<string, Map<string, any>>();
 
   for (const type of RESOURCE_TYPES) {
     const typeDir = path.join(appDir, type);
     const resourceMap = new Map<string, any>();
     try {
-      const files = fs.readdirSync(typeDir).filter((f) => f.endsWith('.json'));
+      const files = (await readdir(typeDir)).filter((f) => f.endsWith('.json'));
       for (const f of files) {
-        const content = readResourceFile(typeDir, f);
+        const content = await readResourceFile(typeDir, f);
         if (content && !content._deleted) {
           const id = content[`${type.slice(0, -1)}Id`] || content.id || resourceIdFromFilename(f);
           resourceMap.set(id, content);
@@ -177,30 +162,6 @@ function collectReferences(
   }
 }
 
-/**
- * 查找应用目录和租户 ID
- *
- * @param appId 应用 ID（带前缀或裸 ID）
- * @returns [tenantDirName, appDirPath] 或 null
- */
-function findAppDir(appId: string): [string, string] | null {
-  // 兼容裸 ID 和带前缀 ID
-  const dirName = appId.startsWith('app_') ? appId : `app_${appId}`;
-  try {
-    const entries = fs.readdirSync(TENANTS_DIR, { withFileTypes: true });
-    for (const entry of entries) {
-      if (!entry.isDirectory() || !entry.name.startsWith('tenant_')) continue;
-      const appDir = path.join(TENANTS_DIR, entry.name, 'apps', dirName);
-      if (fs.existsSync(path.join(appDir, 'app.json'))) {
-        return [entry.name, appDir];
-      }
-    }
-  } catch {
-    // ignore
-  }
-  return null;
-}
-
 /** Create app routes */
 export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
   const router = new KoaRouter({ prefix: '/api/apps' });
@@ -211,20 +172,19 @@ export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
    * 获取应用列表(扫描所有租户的 apps 目录)
    */
   router.get('/', async (ctx) => {
-    const { tenantId } = ctx.query as { tenantId?: string };
-
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
     const allApps: any[] = [];
 
     if (tenantId) {
-      // 指定租户
-      allApps.push(...scanTenantApps(tenantId));
+      // 指定租户（普通用户 或 平台管理员指定了租户）
+      allApps.push(...(await scanTenantApps(tenantId)));
     } else {
-      // 所有租户
+      // 平台管理员未指定租户 → 扫描全部（管理后台场景）
       try {
-        const entries = fs.readdirSync(TENANTS_DIR, { withFileTypes: true });
+        const entries = await readdir(TENANTS_DIR, { withFileTypes: true });
         for (const entry of entries) {
           if (entry.isDirectory() && entry.name.startsWith('tenant_')) {
-            const apps = scanTenantApps(entry.name);
+            const apps = await scanTenantApps(entry.name);
             allApps.push(...apps.map((app) => ({ ...app, tenantId: stripPrefix(entry.name) })));
           }
         }
@@ -254,7 +214,7 @@ export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
       return;
     }
 
-    const targetTenantId = tenantId || getFirstTenantId();
+    const targetTenantId = (ctx.state as { tenantId: string }).tenantId || tenantId;
     if (!targetTenantId) {
       ctx.status = 400;
       ctx.body = { success: false, error: '没有可用的租户' };
@@ -269,12 +229,12 @@ export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
     const appDir = path.join(TENANTS_DIR, targetTenantId, 'apps', appId);
     const resourceDirs = [...RESOURCE_TYPES];
     for (const dir of resourceDirs) {
-      fs.mkdirSync(path.join(appDir, dir), { recursive: true });
+      await mkdir(path.join(appDir, dir), { recursive: true });
     }
 
     // Ensure uploads directory exists at tenant level
     const uploadsDir = path.join(TENANTS_DIR, targetTenantId, 'uploads');
-    fs.mkdirSync(uploadsDir, { recursive: true });
+    await mkdir(uploadsDir, { recursive: true });
 
     // Write app.json (appId is unprefixed UUID, directory name has prefix)
     const appMeta = {
@@ -293,7 +253,7 @@ export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
       updatedAt: now,
       expose: {},
     };
-    fs.writeFileSync(
+    await writeFile(
       path.join(appDir, 'app.json'),
       JSON.stringify(appMeta, null, 2),
     );
@@ -312,87 +272,84 @@ export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
    */
   router.get('/:appId', async (ctx) => {
     const { appId } = ctx.params;
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
 
-    // 在所有租户中查找
-    try {
-      const entries = fs.readdirSync(TENANTS_DIR, { withFileTypes: true });
-      for (const entry of entries) {
-        if (!entry.isDirectory() || !entry.name.startsWith('tenant_')) continue;
-
-        const meta = readAppMeta(entry.name, appId);
-        if (!meta) continue;
-
-        // 兼容裸 ID 和带前缀 ID
-        const dirName = appId.startsWith('app_') ? appId : `app_${appId}`;
-        const appDir = path.join(TENANTS_DIR, entry.name, 'apps', dirName);
-
-        // 尝试加载 bundle
-        const bundlePath = path.join(appDir, 'dist', 'app.bundle.json');
-        try {
-          const bundle = JSON.parse(fs.readFileSync(bundlePath, 'utf-8'));
-          // bundle 模式：资源已经是完整的对象，转为列表格式返回
-          const resources: Record<string, any[]> = {};
-          for (const [type, typeResources] of Object.entries(bundle.resources)) {
-            resources[type] = Object.entries(typeResources as Record<string, any>).map(([id, content]) => ({
-              id,
-              name: content.name || id,
-              schemaVersion: content.schemaVersion,
-              version: content.version,
-            }));
-          }
-
-          ctx.body = {
-            success: true,
-            app: { ...meta, tenantId: stripPrefix(entry.name) },
-            resources,
-            fromBundle: true,
-            publishedAt: bundle.publishedAt,
-          };
-          return;
-        } catch {
-          // bundle 不存在，fallback 到逐文件扫描
-        }
-
-        // Fallback：逐文件扫描
-        const resourceTypes = RESOURCE_TYPES;
-        const resources: Record<string, any[]> = {};
-
-        for (const type of resourceTypes) {
-          const typeDir = path.join(appDir, type);
-          try {
-            const files = fs.readdirSync(typeDir).filter((f) => f.endsWith('.json'));
-            resources[type] = files.map((f) => {
-              try {
-                const content = JSON.parse(fs.readFileSync(path.join(typeDir, f), 'utf-8'));
-                return {
-                  id: content[`${type.slice(0, -1)}Id`] || content.id || resourceIdFromFilename(f),
-                  name: content.name || resourceIdFromFilename(f),
-                  schemaVersion: content.schemaVersion,
-                  version: content.version,
-                };
-              } catch {
-                return { id: resourceIdFromFilename(f), name: resourceIdFromFilename(f) };
-              }
-            });
-          } catch {
-            resources[type] = [];
-          }
-        }
-
-        ctx.body = {
-          success: true,
-          app: { ...meta, tenantId: stripPrefix(entry.name) },
-          resources,
-          fromBundle: false,
-        };
-        return;
-      }
-    } catch {
-      // ignore
+    if (!tenantId) {
+      ctx.status = 400;
+      ctx.body = { success: false, error: '缺少租户信息' };
+      return;
     }
 
-    ctx.status = 404;
-    ctx.body = { success: false, error: '应用不存在' };
+    const meta = await readAppMeta(tenantId, appId);
+    if (!meta) {
+      ctx.status = 404;
+      ctx.body = { success: false, error: '应用不存在' };
+      return;
+    }
+
+    const dirName = appId.startsWith('app_') ? appId : `app_${appId}`;
+    const appDir = path.join(TENANTS_DIR, `tenant_${tenantId}`, 'apps', dirName);
+
+    // 尝试加载 bundle
+    const bundlePath = path.join(appDir, 'dist', 'app.bundle.json');
+    try {
+      const bundle = JSON.parse(await readFile(bundlePath, 'utf-8'));
+      const resources: Record<string, any[]> = {};
+      for (const [type, typeResources] of Object.entries(bundle.resources)) {
+        resources[type] = Object.entries(typeResources as Record<string, any>).map(([id, content]) => ({
+          id,
+          name: content.name || id,
+          schemaVersion: content.schemaVersion,
+          version: content.version,
+        }));
+      }
+
+      ctx.body = {
+        success: true,
+        app: { ...meta, tenantId },
+        resources,
+        fromBundle: true,
+        publishedAt: bundle.publishedAt,
+      };
+      return;
+    } catch {
+      // bundle 不存在，fallback 到逐文件扫描
+    }
+
+    // Fallback：逐文件扫描
+    const resourceTypes = RESOURCE_TYPES;
+    const resources: Record<string, any[]> = {};
+
+    for (const type of resourceTypes) {
+      const typeDir = path.join(appDir, type);
+      try {
+        const files = (await readdir(typeDir)).filter((f) => f.endsWith('.json'));
+        resources[type] = await Promise.all(
+          files.map(async (f) => {
+            try {
+              const content = JSON.parse(await readFile(path.join(typeDir, f), 'utf-8'));
+              return {
+                id: content[`${type.slice(0, -1)}Id`] || content.id || resourceIdFromFilename(f),
+                name: content.name || resourceIdFromFilename(f),
+                schemaVersion: content.schemaVersion,
+                version: content.version,
+              };
+            } catch {
+              return { id: resourceIdFromFilename(f), name: resourceIdFromFilename(f) };
+            }
+          }),
+        );
+      } catch {
+        resources[type] = [];
+      }
+    }
+
+    ctx.body = {
+      success: true,
+      app: { ...meta, tenantId },
+      resources,
+      fromBundle: false,
+    };
   });
 
   /**
@@ -402,40 +359,35 @@ export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
   router.put('/:appId', async (ctx) => {
     const { appId } = ctx.params;
     const updates = ctx.request.body as Record<string, any>;
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
 
-    try {
-      const entries = fs.readdirSync(TENANTS_DIR, { withFileTypes: true });
-      for (const entry of entries) {
-        if (!entry.isDirectory() || !entry.name.startsWith('tenant_')) continue;
-
-        const meta = readAppMeta(entry.name, appId);
-        if (!meta) continue;
-
-        // 兼容裸 ID 和带前缀 ID
-        const dirName = appId.startsWith('app_') ? appId : `app_${appId}`;
-
-        // 合并更新
-        const updated = {
-          ...meta,
-          ...updates,
-          appId: meta.appId, // 不允许修改 ID
-          schemaVersion: meta.schemaVersion, // 不允许通过此接口修改
-          updatedAt: Date.now(),
-          version: (meta.version || 0) + 1,
-        };
-
-        const appJsonPath = path.join(TENANTS_DIR, entry.name, 'apps', dirName, 'app.json');
-        fs.writeFileSync(appJsonPath, JSON.stringify(updated, null, 2));
-
-        ctx.body = { success: true, app: updated };
-        return;
-      }
-    } catch {
-      // ignore
+    if (!tenantId) {
+      ctx.status = 400;
+      ctx.body = { success: false, error: '缺少租户信息' };
+      return;
     }
 
-    ctx.status = 404;
-    ctx.body = { success: false, error: '应用不存在' };
+    const meta = await readAppMeta(tenantId, appId);
+    if (!meta) {
+      ctx.status = 404;
+      ctx.body = { success: false, error: '应用不存在' };
+      return;
+    }
+
+    const dirName = appId.startsWith('app_') ? appId : `app_${appId}`;
+    const updated = {
+      ...meta,
+      ...updates,
+      appId: meta.appId,
+      schemaVersion: meta.schemaVersion,
+      updatedAt: Date.now(),
+      version: (meta.version || 0) + 1,
+    };
+
+    const appJsonPath = path.join(TENANTS_DIR, `tenant_${tenantId}`, 'apps', dirName, 'app.json');
+    await writeFile(appJsonPath, JSON.stringify(updated, null, 2));
+
+    ctx.body = { success: true, app: updated };
   });
 
   /**
@@ -444,23 +396,21 @@ export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
    */
   router.delete('/:appId', async (ctx) => {
     const { appId } = ctx.params;
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
 
-    try {
-      const entries = fs.readdirSync(TENANTS_DIR, { withFileTypes: true });
-      for (const entry of entries) {
-        if (!entry.isDirectory() || !entry.name.startsWith('tenant_')) continue;
+    if (!tenantId) {
+      ctx.status = 400;
+      ctx.body = { success: false, error: '缺少租户信息' };
+      return;
+    }
 
-        // 兼容裸 ID 和带前缀 ID
-        const dirName = appId.startsWith('app_') ? appId : `app_${appId}`;
-        const appDir = path.join(TENANTS_DIR, entry.name, 'apps', dirName);
-        if (fs.existsSync(appDir)) {
-          fs.rmSync(appDir, { recursive: true, force: true });
-          ctx.body = { success: true };
-          return;
-        }
-      }
-    } catch {
-      // ignore
+    const dirName = appId.startsWith('app_') ? appId : `app_${appId}`;
+    const appDir = path.join(TENANTS_DIR, `tenant_${tenantId}`, 'apps', dirName);
+
+    if (await existsAsync(appDir)) {
+      await rm(appDir, { recursive: true, force: true });
+      ctx.body = { success: true };
+      return;
     }
 
     ctx.status = 404;
@@ -482,23 +432,23 @@ export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
       return;
     }
 
-    const found = findAppDir(appId);
-    if (!found) {
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
+    const appDir = tenantId ? await resolveAppDir(tenantId, appId) : null;
+    if (!appDir) {
       ctx.status = 404;
       ctx.body = { success: false, error: '应用不存在' };
       return;
     }
 
-    const [, appDir] = found;
     const typeDir = path.join(appDir, resourceType);
     const prefix = resourceType.slice(0, -1);
 
     try {
-      const files = fs.readdirSync(typeDir).filter((f) => f.endsWith('.json'));
-      const resources = files
-        .map((f) => {
+      const files = (await readdir(typeDir)).filter((f) => f.endsWith('.json'));
+      const resources = (await Promise.all(
+        files.map(async (f) => {
           try {
-            const content = JSON.parse(fs.readFileSync(path.join(typeDir, f), 'utf-8'));
+            const content = JSON.parse(await readFile(path.join(typeDir, f), 'utf-8'));
             // 跳过已删除的资源
             if (content._deleted) return null;
             return {
@@ -511,8 +461,8 @@ export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
           } catch {
             return { id: resourceIdFromFilename(f), name: resourceIdFromFilename(f) };
           }
-        })
-        .filter(Boolean);
+        }),
+      )).filter(Boolean);
 
       ctx.body = { success: true, resources };
     } catch {
@@ -546,21 +496,21 @@ export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
       return;
     }
 
-    const found = findAppDir(appId);
-    if (!found) {
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
+    const appDir = tenantId ? await resolveAppDir(tenantId, appId) : null;
+    if (!appDir) {
       ctx.status = 404;
       ctx.body = { success: false, error: '应用不存在' };
       return;
     }
 
-    const [, appDir] = found;
     const uuid = generateHexId();
     const prefix = resourceType.slice(0, -1); // pages → page, tables → table, workflows → workflow
     const filename = `${prefix}_${uuid}.json`;
     const resourceDir = path.join(appDir, resourceType);
 
     // 确保目录存在
-    fs.mkdirSync(resourceDir, { recursive: true });
+    await mkdir(resourceDir, { recursive: true });
 
     // 构建资源内容
     const now = Date.now();
@@ -641,7 +591,7 @@ export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
     }
 
     // 写入文件
-    fs.writeFileSync(
+    await writeFile(
       path.join(resourceDir, filename),
       JSON.stringify(resourceContent, null, 2),
     );
@@ -659,7 +609,7 @@ export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
    */
   router.get('/:appId/automations/:ruleId/logs', async (ctx) => {
     const { appId, ruleId } = ctx.params;
-    const tenantId = getFirstTenantId();
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
 
     if (!tenantId) {
       ctx.status = 404;
@@ -716,26 +666,26 @@ export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
       return;
     }
 
-    const found = findAppDir(appId);
-    if (!found) {
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
+    const appDir = tenantId ? await resolveAppDir(tenantId, appId) : null;
+    if (!appDir) {
       ctx.status = 404;
       ctx.body = { success: false, error: '应用不存在' };
       return;
     }
 
-    const [, appDir] = found;
     const prefix = resourceType.slice(0, -1);
     const filename = `${prefix}_${resourceId}.json`;
     const filePath = path.join(appDir, resourceType, filename);
 
-    if (!fs.existsSync(filePath)) {
+    if (!(await existsAsync(filePath))) {
       ctx.status = 404;
       ctx.body = { success: false, error: '资源不存在' };
       return;
     }
 
     try {
-      const content = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+      const content = JSON.parse(await readFile(filePath, 'utf-8'));
       ctx.body = { success: true, resource: content };
     } catch {
       ctx.status = 500;
@@ -759,19 +709,18 @@ export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
       return;
     }
 
-    const found = findAppDir(appId);
-    if (!found) {
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
+    const appDir = tenantId ? await resolveAppDir(tenantId, appId) : null;
+    if (!appDir) {
       ctx.status = 404;
       ctx.body = { success: false, error: '应用不存在' };
       return;
     }
-
-    const [, appDir] = found;
     const prefix = resourceType.slice(0, -1);
     const filename = `${prefix}_${resourceId}.json`;
     const filePath = path.join(appDir, resourceType, filename);
 
-    if (!fs.existsSync(filePath)) {
+    if (!(await existsAsync(filePath))) {
       ctx.status = 404;
       ctx.body = { success: false, error: '资源不存在' };
       return;
@@ -780,7 +729,7 @@ export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
     // 读取现有内容并合并更新
     let existing: Record<string, any>;
     try {
-      existing = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+      existing = JSON.parse(await readFile(filePath, 'utf-8'));
     } catch {
       ctx.status = 500;
       ctx.body = { success: false, error: '读取资源失败' };
@@ -807,18 +756,18 @@ export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
       delete updated.route;
     }
 
-    fs.writeFileSync(filePath, JSON.stringify(updated, null, 2));
+    await writeFile(filePath, JSON.stringify(updated, null, 2));
 
     // 数据表类型：同步物理表
     if (resourceType === 'tables' && tableService) {
       try {
-        const tenantDirName = found[0]; // 格式：tenant_xxxxxxxx
+        const tenantDirName = `tenant_${tenantId}`;
         const tableId = resourceId;
 
         // 读取旧 Schema（如果有）
         let oldSchema: any;
         try {
-          const oldContent = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+          const oldContent = JSON.parse(await readFile(filePath, 'utf-8'));
           // 移除本次更新的字段，得到更新前的状态
           delete oldContent.updatedAt;
           delete oldContent.version;
@@ -855,19 +804,19 @@ export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
       return;
     }
 
-    const found = findAppDir(appId);
-    if (!found) {
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
+    const appDir = tenantId ? await resolveAppDir(tenantId, appId) : null;
+    if (!appDir) {
       ctx.status = 404;
       ctx.body = { success: false, error: '应用不存在' };
       return;
     }
 
-    const [, appDir] = found;
     const prefix = resourceType.slice(0, -1); // pages → page, tables → table
     const filename = `${prefix}_${resourceId}.json`;
     const filePath = path.join(appDir, resourceType, filename);
 
-    if (!fs.existsSync(filePath)) {
+    if (!(await existsAsync(filePath))) {
       ctx.status = 404;
       ctx.body = { success: false, error: '资源不存在' };
       return;
@@ -875,7 +824,7 @@ export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
 
     // 硬删除：物理删除文件
     try {
-      fs.unlinkSync(filePath);
+      await unlink(filePath);
     } catch {
       ctx.status = 500;
       ctx.body = { success: false, error: '删除失败' };
@@ -897,18 +846,18 @@ export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
   router.post('/:appId/publish', async (ctx) => {
     const { appId } = ctx.params;
 
-    const found = findAppDir(appId);
-    if (!found) {
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
+    const appDir = tenantId ? await resolveAppDir(tenantId, appId) : null;
+    if (!appDir) {
       ctx.status = 404;
       ctx.body = { success: false, error: '应用不存在' };
       return;
     }
 
-    const [tenantDir, appDir] = found;
     const now = Date.now();
 
     // 1. 扫描所有资源
-    const allResources = scanAllResources(appDir);
+    const allResources = await scanAllResources(appDir);
 
     // 2. Treeshake
     const included = treeshake(allResources);
@@ -948,7 +897,7 @@ export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
 
     // 4. 写入 bundle
     const distDir = path.join(appDir, 'dist');
-    fs.mkdirSync(distDir, { recursive: true });
+    await mkdir(distDir, { recursive: true });
 
     const bundle = {
       appId: stripPrefix(appId),
@@ -957,7 +906,7 @@ export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
       resources: bundleResources,
     };
 
-    fs.writeFileSync(
+    await writeFile(
       path.join(distDir, 'app.bundle.json'),
       JSON.stringify(bundle, null, 2),
     );
@@ -965,13 +914,13 @@ export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
     // 5. 更新 app.json 状态
     const metaPath = path.join(appDir, 'app.json');
     try {
-      const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
+      const meta = JSON.parse(await readFile(metaPath, 'utf-8'));
       meta.status = 'published';
       meta.publishedAt = now;
       meta.bundleSize = totalCount;
       meta.updatedAt = now;
       meta.version = (meta.version || 0) + 1;
-      fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2));
+      await writeFile(metaPath, JSON.stringify(meta, null, 2));
     } catch {
       // ignore
     }
@@ -1010,49 +959,59 @@ export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
       return;
     }
 
-    // 遍历所有租户的所有应用，检查 references 中是否引用了指定资源
+    // 检查引用了指定资源的已发布应用
     const affectedApps: Array<{ appId: string; name: string; tenantId: string }> = [];
+    const currentTenantId = (ctx.state as { tenantId: string }).tenantId;
 
-    try {
-      const entries = fs.readdirSync(TENANTS_DIR, { withFileTypes: true });
-      for (const entry of entries) {
-        if (!entry.isDirectory() || !entry.name.startsWith('tenant_')) continue;
+    // 确定要扫描的租户列表
+    const tenantDirs: Array<{ name: string; id: string }> = [];
+    if (currentTenantId) {
+      tenantDirs.push({ name: `tenant_${currentTenantId}`, id: currentTenantId });
+    } else {
+      // 平台管理员未指定租户 → 扫描全部
+      try {
+        const entries = await readdir(TENANTS_DIR, { withFileTypes: true });
+        for (const entry of entries) {
+          if (entry.isDirectory() && entry.name.startsWith('tenant_')) {
+            tenantDirs.push({ name: entry.name, id: stripPrefix(entry.name) });
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
 
-        const appsDir = path.join(TENANTS_DIR, entry.name, 'apps');
-        try {
-          const appEntries = fs.readdirSync(appsDir, { withFileTypes: true });
-          for (const appEntry of appEntries) {
-            if (!appEntry.isDirectory()) continue;
+    for (const { name: tenantDirName, id: tid } of tenantDirs) {
+      const appsDir = path.join(TENANTS_DIR, tenantDirName, 'apps');
+      try {
+        const appEntries = await readdir(appsDir, { withFileTypes: true });
+        for (const appEntry of appEntries) {
+          if (!appEntry.isDirectory()) continue;
 
-            const meta = readAppMeta(entry.name, appEntry.name);
-            if (!meta) continue;
+          const meta = await readAppMeta(tenantDirName, appEntry.name);
+          if (!meta) continue;
 
-            // 检查 references 中是否有匹配的资源
-            // 格式：{ "tables": ["appId.resourceId"] }
-            const refs = meta.references;
-            if (refs && typeof refs === 'object') {
-              const typeRefs = refs[resourceType];
-              if (Array.isArray(typeRefs)) {
-                const found = typeRefs.some((ref: string) => {
-                  const parts = ref.split('.');
-                  return parts.length === 2 && parts[1] === resourceId;
+          const refs = meta.references;
+          if (refs && typeof refs === 'object') {
+            const typeRefs = refs[resourceType];
+            if (Array.isArray(typeRefs)) {
+              const found = typeRefs.some((ref: string) => {
+                const parts = ref.split('.');
+                return parts.length === 2 && parts[1] === resourceId;
+              });
+              if (found && meta.status === 'published') {
+                affectedApps.push({
+                  appId: meta.appId,
+                  name: meta.name,
+                  tenantId: tid,
                 });
-                if (found && meta.status === 'published') {
-                  affectedApps.push({
-                    appId: meta.appId,
-                    name: meta.name,
-                    tenantId: stripPrefix(entry.name),
-                  });
-                }
               }
             }
           }
-        } catch {
-          // ignore
         }
+      } catch {
+        // ignore
       }
-    } catch {
-      // ignore
     }
 
     ctx.body = { success: true, affectedApps };

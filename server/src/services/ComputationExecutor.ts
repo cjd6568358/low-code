@@ -8,9 +8,9 @@
  * - 类型转换和格式化
  */
 
-import fs from 'fs';
 import path from 'path';
 import { TENANTS_DIR } from '../config/index.js';
+import { existsAsync, resolveAppDir, readFile } from '../utils/fs-utils.js';
 
 /** 运算执行结果 */
 interface ComputationResult {
@@ -50,35 +50,15 @@ interface ComputationSchema {
   };
 }
 
-/** 查找应用目录和租户 ID */
-function findAppDir(appId: string): [string, string] | null {
-  const dirName = appId.startsWith('app_') ? appId : `app_${appId}`;
-  try {
-    const entries = fs.readdirSync(TENANTS_DIR, { withFileTypes: true });
-    for (const entry of entries) {
-      if (!entry.isDirectory() || !entry.name.startsWith('tenant_')) continue;
-      const appDir = path.join(TENANTS_DIR, entry.name, 'apps', dirName);
-      if (fs.existsSync(path.join(appDir, 'app.json'))) {
-        return [entry.name, appDir];
-      }
-    }
-  } catch {
-    // ignore
-  }
-  return null;
-}
-
 /** 加载运算规则 */
-function loadComputation(appId: string, computationId: string): ComputationSchema | null {
-  const result = findAppDir(appId);
-  if (!result) return null;
-
-  const [, appDir] = result;
+async function loadComputation(appId: string, computationId: string, tenantId: string): Promise<ComputationSchema | null> {
+  const appDir = await resolveAppDir(tenantId, appId);
+  if (!appDir) return null;
   const computationFile = path.join(appDir, 'computations', `${computationId}.json`);
 
   try {
-    if (!fs.existsSync(computationFile)) return null;
-    const content = fs.readFileSync(computationFile, 'utf-8');
+    if (!await existsAsync(computationFile)) return null;
+    const content = await readFile(computationFile, 'utf-8');
     return JSON.parse(content) as ComputationSchema;
   } catch {
     return null;
@@ -327,12 +307,13 @@ class ComputationExecutorImpl {
   async execute(
     appId: string,
     computationId: string,
-    params: Record<string, unknown>
+    params: Record<string, unknown>,
+    tenantId: string
   ): Promise<ComputationResult> {
     const startTime = Date.now();
 
     // 加载运算规则
-    const computation = loadComputation(appId, computationId);
+    const computation = await loadComputation(appId, computationId, tenantId);
     if (!computation) {
       return {
         success: false,

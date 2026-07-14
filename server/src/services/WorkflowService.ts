@@ -23,7 +23,6 @@ import { FileDatabaseAdapter } from './FileDatabaseAdapter.js';
 import { FileSnapshotService } from './FileSnapshotService.js';
 import { TENANTS_DIR } from '../config/index.js';
 import { getDbManager } from '../config/db.js';
-import fs from 'fs';
 import path from 'path';
 
 /**
@@ -108,13 +107,16 @@ export class WorkflowService {
   /**
    * 获取或创建 WorkflowEngine 实例
    */
-  static getEngine(tenantId: string, appId: string): WorkflowEngine {
+  static async getEngine(tenantId: string, appId: string): Promise<WorkflowEngine> {
     const key = `${tenantId}:${appId}`;
 
     if (!this.instances.has(key)) {
       const baseDir = path.join(TENANTS_DIR, tenantId, 'apps', `app_${appId}`);
       const db = new FileDatabaseAdapter(baseDir);
       const snapshotService = new FileSnapshotService(baseDir);
+
+      await db.init();
+      await snapshotService.init();
 
       // 创建用户解析器 — 运行时将指派策略（角色/部门/岗位）解析为具体用户
       const dirName = tenantId.startsWith('tenant_') ? tenantId : `tenant_${tenantId}`;
@@ -136,7 +138,7 @@ export class WorkflowService {
    * 启动流程实例
    */
   static async start(tenantId: string, appId: string, params: StartParams): Promise<InstanceRecord> {
-    const engine = this.getEngine(tenantId, appId);
+    const engine = await this.getEngine(tenantId, appId);
 
     try {
       return await engine.start(params);
@@ -156,7 +158,7 @@ export class WorkflowService {
    * 完成任务（审批通过）
    */
   static async complete(tenantId: string, appId: string, params: CompleteParams): Promise<InstanceRecord> {
-    const engine = this.getEngine(tenantId, appId);
+    const engine = await this.getEngine(tenantId, appId);
 
     try {
       return await engine.complete(params);
@@ -176,7 +178,7 @@ export class WorkflowService {
    * 驳回任务
    */
   static async reject(tenantId: string, appId: string, params: RejectParams): Promise<InstanceRecord> {
-    const engine = this.getEngine(tenantId, appId);
+    const engine = await this.getEngine(tenantId, appId);
 
     try {
       return await engine.reject(params);
@@ -196,7 +198,7 @@ export class WorkflowService {
    * 终止流程
    */
   static async terminate(tenantId: string, appId: string, params: TerminateParams): Promise<InstanceRecord> {
-    const engine = this.getEngine(tenantId, appId);
+    const engine = await this.getEngine(tenantId, appId);
 
     try {
       return await engine.terminate(params);
@@ -216,7 +218,7 @@ export class WorkflowService {
    * 转办任务
    */
   static async transfer(tenantId: string, appId: string, params: TransferParams): Promise<TaskRecord> {
-    const engine = this.getEngine(tenantId, appId);
+    const engine = await this.getEngine(tenantId, appId);
 
     // 获取任务
     const task = await engine.getTask(params.taskId);
@@ -243,7 +245,7 @@ export class WorkflowService {
    * 加签
    */
   static async addSign(tenantId: string, appId: string, params: AddSignParams): Promise<TaskRecord[]> {
-    const engine = this.getEngine(tenantId, appId);
+    const engine = await this.getEngine(tenantId, appId);
 
     // 获取原任务
     const task = await engine.getTask(params.taskId);
@@ -285,7 +287,7 @@ export class WorkflowService {
    * 恢复中断的流程
    */
   static async recover(tenantId: string, appId: string, instanceId: string): Promise<InstanceRecord> {
-    const engine = this.getEngine(tenantId, appId);
+    const engine = await this.getEngine(tenantId, appId);
 
     try {
       return await engine.recover(instanceId);
@@ -305,7 +307,7 @@ export class WorkflowService {
    * 批量恢复中断的流程
    */
   static async recoverAll(tenantId: string, appId: string): Promise<number> {
-    const engine = this.getEngine(tenantId, appId);
+    const engine = await this.getEngine(tenantId, appId);
 
     try {
       return await engine.recoverAll();
@@ -322,7 +324,7 @@ export class WorkflowService {
    * 获取流程实例
    */
   static async getInstance(tenantId: string, appId: string, instanceId: string): Promise<InstanceRecord | undefined> {
-    const engine = this.getEngine(tenantId, appId);
+    const engine = await this.getEngine(tenantId, appId);
     return engine.getInstance(instanceId);
   }
 
@@ -330,7 +332,7 @@ export class WorkflowService {
    * 获取任务
    */
   static async getTask(tenantId: string, appId: string, taskId: string): Promise<TaskRecord | undefined> {
-    const engine = this.getEngine(tenantId, appId);
+    const engine = await this.getEngine(tenantId, appId);
     return engine.getTask(taskId);
   }
 
@@ -338,7 +340,7 @@ export class WorkflowService {
    * 获取待办任务
    */
   static async getPendingTasks(tenantId: string, appId: string, assigneeId: string): Promise<TaskRecord[]> {
-    const engine = this.getEngine(tenantId, appId);
+    const engine = await this.getEngine(tenantId, appId);
     return engine.getPendingTasks(assigneeId);
   }
 
@@ -346,7 +348,7 @@ export class WorkflowService {
    * 获取流程定义
    */
   static async getDefinition(tenantId: string, appId: string, workflowKey: string, version?: number): Promise<DefinitionRecord | undefined> {
-    const engine = this.getEngine(tenantId, appId);
+    const engine = await this.getEngine(tenantId, appId);
     return engine.getDefinition(workflowKey, version);
   }
 
@@ -354,7 +356,7 @@ export class WorkflowService {
    * 获取流程实例的所有 Job
    */
   static async getJobs(tenantId: string, appId: string, instanceId: string): Promise<JobRecord[]> {
-    const engine = this.getEngine(tenantId, appId);
+    const engine = await this.getEngine(tenantId, appId);
     return engine.getJobs(instanceId);
   }
 
@@ -362,7 +364,7 @@ export class WorkflowService {
    * 获取指定节点的最新 Job
    */
   static async getLatestJob(tenantId: string, appId: string, instanceId: string, nodeId: string): Promise<JobRecord | undefined> {
-    const engine = this.getEngine(tenantId, appId);
+    const engine = await this.getEngine(tenantId, appId);
     return engine.getLatestJob(instanceId, nodeId);
   }
 

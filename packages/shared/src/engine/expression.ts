@@ -101,6 +101,20 @@ const FORBIDDEN_GLOBALS = [
   '__filename',
 ];
 
+/** 预编译的禁止全局引用正则（模块加载时创建一次，避免每次求值重建） */
+const FORBIDDEN_REGEXES = FORBIDDEN_GLOBALS.map(
+  global => ({ name: global, regex: new RegExp(`\\b${global}\\b`, 'g') })
+);
+
+/** 表达式编译缓存：expression → compiled function，避免重复 new Function */
+const compiledCache = new Map<string, Function>();
+
+/** AsyncFunction 构造器 */
+const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+
+/** 异步表达式编译缓存 */
+const asyncCompiledCache = new Map<string, Function>();
+
 /** 默认变量引用正则 */
 const VARIABLE_PATH_REGEX = /\$[a-zA-Z_][a-zA-Z0-9_.]*/g;
 
@@ -128,10 +142,10 @@ export class DefaultExpressionEngine implements ExpressionEngine {
   async evaluate(expression: string, context: Record<string, unknown>): Promise<unknown> {
     const sanitized = this.sanitizeExpression(expression);
     const wrapped = this.wrapExpression(sanitized, context);
+    const contextKeys = Object.keys(context);
 
     try {
-      // 使用 Function 构造器创建沙箱函数
-      const fn = new Function(...Object.keys(context), `return ${wrapped}`);
+      const fn = this.getOrCompile(wrapped, contextKeys, compiledCache);
       return fn(...Object.values(context));
     } catch (error) {
       throw this.createError('runtime', `表达式求值失败: ${(error as Error).message}`);
@@ -236,6 +250,7 @@ export class DefaultExpressionEngine implements ExpressionEngine {
   safeEvaluateSync(expression: string, context: Record<string, unknown>): unknown {
     const sanitized = this.sanitizeExpression(expression);
     const wrapped = this.wrapExpression(sanitized, context);
+    const contextKeys = Object.keys(context);
 
     // 检查禁止的全局引用
     const forbiddenRefs = this.findForbiddenReferences(sanitized);
@@ -244,7 +259,7 @@ export class DefaultExpressionEngine implements ExpressionEngine {
     }
 
     try {
-      const fn = new Function(...Object.keys(context), `return ${wrapped}`);
+      const fn = this.getOrCompile(wrapped, contextKeys, compiledCache);
       return fn(...Object.values(context));
     } catch (error) {
       throw this.createError('runtime', `表达式求值失败: ${(error as Error).message}`);
@@ -281,13 +296,17 @@ export class DefaultExpressionEngine implements ExpressionEngine {
           const contextKeys = Object.keys(context);
           const contextValues = contextKeys.map(k => context[k]);
           const sandboxCode = `"use strict"; return (${fullExpr})({${contextKeys.join(',')}});`;
-          const fn = new Function(...contextKeys, sandboxCode);
+          const cacheKey = `${sandboxCode}::${contextKeys.join(',')}`;
+          const cachedFn = compiledCache.get(cacheKey);
+          const fn = cachedFn ?? new Function(...contextKeys, sandboxCode);
+          if (!cachedFn) compiledCache.set(cacheKey, fn);
           return await fn(...contextValues);
         } else {
           // 字符串模式：原有行为
           const sanitized = this.sanitizeExpression(exprStr);
           const wrapped = this.wrapAsyncExpression(sanitized, context);
-          const fn = new AsyncFunction(...Object.keys(context), `return ${wrapped}`);
+          const contextKeys = Object.keys(context);
+          const fn = this.getOrCompile(wrapped, contextKeys, asyncCompiledCache, true);
           return await fn(...Object.values(context));
         }
       } catch (error) {
@@ -419,17 +438,25 @@ export class DefaultExpressionEngine implements ExpressionEngine {
    * 查找禁止的全局引用
    */
   private findForbiddenReferences(expression: string): string[] {
-    const found: string[] = [];
+    return FORBIDDEN_REGEXES
+      .filter(({ regex }) => regex.test(expression))
+      .map(({ name }) => name);
+  }
 
-    for (const global of FORBIDDEN_GLOBALS) {
-      // 使用单词边界匹配，避免误匹配
-      const regex = new RegExp(`\\b${global}\\b`, 'g');
-      if (regex.test(expression)) {
-        found.push(global);
-      }
-    }
-
-    return found;
+  /**
+   * 获取编译后的函数（带缓存）
+   *
+   * 以表达式内容 + 上下文变量名为 key 缓存编译结果，
+   * 同一表达式在运行期间只编译一次，后续直接复用。
+   */
+  private getOrCompile(expression: string, contextKeys: string[], cache: Map<string, Function>, async_?: boolean): Function {
+    const key = `${expression}::${contextKeys.join(',')}`;
+    const cached = cache.get(key);
+    if (cached) return cached;
+    const Ctor = async_ ? AsyncFunction : Function;
+    const fn = new Ctor(...contextKeys, `"use strict"; return (${expression})`);
+    cache.set(key, fn);
+    return fn;
   }
 
   /**
@@ -484,9 +511,6 @@ export class DefaultExpressionEngine implements ExpressionEngine {
     return { type, message };
   }
 }
-
-/** AsyncFunction 构造器 */
-const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 
 /**
  * 表达式依赖分析工具

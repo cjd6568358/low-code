@@ -14,10 +14,11 @@ describe('FileDatabaseAdapter 集成测试', () => {
   let adapter: FileDatabaseAdapter;
   let tempDir: string;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     // 创建临时目录
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'workflow-test-'));
     adapter = new FileDatabaseAdapter(tempDir);
+    await adapter.init();
   });
 
   afterEach(() => {

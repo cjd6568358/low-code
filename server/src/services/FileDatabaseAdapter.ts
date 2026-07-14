@@ -5,9 +5,9 @@
  * 用于 WorkflowEngine 的数据持久化。
  */
 
-import fs from 'fs';
 import path from 'path';
 import type { DatabaseAdapter } from '@low-code/workflow';
+import { existsAsync, readFile, writeFile, readdir, mkdir, unlink } from '../utils/fs-utils.js';
 
 /**
  * 文件系统数据库适配器
@@ -22,14 +22,20 @@ import type { DatabaseAdapter } from '@low-code/workflow';
 export class FileDatabaseAdapter implements DatabaseAdapter {
   private transactionStack: Array<() => void> = [];
 
-  constructor(private readonly baseDir: string) {
-    // 确保目录存在
-    this.ensureDir('instances');
-    this.ensureDir('tasks');
-    this.ensureDir('snapshots');
-    this.ensureDir('workflows');
-    this.ensureDir('jobs');
-    this.ensureDir('user_task_stats');
+  constructor(private readonly baseDir: string) {}
+
+  /**
+   * 初始化适配器，确保所有目录存在
+   *
+   * 必须在使用其他方法前调用。
+   */
+  async init(): Promise<void> {
+    await this.ensureDir('instances');
+    await this.ensureDir('tasks');
+    await this.ensureDir('snapshots');
+    await this.ensureDir('workflows');
+    await this.ensureDir('jobs');
+    await this.ensureDir('user_task_stats');
   }
 
   /**
@@ -39,15 +45,15 @@ export class FileDatabaseAdapter implements DatabaseAdapter {
     const normalizedSql = sql.trim().toUpperCase();
 
     if (normalizedSql.startsWith('INSERT')) {
-      return this.handleInsert(sql, params);
+      return await this.handleInsert(sql, params);
     }
 
     if (normalizedSql.startsWith('UPDATE')) {
-      return this.handleUpdate(sql, params);
+      return await this.handleUpdate(sql, params);
     }
 
     if (normalizedSql.startsWith('DELETE')) {
-      return this.handleDelete(sql, params);
+      return await this.handleDelete(sql, params);
     }
 
     return { changes: 0, lastID: 0 };
@@ -68,7 +74,7 @@ export class FileDatabaseAdapter implements DatabaseAdapter {
     const normalizedSql = sql.trim().toUpperCase();
 
     if (normalizedSql.startsWith('SELECT')) {
-      const results = this.handleSelect<T>(sql, params);
+      const results = await this.handleSelect<T>(sql, params);
       // 转换字段名：下划线 -> 驼峰
       return results.map((r: any) => this.convertToCamelCase(r));
     }
@@ -121,7 +127,7 @@ export class FileDatabaseAdapter implements DatabaseAdapter {
   /**
    * 处理 INSERT 语句
    */
-  private handleInsert(sql: string, params?: unknown[]): { changes: number; lastID: number } {
+  private async handleInsert(sql: string, params?: unknown[]): Promise<{ changes: number; lastID: number }> {
     // 解析表名
     const tableMatch = sql.match(/INSERT\s+INTO\s+(\w+)/i);
     if (!tableMatch) {
@@ -142,7 +148,7 @@ export class FileDatabaseAdapter implements DatabaseAdapter {
 
     // 写入文件
     const filePath = path.join(dir, `${id}.json`);
-    fs.writeFileSync(filePath, JSON.stringify(record, null, 2), 'utf-8');
+    await writeFile(filePath, JSON.stringify(record, null, 2), 'utf-8');
 
     return { changes: 1, lastID: 1 };
   }
@@ -150,7 +156,7 @@ export class FileDatabaseAdapter implements DatabaseAdapter {
   /**
    * 处理 UPDATE 语句
    */
-  private handleUpdate(sql: string, params?: unknown[]): { changes: number; lastID: number } {
+  private async handleUpdate(sql: string, params?: unknown[]): Promise<{ changes: number; lastID: number }> {
     // 解析表名
     const tableMatch = sql.match(/UPDATE\s+(\w+)/i);
     if (!tableMatch) {
@@ -168,11 +174,11 @@ export class FileDatabaseAdapter implements DatabaseAdapter {
 
     // 读取现有记录
     const filePath = path.join(dir, `${id}.json`);
-    if (!fs.existsSync(filePath)) {
+    if (!await existsAsync(filePath)) {
       return { changes: 0, lastID: 0 };
     }
 
-    const existing = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    const existing = JSON.parse(await readFile(filePath, 'utf-8'));
 
     // 解析 SET 子句
     const updates = this.parseSetClause(sql, params);
@@ -181,7 +187,7 @@ export class FileDatabaseAdapter implements DatabaseAdapter {
     const updated = { ...existing, ...updates };
 
     // 写入文件
-    fs.writeFileSync(filePath, JSON.stringify(updated, null, 2), 'utf-8');
+    await writeFile(filePath, JSON.stringify(updated, null, 2), 'utf-8');
 
     return { changes: 1, lastID: 1 };
   }
@@ -189,7 +195,7 @@ export class FileDatabaseAdapter implements DatabaseAdapter {
   /**
    * 处理 DELETE 语句
    */
-  private handleDelete(sql: string, params?: unknown[]): { changes: number; lastID: number } {
+  private async handleDelete(sql: string, params?: unknown[]): Promise<{ changes: number; lastID: number }> {
     // 解析表名
     const tableMatch = sql.match(/DELETE\s+FROM\s+(\w+)/i);
     if (!tableMatch) {
@@ -207,8 +213,8 @@ export class FileDatabaseAdapter implements DatabaseAdapter {
 
     // 删除文件
     const filePath = path.join(dir, `${id}.json`);
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
+    if (await existsAsync(filePath)) {
+      await unlink(filePath);
       return { changes: 1, lastID: 1 };
     }
 
@@ -218,7 +224,7 @@ export class FileDatabaseAdapter implements DatabaseAdapter {
   /**
    * 处理 SELECT 语句
    */
-  private handleSelect<T>(sql: string, params?: unknown[]): T[] {
+  private async handleSelect<T>(sql: string, params?: unknown[]): Promise<T[]> {
     // 解析表名
     const tableMatch = sql.match(/FROM\s+(\w+)/i);
     if (!tableMatch) {
@@ -229,17 +235,17 @@ export class FileDatabaseAdapter implements DatabaseAdapter {
     const dir = this.getTableDir(table);
 
     // 读取所有记录
-    if (!fs.existsSync(dir)) {
+    if (!await existsAsync(dir)) {
       return [];
     }
 
-    const files = fs.readdirSync(dir).filter(f => f.endsWith('.json'));
+    const files = (await readdir(dir)).filter(f => f.endsWith('.json'));
     let records: T[] = [];
 
     for (const file of files) {
       try {
         const filePath = path.join(dir, file);
-        const record = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+        const record = JSON.parse(await readFile(filePath, 'utf-8'));
         records.push(record);
       } catch {
         // 跳过损坏的文件
@@ -283,10 +289,10 @@ export class FileDatabaseAdapter implements DatabaseAdapter {
   /**
    * 确保目录存在
    */
-  private ensureDir(subDir: string): void {
+  private async ensureDir(subDir: string): Promise<void> {
     const dir = path.join(this.baseDir, subDir);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+    if (!await existsAsync(dir)) {
+      await mkdir(dir, { recursive: true });
     }
   }
 

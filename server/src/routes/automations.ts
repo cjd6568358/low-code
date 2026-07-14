@@ -6,29 +6,12 @@
  * 执行日志存储在 tenant.db 的 automation_execution_logs 表。
  */
 
-import fs from 'fs';
 import path from 'path';
 import KoaRouter from '@koa/router';
 import { TENANTS_DIR } from '../config/index.js';
+import { existsAsync, stripPrefix, readFile, writeFile, readdir, mkdir, unlink } from '../utils/fs-utils.js';
 import { getDbManager } from '../config/db.js';
 import { generateHexId } from '@low-code/shared';
-
-/** 从文件名提取裸 ID */
-function stripPrefix(id: string): string {
-  const idx = id.indexOf('_');
-  return idx >= 0 ? id.substring(idx + 1) : id;
-}
-
-/** 获取第一个活跃租户 ID */
-function getFirstTenantId(): string | null {
-  try {
-    const entries = fs.readdirSync(TENANTS_DIR, { withFileTypes: true });
-    const tenant = entries.find((e) => e.isDirectory() && e.name.startsWith('tenant_'));
-    return tenant?.name || null;
-  } catch {
-    return null;
-  }
-}
 
 /** 自动化规则目录 */
 function getAutomationsDir(tenantId: string, appId: string): string {
@@ -36,56 +19,58 @@ function getAutomationsDir(tenantId: string, appId: string): string {
 }
 
 /** 读取规则文件 */
-function readRuleFile(tenantId: string, appId: string, ruleId: string): Record<string, unknown> | null {
+async function readRuleFile(tenantId: string, appId: string, ruleId: string): Promise<Record<string, unknown> | null> {
   const dirName = ruleId.startsWith('automation_') ? ruleId : `automation_${ruleId}`;
   const filePath = path.join(getAutomationsDir(tenantId, appId), `${dirName}.json`);
   try {
-    return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    return JSON.parse(await readFile(filePath, 'utf-8'));
   } catch {
     return null;
   }
 }
 
 /** 扫描应用下的所有规则 */
-function scanRules(tenantId: string, appId: string): Record<string, unknown>[] {
+async function scanRules(tenantId: string, appId: string): Promise<Record<string, unknown>[]> {
   const automationsDir = getAutomationsDir(tenantId, appId);
   try {
-    if (!fs.existsSync(automationsDir)) {
+    if (!await existsAsync(automationsDir)) {
       return [];
     }
-    const entries = fs.readdirSync(automationsDir, { withFileTypes: true });
-    return entries
-      .filter((e) => e.isFile() && e.name.endsWith('.json'))
-      .map((e) => {
-        try {
-          return JSON.parse(fs.readFileSync(path.join(automationsDir, e.name), 'utf-8'));
-        } catch {
-          return null;
-        }
-      })
-      .filter((meta) => meta !== null && !meta._deleted);
+    const entries = await readdir(automationsDir, { withFileTypes: true });
+    const results = await Promise.all(
+      entries
+        .filter((e) => e.isFile() && e.name.endsWith('.json'))
+        .map(async (e) => {
+          try {
+            return JSON.parse(await readFile(path.join(automationsDir, e.name), 'utf-8'));
+          } catch {
+            return null;
+          }
+        })
+    );
+    return results.filter((meta) => meta !== null && !meta._deleted);
   } catch {
     return [];
   }
 }
 
 /** 写入规则文件 */
-function writeRuleFile(tenantId: string, appId: string, rule: Record<string, unknown>): void {
+async function writeRuleFile(tenantId: string, appId: string, rule: Record<string, unknown>): Promise<void> {
   const automationsDir = getAutomationsDir(tenantId, appId);
-  if (!fs.existsSync(automationsDir)) {
-    fs.mkdirSync(automationsDir, { recursive: true });
+  if (!await existsAsync(automationsDir)) {
+    await mkdir(automationsDir, { recursive: true });
   }
   const fileName = `automation_${rule.id}.json`;
-  fs.writeFileSync(path.join(automationsDir, fileName), JSON.stringify(rule, null, 2), 'utf-8');
+  await writeFile(path.join(automationsDir, fileName), JSON.stringify(rule, null, 2), 'utf-8');
 }
 
 /** 删除规则文件 */
-function deleteRuleFile(tenantId: string, appId: string, ruleId: string): boolean {
+async function deleteRuleFile(tenantId: string, appId: string, ruleId: string): Promise<boolean> {
   const dirName = ruleId.startsWith('automation_') ? ruleId : `automation_${ruleId}`;
   const filePath = path.join(getAutomationsDir(tenantId, appId), `${dirName}.json`);
   try {
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
+    if (await existsAsync(filePath)) {
+      await unlink(filePath);
       return true;
     }
     return false;
@@ -109,7 +94,7 @@ export function createAutomationsRouter(): KoaRouter {
 
   // POST /api/automations/:id/enable - 启用规则
   router.post('/:id/enable', async (ctx) => {
-    const tenantId = getFirstTenantId();
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
     if (!tenantId) {
       ctx.status = 404;
       ctx.body = { error: '没有找到租户' };
@@ -124,7 +109,7 @@ export function createAutomationsRouter(): KoaRouter {
     }
 
     const ruleId = ctx.params.id;
-    const existing = readRuleFile(tenantId, appId, ruleId);
+    const existing = await readRuleFile(tenantId, appId, ruleId);
 
     if (!existing) {
       ctx.status = 404;
@@ -139,14 +124,14 @@ export function createAutomationsRouter(): KoaRouter {
       version: ((existing.version as number) || 1) + 1,
     };
 
-    writeRuleFile(tenantId, appId, updated);
+    await writeRuleFile(tenantId, appId, updated);
 
     ctx.body = { data: updated };
   });
 
   // POST /api/automations/:id/disable - 禁用规则
   router.post('/:id/disable', async (ctx) => {
-    const tenantId = getFirstTenantId();
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
     if (!tenantId) {
       ctx.status = 404;
       ctx.body = { error: '没有找到租户' };
@@ -161,7 +146,7 @@ export function createAutomationsRouter(): KoaRouter {
     }
 
     const ruleId = ctx.params.id;
-    const existing = readRuleFile(tenantId, appId, ruleId);
+    const existing = await readRuleFile(tenantId, appId, ruleId);
 
     if (!existing) {
       ctx.status = 404;
@@ -176,14 +161,14 @@ export function createAutomationsRouter(): KoaRouter {
       version: ((existing.version as number) || 1) + 1,
     };
 
-    writeRuleFile(tenantId, appId, updated);
+    await writeRuleFile(tenantId, appId, updated);
 
     ctx.body = { data: updated };
   });
 
   // POST /api/automations/trigger - 手动触发事件
   router.post('/trigger', async (ctx) => {
-    const tenantId = getFirstTenantId();
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
     if (!tenantId) {
       ctx.status = 404;
       ctx.body = { error: '没有找到租户' };
@@ -225,7 +210,7 @@ export function createAutomationsRouter(): KoaRouter {
         };
       } else {
         // 回退到简单匹配
-        const rules = scanRules(tenantId, appId as string)
+        const rules = (await scanRules(tenantId, appId as string))
           .filter(r => r.status === 'enabled');
 
         const matchedRules = rules.filter(rule => {
@@ -268,7 +253,7 @@ export function createAutomationsRouter(): KoaRouter {
 
   // POST /api/automations/:id/execute - 手动执行规则
   router.post('/:id/execute', async (ctx) => {
-    const tenantId = getFirstTenantId();
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
     if (!tenantId) {
       ctx.status = 404;
       ctx.body = { error: '没有找到租户' };
@@ -295,7 +280,7 @@ export function createAutomationsRouter(): KoaRouter {
       }
 
       // 获取规则
-      const rule = readRuleFile(tenantId, appId, ruleId);
+      const rule = await readRuleFile(tenantId, appId, ruleId);
       if (!rule) {
         ctx.status = 404;
         ctx.body = { error: '规则不存在' };
@@ -325,7 +310,7 @@ export function createAutomationsRouter(): KoaRouter {
 
   // GET /api/automations/:id/stats - 获取规则执行统计
   router.get('/:id/stats', async (ctx) => {
-    const tenantId = getFirstTenantId();
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
     if (!tenantId) {
       ctx.status = 404;
       ctx.body = { error: '没有找到租户' };
@@ -355,7 +340,7 @@ export function createAutomationsRouter(): KoaRouter {
 
   // GET /api/automations/:id/logs - 获取规则执行日志
   router.get('/:id/logs', async (ctx) => {
-    const tenantId = getFirstTenantId();
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
     if (!tenantId) {
       ctx.status = 404;
       ctx.body = { error: '没有找到租户' };
@@ -395,7 +380,7 @@ export function createAutomationsRouter(): KoaRouter {
 
   // GET /api/automations/logs/:logId - 获取日志详情
   router.get('/logs/:logId', async (ctx) => {
-    const tenantId = getFirstTenantId();
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
     if (!tenantId) {
       ctx.status = 404;
       ctx.body = { error: '没有找到租户' };

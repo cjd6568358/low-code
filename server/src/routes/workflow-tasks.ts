@@ -5,59 +5,50 @@
  * 数据存储在 tenants/{tenantId}/apps/{appId}/tasks/*.json
  */
 
-import fs from 'fs';
 import path from 'path';
 import KoaRouter from '@koa/router';
 import { TENANTS_DIR } from '../config/index.js';
 import { WorkflowService } from '../services/WorkflowService.js';
 import { WorkflowError } from '@low-code/workflow';
-
-/** 获取第一个活跃租户 ID */
-function getFirstTenantId(): string | null {
-  try {
-    const entries = fs.readdirSync(TENANTS_DIR, { withFileTypes: true });
-    const tenant = entries.find((e) => e.isDirectory() && e.name.startsWith('tenant_'));
-    return tenant?.name || null;
-  } catch {
-    return null;
-  }
-}
+import { existsAsync, readFile, writeFile, readdir, mkdir } from '../utils/fs-utils.js';
 
 /** 读取任务文件 */
-function readTaskFile(tenantId: string, appId: string, taskId: string): any | null {
+async function readTaskFile(tenantId: string, appId: string, taskId: string): Promise<any | null> {
   const filePath = path.join(
     TENANTS_DIR, tenantId, 'apps', 'app_' + appId, 'tasks',
     'task_' + taskId + '.json'
   );
   try {
-    return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    return JSON.parse(await readFile(filePath, 'utf-8'));
   } catch {
     return null;
   }
 }
 
 /** 扫描任务 */
-function scanTasks(tenantId: string, appId: string, filters?: {
+async function scanTasks(tenantId: string, appId: string, filters?: {
   instanceId?: string;
   assigneeId?: string;
   status?: string;
-}): any[] {
+}): Promise<any[]> {
   const tasksDir = path.join(TENANTS_DIR, tenantId, 'apps', 'app_' + appId, 'tasks');
   try {
-    if (!fs.existsSync(tasksDir)) {
+    if (!await existsAsync(tasksDir)) {
       return [];
     }
-    const entries = fs.readdirSync(tasksDir, { withFileTypes: true });
-    let tasks = entries
-      .filter((e) => e.isFile() && e.name.startsWith('task_') && e.name.endsWith('.json'))
-      .map((e) => {
-        try {
-          return JSON.parse(fs.readFileSync(path.join(tasksDir, e.name), 'utf-8'));
-        } catch {
-          return null;
-        }
-      })
-      .filter((t) => t !== null);
+    const entries = await readdir(tasksDir, { withFileTypes: true });
+    const results = await Promise.all(
+      entries
+        .filter((e) => e.isFile() && e.name.startsWith('task_') && e.name.endsWith('.json'))
+        .map(async (e) => {
+          try {
+            return JSON.parse(await readFile(path.join(tasksDir, e.name), 'utf-8'));
+          } catch {
+            return null;
+          }
+        })
+    );
+    let tasks = results.filter((t) => t !== null);
 
     // 应用过滤器
     if (filters?.instanceId) {
@@ -80,59 +71,59 @@ function scanTasks(tenantId: string, appId: string, filters?: {
 }
 
 /** 写入任务文件 */
-function writeTaskFile(tenantId: string, appId: string, task: any): void {
+async function writeTaskFile(tenantId: string, appId: string, task: any): Promise<void> {
   const tasksDir = path.join(TENANTS_DIR, tenantId, 'apps', 'app_' + appId, 'tasks');
-  if (!fs.existsSync(tasksDir)) {
-    fs.mkdirSync(tasksDir, { recursive: true });
+  if (!await existsAsync(tasksDir)) {
+    await mkdir(tasksDir, { recursive: true });
   }
   const fileName = 'task_' + task.id + '.json';
-  fs.writeFileSync(path.join(tasksDir, fileName), JSON.stringify(task, null, 2), 'utf-8');
+  await writeFile(path.join(tasksDir, fileName), JSON.stringify(task, null, 2), 'utf-8');
 }
 
 /** 读取实例文件 */
-function readInstanceFile(tenantId: string, appId: string, instanceId: string): any | null {
+async function readInstanceFile(tenantId: string, appId: string, instanceId: string): Promise<any | null> {
   const filePath = path.join(
     TENANTS_DIR, tenantId, 'apps', 'app_' + appId, 'instances',
     'instance_' + instanceId + '.json'
   );
   try {
-    return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    return JSON.parse(await readFile(filePath, 'utf-8'));
   } catch {
     return null;
   }
 }
 
 /** 写入实例文件 */
-function writeInstanceFile(tenantId: string, appId: string, instance: any): void {
+async function writeInstanceFile(tenantId: string, appId: string, instance: any): Promise<void> {
   const instancesDir = path.join(TENANTS_DIR, tenantId, 'apps', 'app_' + appId, 'instances');
-  if (!fs.existsSync(instancesDir)) {
-    fs.mkdirSync(instancesDir, { recursive: true });
+  if (!await existsAsync(instancesDir)) {
+    await mkdir(instancesDir, { recursive: true });
   }
   const fileName = 'instance_' + instance.id + '.json';
-  fs.writeFileSync(path.join(instancesDir, fileName), JSON.stringify(instance, null, 2), 'utf-8');
+  await writeFile(path.join(instancesDir, fileName), JSON.stringify(instance, null, 2), 'utf-8');
 }
 
 /** 读取流程定义 */
-function readWorkflowFile(tenantId: string, appId: string, workflowId: string): any | null {
+async function readWorkflowFile(tenantId: string, appId: string, workflowId: string): Promise<any | null> {
   const filePath = path.join(
     TENANTS_DIR, tenantId, 'apps', 'app_' + appId, 'workflows',
     'workflow_' + workflowId + '.json'
   );
   try {
-    return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    return JSON.parse(await readFile(filePath, 'utf-8'));
   } catch {
     return null;
   }
 }
 
 /** 保存快照 */
-function saveSnapshot(tenantId: string, appId: string, snapshot: any): void {
+async function saveSnapshot(tenantId: string, appId: string, snapshot: any): Promise<void> {
   const snapshotsDir = path.join(TENANTS_DIR, tenantId, 'apps', 'app_' + appId, 'snapshots');
-  if (!fs.existsSync(snapshotsDir)) {
-    fs.mkdirSync(snapshotsDir, { recursive: true });
+  if (!await existsAsync(snapshotsDir)) {
+    await mkdir(snapshotsDir, { recursive: true });
   }
   const fileName = 'snapshot_' + snapshot.id + '.json';
-  fs.writeFileSync(path.join(snapshotsDir, fileName), JSON.stringify(snapshot, null, 2), 'utf-8');
+  await writeFile(path.join(snapshotsDir, fileName), JSON.stringify(snapshot, null, 2), 'utf-8');
 }
 
 /**
@@ -143,7 +134,7 @@ export function createWorkflowTasksRouter(): KoaRouter {
 
   // GET /api/apps/:appId/workflow-tasks/stats - 获取用户任务统计
   router.get('/:appId/workflow-tasks/stats', async (ctx) => {
-    const tenantId = getFirstTenantId();
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
     if (!tenantId) {
       ctx.status = 404;
       ctx.body = { error: '没有找到租户' };
@@ -155,7 +146,7 @@ export function createWorkflowTasksRouter(): KoaRouter {
     const userId = ctx.query.userId as string;
 
     try {
-      const engine = WorkflowService.getEngine(tenantId, appId);
+      const engine = await WorkflowService.getEngine(tenantId, appId);
       if (userId) {
         const stats = await engine.getUserTaskStats(userId);
         ctx.body = { data: stats };
@@ -171,7 +162,7 @@ export function createWorkflowTasksRouter(): KoaRouter {
 
   // GET /api/apps/:appId/workflow-tasks - 获取任务列表
   router.get('/:appId/workflow-tasks', async (ctx) => {
-    const tenantId = getFirstTenantId();
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
     if (!tenantId) {
       ctx.status = 404;
       ctx.body = { error: '没有找到租户' };
@@ -186,13 +177,13 @@ export function createWorkflowTasksRouter(): KoaRouter {
       status: ctx.query.status as string,
     };
 
-    const tasks = scanTasks(tenantId, appId, filters);
+    const tasks = await scanTasks(tenantId, appId, filters);
     ctx.body = { data: tasks, total: tasks.length };
   });
 
   // GET /api/apps/:appId/workflow-tasks/:id - 获取单个任务
   router.get('/:appId/workflow-tasks/:id', async (ctx) => {
-    const tenantId = getFirstTenantId();
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
     if (!tenantId) {
       ctx.status = 404;
       ctx.body = { error: '没有找到租户' };
@@ -201,7 +192,7 @@ export function createWorkflowTasksRouter(): KoaRouter {
 
     const appId = ctx.params.appId;
     const taskId = ctx.params.id;
-    const task = readTaskFile(tenantId, appId, taskId);
+    const task = await readTaskFile(tenantId, appId, taskId);
 
     if (!task) {
       ctx.status = 404;
@@ -214,7 +205,7 @@ export function createWorkflowTasksRouter(): KoaRouter {
 
   // POST /api/apps/:appId/workflow-tasks/:id/approve - 审批通过
   router.post('/:appId/workflow-tasks/:id/approve', async (ctx) => {
-    const tenantId = getFirstTenantId();
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
     if (!tenantId) {
       ctx.status = 404;
       ctx.body = { error: '没有找到租户' };
@@ -250,7 +241,7 @@ export function createWorkflowTasksRouter(): KoaRouter {
 
   // POST /api/apps/:appId/workflow-tasks/:id/reject - 审批驳回
   router.post('/:appId/workflow-tasks/:id/reject', async (ctx) => {
-    const tenantId = getFirstTenantId();
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
     if (!tenantId) {
       ctx.status = 404;
       ctx.body = { error: '没有找到租户' };
@@ -292,7 +283,7 @@ export function createWorkflowTasksRouter(): KoaRouter {
 
   // POST /api/apps/:appId/workflow-tasks/:id/transfer - 转办
   router.post('/:appId/workflow-tasks/:id/transfer', async (ctx) => {
-    const tenantId = getFirstTenantId();
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
     if (!tenantId) {
       ctx.status = 404;
       ctx.body = { error: '没有找到租户' };

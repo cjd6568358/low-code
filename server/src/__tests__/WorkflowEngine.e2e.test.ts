@@ -135,10 +135,12 @@ describe('WorkflowEngine 端到端测试', () => {
   let db: FileDatabaseAdapter;
   let snapshotService: FileSnapshotService;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'workflow-e2e-'));
     db = new FileDatabaseAdapter(tempDir);
     snapshotService = new FileSnapshotService(tempDir);
+    await db.init();
+    await snapshotService.init();
 
     engine = new WorkflowEngine({
       db,

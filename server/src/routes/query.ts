@@ -12,39 +12,21 @@
  * - aggregate: 聚合（count/sum/avg/min/max）
  */
 
-import fs from 'fs';
 import path from 'path';
 import KoaRouter from '@koa/router';
 import { TENANTS_DIR } from '../config/index.js';
 import type { DatabaseManager } from '@low-code/data';
 import { queryRecordsAdvanced } from '@low-code/data';
 import type { TableSchema } from '@low-code/shared';
-
-/** 查找应用目录和租户 ID */
-function findAppDir(appId: string): [string, string] | null {
-  const dirName = appId.startsWith('app_') ? appId : `app_${appId}`;
-  try {
-    const entries = fs.readdirSync(TENANTS_DIR, { withFileTypes: true });
-    for (const entry of entries) {
-      if (!entry.isDirectory() || !entry.name.startsWith('tenant_')) continue;
-      const appDir = path.join(TENANTS_DIR, entry.name, 'apps', dirName);
-      if (fs.existsSync(path.join(appDir, 'app.json'))) {
-        return [entry.name, appDir];
-      }
-    }
-  } catch {
-    // ignore
-  }
-  return null;
-}
+import { existsAsync, resolveAppDir, readFile } from '../utils/fs-utils.js';
 
 /** 加载表 Schema */
-function loadTableSchema(appDir: string, tableId: string): TableSchema | null {
+async function loadTableSchema(appDir: string, tableId: string): Promise<TableSchema | null> {
   const tablesDir = path.join(appDir, 'tables');
   const fileName = tableId.startsWith('table_') ? `${tableId}.json` : `table_${tableId}.json`;
   const filePath = path.join(tablesDir, fileName);
   try {
-    return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    return JSON.parse(await readFile(filePath, 'utf-8'));
   } catch {
     return null;
   }
@@ -68,19 +50,24 @@ export function createQueryRouter(manager?: DatabaseManager): KoaRouter {
       return;
     }
 
-    // 查找应用所属租户
-    const found = findAppDir(appId);
-    if (!found) {
+    // 从 JWT 获取租户信息
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
+    if (!tenantId) {
+      ctx.status = 400;
+      ctx.body = { success: false, error: '缺少租户信息' };
+      return;
+    }
+
+    const appDir = await resolveAppDir(tenantId, appId);
+    if (!appDir) {
       ctx.status = 404;
       ctx.body = { success: false, error: `App not found: ${appId}` };
       return;
     }
-    const [tenantDirName, appDir] = found;
-    const tenantId = tenantDirName.replace('tenant_', '');
 
     // 加载表 Schema
     const tableId = body.table;
-    const schema = loadTableSchema(appDir, tableId);
+    const schema = await loadTableSchema(appDir, tableId);
     if (!schema) {
       ctx.status = 404;
       ctx.body = { success: false, error: `Table not found: ${tableId}` };

@@ -11,17 +11,6 @@ import { TENANTS_DIR } from '../config/index.js';
 import { generateHexId } from '@low-code/shared';
 import fs from 'fs';
 
-/** 获取第一个活跃租户 ID */
-function getFirstTenantId(): string | null {
-  try {
-    const entries = fs.readdirSync(TENANTS_DIR, { withFileTypes: true });
-    const tenant = entries.find((e) => e.isDirectory() && e.name.startsWith('tenant_'));
-    return tenant?.name || null;
-  } catch {
-    return null;
-  }
-}
-
 /** 默认权限矩阵 — 定义系统资源与默认权限 */
 const DEFAULT_RESOURCES = [
   { resource: '工作台', type: 'menu', resourceId: 'workspace' },
@@ -46,7 +35,7 @@ export function createPermissionsRouter(): KoaRouter {
 
   // GET /api/permissions - 查询权限列表
   router.get('/', async (ctx) => {
-    const tenantId = getFirstTenantId();
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
     if (!tenantId) {
       ctx.status = 404;
       ctx.body = { success: false, error: '没有找到租户' };
@@ -104,7 +93,7 @@ export function createPermissionsRouter(): KoaRouter {
 
   // GET /api/permissions/matrix - 权限矩阵数据
   router.get('/matrix', async (ctx) => {
-    const tenantId = getFirstTenantId();
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
     if (!tenantId) {
       ctx.status = 404;
       ctx.body = { success: false, error: '没有找到租户' };
@@ -184,7 +173,7 @@ export function createPermissionsRouter(): KoaRouter {
 
   // POST /api/permissions - 创建权限条目
   router.post('/', async (ctx) => {
-    const tenantId = getFirstTenantId();
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
     if (!tenantId) {
       ctx.status = 404;
       ctx.body = { success: false, error: '没有找到租户' };
@@ -223,7 +212,7 @@ export function createPermissionsRouter(): KoaRouter {
 
   // PUT /api/permissions/:id - 更新权限条目
   router.put('/:id', async (ctx) => {
-    const tenantId = getFirstTenantId();
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
     if (!tenantId) {
       ctx.status = 404;
       ctx.body = { success: false, error: '没有找到租户' };
@@ -265,7 +254,7 @@ export function createPermissionsRouter(): KoaRouter {
 
   // PUT /api/permissions/batch - 批量更新角色权限（矩阵编辑）
   router.put('/batch', async (ctx) => {
-    const tenantId = getFirstTenantId();
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
     if (!tenantId) {
       ctx.status = 404;
       ctx.body = { success: false, error: '没有找到租户' };
@@ -330,7 +319,7 @@ export function createPermissionsRouter(): KoaRouter {
 
   // DELETE /api/permissions/:id - 删除权限条目
   router.delete('/:id', async (ctx) => {
-    const tenantId = getFirstTenantId();
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
     if (!tenantId) {
       ctx.status = 404;
       ctx.body = { success: false, error: '没有找到租户' };

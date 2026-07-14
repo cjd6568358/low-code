@@ -9,16 +9,11 @@ import jwt from 'jsonwebtoken';
 import KoaRouter from '@koa/router';
 import { DatabaseManager } from '@low-code/data';
 import { JWT_SECRET, JWT_EXPIRES_IN } from '../config/index.js';
+import { stripPrefix } from '../utils/fs-utils.js';
 
 /** 密码哈希(scrypt) */
 function hashPassword(password: string, salt: string): string {
   return crypto.scryptSync(password, salt, 64).toString('hex');
-}
-
-/** Strip prefix from ID (e.g., "tenant_90ef6d72" -> "90ef6d72") */
-function stripPrefix(id: string): string {
-  const idx = id.indexOf('_');
-  return idx >= 0 ? id.substring(idx + 1) : id;
 }
 
 /** 验证密码 */

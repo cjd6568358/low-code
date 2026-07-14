@@ -64,7 +64,7 @@ function extractTenantId(ctx: Context): string | undefined {
     ?? (body?.tenantId as string | undefined);
 }
 
-/** tenantGuard — 校验请求中的 tenantId 与 token 中的 tenantId 一致 */
+/** tenantGuard — 注入 tenantId 到 ctx.state，校验请求合法性 */
 export async function tenantGuard(ctx: Context, next: Next): Promise<void> {
   const user = ctx.state.user as JwtUserPayload | undefined;
   if (!user) {
@@ -73,18 +73,15 @@ export async function tenantGuard(ctx: Context, next: Next): Promise<void> {
     return;
   }
 
-  // 平台管理员跳过租户校验
+  // 平台管理员：从请求参数取 tenantId（可选）
   if (user.role === 'platform_admin') {
+    const requestTenantId = extractTenantId(ctx);
+    (ctx.state as Record<string, unknown>).tenantId = requestTenantId || '';
     await next();
     return;
   }
 
-  const requestTenantId = extractTenantId(ctx);
-  if (requestTenantId && requestTenantId !== user.tenantId) {
-    ctx.status = 403;
-    ctx.body = { success: false, error: '无权访问该租户资源' };
-    return;
-  }
-
+  // 普通用户：以 JWT 中的 tenantId 为准
+  (ctx.state as Record<string, unknown>).tenantId = user.tenantId;
   await next();
 }

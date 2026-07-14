@@ -10,17 +10,6 @@ import { getDbManager } from '../config/db.js';
 import { TENANTS_DIR } from '../config/index.js';
 import fs from 'fs';
 
-/** 获取第一个活跃租户 ID */
-function getFirstTenantId(): string | null {
-  try {
-    const entries = fs.readdirSync(TENANTS_DIR, { withFileTypes: true });
-    const tenant = entries.find((e) => e.isDirectory() && e.name.startsWith('tenant_'));
-    return tenant?.name || null;
-  } catch {
-    return null;
-  }
-}
-
 /**
  * 创建消息中心路由
  */
@@ -29,7 +18,7 @@ export function createMessagesRouter(): KoaRouter {
 
   // GET /api/messages - 查询消息列表
   router.get('/', async (ctx) => {
-    const tenantId = getFirstTenantId();
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
     if (!tenantId) {
       ctx.status = 404;
       ctx.body = { success: false, error: '没有找到租户' };
@@ -115,7 +104,7 @@ export function createMessagesRouter(): KoaRouter {
 
   // GET /api/messages/unread-count - 未读消息数量
   router.get('/unread-count', async (ctx) => {
-    const tenantId = getFirstTenantId();
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
     if (!tenantId) {
       ctx.status = 404;
       ctx.body = { success: false, error: '没有找到租户' };
@@ -145,7 +134,7 @@ export function createMessagesRouter(): KoaRouter {
 
   // PUT /api/messages/:id/read - 标记单条消息已读
   router.put('/:id/read', async (ctx) => {
-    const tenantId = getFirstTenantId();
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
     if (!tenantId) {
       ctx.status = 404;
       ctx.body = { success: false, error: '没有找到租户' };
@@ -176,7 +165,7 @@ export function createMessagesRouter(): KoaRouter {
 
   // POST /api/messages/read-all - 全部标记已读
   router.post('/read-all', async (ctx) => {
-    const tenantId = getFirstTenantId();
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
     if (!tenantId) {
       ctx.status = 404;
       ctx.body = { success: false, error: '没有找到租户' };

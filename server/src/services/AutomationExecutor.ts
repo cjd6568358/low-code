@@ -14,7 +14,6 @@
  * 5. 记录执行日志
  */
 
-import fs from 'fs';
 import path from 'path';
 import { CronScheduler, validateCronExpression } from './CronScheduler.js';
 import { createExpressionEngine, interpolateTemplate, type ExpressionEngine } from '@low-code/shared';
@@ -30,6 +29,7 @@ import type {
   NotificationPriority,
   DataOperationType,
 } from '@low-code/automation';
+import { existsAsync, readFile, readdir } from '../utils/fs-utils.js';
 
 /** 自动化规则状态 */
 type AutomationStatus = AutomationRuleStatus;
@@ -231,19 +231,19 @@ export class AutomationExecutor {
 
     // 扫描所有应用的自动化规则
     const appsDir = path.join(TENANTS_DIR, tenantId, 'apps');
-    if (!fs.existsSync(appsDir)) {
+    if (!await existsAsync(appsDir)) {
       console.log('[AutomationExecutor] 应用目录不存在');
       return;
     }
 
-    const appDirs = fs.readdirSync(appsDir, { withFileTypes: true })
+    const appDirs = (await readdir(appsDir, { withFileTypes: true }))
       .filter(d => d.isDirectory() && d.name.startsWith('app_'));
 
     let registeredCount = 0;
 
     for (const appDir of appDirs) {
       const appId = appDir.name.replace('app_', '');
-      const rules = this.loadRules(tenantId, appId);
+      const rules = await this.loadRules(tenantId, appId);
 
       for (const rule of rules) {
         if (rule.status === 'enabled' && rule.trigger.type === 'schedule') {
@@ -340,8 +340,8 @@ export class AutomationExecutor {
 
     // 获取所有匹配的规则
     const rules = appId
-      ? this.loadRules(tenantId, appId)
-      : this.loadAllRules(tenantId);
+      ? await this.loadRules(tenantId, appId)
+      : await this.loadAllRules(tenantId);
 
     const matchedRules = rules.filter(rule => {
       if (rule.status !== 'enabled') return false;
@@ -850,46 +850,50 @@ export class AutomationExecutor {
   /**
    * 加载规则
    */
-  private loadRules(tenantId: string, appId: string): AutomationRule[] {
+  private async loadRules(tenantId: string, appId: string): Promise<AutomationRule[]> {
     const automationsDir = path.join(TENANTS_DIR, tenantId, 'apps', `app_${appId}`, 'automations');
 
-    if (!fs.existsSync(automationsDir)) {
+    if (!await existsAsync(automationsDir)) {
       return [];
     }
 
-    const entries = fs.readdirSync(automationsDir, { withFileTypes: true });
+    const entries = await readdir(automationsDir, { withFileTypes: true });
 
-    return entries
-      .filter(e => e.isFile() && e.name.endsWith('.json'))
-      .map(e => {
+    const rules: AutomationRule[] = [];
+    for (const e of entries) {
+      if (e.isFile() && e.name.endsWith('.json')) {
         try {
-          const content = fs.readFileSync(path.join(automationsDir, e.name), 'utf-8');
-          return JSON.parse(content) as AutomationRule;
+          const content = await readFile(path.join(automationsDir, e.name), 'utf-8');
+          const rule = JSON.parse(content) as AutomationRule;
+          if (rule !== null && !rule._deleted) {
+            rules.push(rule);
+          }
         } catch {
-          return null;
+          // 跳过损坏的规则文件
         }
-      })
-      .filter((rule): rule is AutomationRule => rule !== null && !rule._deleted);
+      }
+    }
+    return rules;
   }
 
   /**
    * 加载所有规则
    */
-  private loadAllRules(tenantId: string): AutomationRule[] {
+  private async loadAllRules(tenantId: string): Promise<AutomationRule[]> {
     const appsDir = path.join(TENANTS_DIR, tenantId, 'apps');
 
-    if (!fs.existsSync(appsDir)) {
+    if (!await existsAsync(appsDir)) {
       return [];
     }
 
-    const appDirs = fs.readdirSync(appsDir, { withFileTypes: true })
+    const appDirs = (await readdir(appsDir, { withFileTypes: true }))
       .filter(d => d.isDirectory() && d.name.startsWith('app_'));
 
     const rules: AutomationRule[] = [];
 
     for (const appDir of appDirs) {
       const appId = appDir.name.replace('app_', '');
-      rules.push(...this.loadRules(tenantId, appId));
+      rules.push(...await this.loadRules(tenantId, appId));
     }
 
     return rules;

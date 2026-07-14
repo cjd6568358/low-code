@@ -11,17 +11,6 @@ import { TENANTS_DIR } from '../config/index.js';
 import { generateHexId } from '@low-code/shared';
 import fs from 'fs';
 
-/** 获取第一个活跃租户 ID */
-function getFirstTenantId(): string | null {
-  try {
-    const entries = fs.readdirSync(TENANTS_DIR, { withFileTypes: true });
-    const tenant = entries.find((e) => e.isDirectory() && e.name.startsWith('tenant_'));
-    return tenant?.name || null;
-  } catch {
-    return null;
-  }
-}
-
 /**
  * 创建角色管理路由
  */
@@ -30,7 +19,7 @@ export function createRolesRouter(): KoaRouter {
 
   // GET /api/roles - 查询角色列表
   router.get('/', async (ctx) => {
-    const tenantId = getFirstTenantId();
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
     if (!tenantId) {
       ctx.status = 404;
       ctx.body = { success: false, error: '没有找到租户' };
@@ -84,7 +73,7 @@ export function createRolesRouter(): KoaRouter {
 
   // POST /api/roles - 创建角色
   router.post('/', async (ctx) => {
-    const tenantId = getFirstTenantId();
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
     if (!tenantId) {
       ctx.status = 404;
       ctx.body = { success: false, error: '没有找到租户' };
@@ -122,7 +111,7 @@ export function createRolesRouter(): KoaRouter {
 
   // PUT /api/roles/:id - 更新角色
   router.put('/:id', async (ctx) => {
-    const tenantId = getFirstTenantId();
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
     if (!tenantId) {
       ctx.status = 404;
       ctx.body = { success: false, error: '没有找到租户' };
@@ -173,7 +162,7 @@ export function createRolesRouter(): KoaRouter {
 
   // DELETE /api/roles/:id - 删除角色
   router.delete('/:id', async (ctx) => {
-    const tenantId = getFirstTenantId();
+    const tenantId = (ctx.state as { tenantId: string }).tenantId;
     if (!tenantId) {
       ctx.status = 404;
       ctx.body = { success: false, error: '没有找到租户' };
