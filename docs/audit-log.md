@@ -54,37 +54,31 @@
 
 ```sql
 CREATE TABLE audit_logs (
-  id             BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  tenant_id      VARCHAR(64)   NOT NULL,
-  app_id         VARCHAR(64)   NULL COMMENT '应用级操作时有值',
-  actor_id       VARCHAR(64)   NOT NULL COMMENT '操作人ID',
-  actor_name     VARCHAR(128)  NOT NULL COMMENT '操作人姓名',
-  actor_ip       VARCHAR(64)   NULL,
-  actor_ua       VARCHAR(512)  NULL,
-  action         VARCHAR(64)   NOT NULL COMMENT '操作类型 code',
-  resource_type  VARCHAR(64)   NOT NULL COMMENT '资源类型',
-  resource_id    VARCHAR(128)  NULL COMMENT '资源实例ID',
-  resource_name  VARCHAR(256)  NULL COMMENT '资源名称（冗余便于展示）',
-  detail         JSON          NULL COMMENT '操作详情（变更前后值等）',
-  result         ENUM('success','failure') NOT NULL DEFAULT 'success',
-  error_msg      VARCHAR(1024) NULL COMMENT '失败原因',
-  request_id     VARCHAR(64)   NULL COMMENT '链路追踪ID',
-  duration_ms    INT UNSIGNED  NULL COMMENT '操作耗时',
-  created_at     DATETIME(3)   NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id      TEXT NOT NULL,
+  app_id         TEXT,                       -- 应用级操作时有值
+  actor_id       TEXT NOT NULL,              -- 操作人ID
+  actor_name     TEXT NOT NULL,              -- 操作人姓名
+  actor_ip       TEXT,
+  actor_ua       TEXT,
+  action         TEXT NOT NULL,              -- 操作类型 code
+  resource_type  TEXT NOT NULL,              -- 资源类型
+  resource_id    TEXT,                       -- 资源实例ID
+  resource_name  TEXT,                       -- 资源名称（冗余便于展示）
+  detail         TEXT,                       -- 操作详情（JSON，变更前后值等）
+  result         TEXT NOT NULL DEFAULT 'success'
+                   CHECK (result IN ('success', 'failure')),
+  error_msg      TEXT,                       -- 失败原因
+  request_id     TEXT,                       -- 链路追踪ID
+  duration_ms    INTEGER,                    -- 操作耗时
+  created_at     TEXT NOT NULL DEFAULT (datetime('now'))
+);
 
-  INDEX idx_tenant_time (tenant_id, created_at),
-  INDEX idx_app_time (app_id, created_at),
-  INDEX idx_actor (actor_id, created_at),
-  INDEX idx_action (action, created_at),
-  INDEX idx_resource (resource_type, resource_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-  COMMENT='安全审计日志表'
-  PARTITION BY RANGE (TO_DAYS(created_at)) (
-    PARTITION p202401 VALUES LESS THAN (TO_DAYS('2024-02-01')),
-    PARTITION p202402 VALUES LESS THAN (TO_DAYS('2024-03-01')),
-    -- 按月自动创建分区
-    PARTITION p_future VALUES LESS THAN MAXVALUE
-  );
+CREATE INDEX idx_audit_tenant_time ON audit_logs (tenant_id, created_at);
+CREATE INDEX idx_audit_app_time ON audit_logs (app_id, created_at);
+CREATE INDEX idx_audit_actor ON audit_logs (actor_id, created_at);
+CREATE INDEX idx_audit_action ON audit_logs (action, created_at);
+CREATE INDEX idx_audit_resource ON audit_logs (resource_type, resource_id);
 ```
 
 ## 审计事件分类

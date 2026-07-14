@@ -4,11 +4,13 @@
 
 ## 触发方式
 
-| 触发类型 | 说明 |
+上层封装提供 3 种触发入口，底层统一调用 `POST /api/apps/:appId/workflows/:id/trigger`：
+
+| 触发入口 | 说明 |
 |---------|------|
-| **表单按钮** | 用户在表单页面点击按钮触发流程（主要方式） |
-| Webhook | 外部系统通过 HTTP Webhook 触发流程 |
-| 定时任务 | 基于 Cron 表达式的定时触发（可选） |
+| **手动触发** | 用户通过 API 或管理界面直接触发流程 |
+| **表单按钮触发** | 表单页面按钮配置 `triggerWorkflow` action，提交时自动触发 |
+| **自动化定时触发** | 自动化引擎规则动作配置 `trigger_workflow`，由事件/定时任务驱动 | |
 
 ### 按钮触发模型
 
@@ -162,23 +164,23 @@
 ```sql
 -- 流程快照表（流程期间的数据载体，审批结束后数据回写业务表）
 CREATE TABLE workflow_snapshots (
-  id              BIGINT PRIMARY KEY AUTO_INCREMENT,
-  instance_id     BIGINT NOT NULL,           -- 流程实例ID
-  node_id         VARCHAR(64),               -- 节点定义ID（初始快照为 NULL）
-  node_name       VARCHAR(128),              -- 节点名称（冗余，方便查询）
-  source_id       VARCHAR(64) NOT NULL,      -- 业务记录ID
-  source_table    VARCHAR(64) NOT NULL,      -- 业务表名
-  data            JSON NOT NULL,             -- 完整快照数据（该节点流出时的全量数据）
-  changed_fields  JSON,                      -- 相对上一快照的变更字段明细
-  snapshot_type   VARCHAR(32) NOT NULL,      -- INITIAL | NODE_COMPLETE | NODE_REJECT | FINAL | TERMINATED
-  operator_id     BIGINT,                    -- 操作人ID
-  operator_name   VARCHAR(64),               -- 操作人姓名（冗余）
-  comment         TEXT,                      -- 操作备注（如审批意见）
-  created_at      DATETIME DEFAULT NOW(),
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  instance_id     INTEGER NOT NULL,           -- 流程实例ID
+  node_id         TEXT,                       -- 节点定义ID（初始快照为 NULL）
+  node_name       TEXT,                       -- 节点名称（冗余，方便查询）
+  source_id       TEXT NOT NULL,              -- 业务记录ID
+  source_table    TEXT NOT NULL,              -- 业务表名
+  data            TEXT NOT NULL,              -- 完整快照数据（JSON，该节点流出时的全量数据）
+  changed_fields  TEXT,                       -- 相对上一快照的变更字段明细（JSON）
+  snapshot_type   TEXT NOT NULL,              -- INITIAL | NODE_COMPLETE | NODE_REJECT | FINAL | TERMINATED
+  operator_id     TEXT,                       -- 操作人ID
+  operator_name   TEXT,                       -- 操作人姓名（冗余）
+  comment         TEXT,                       -- 操作备注（如审批意见）
+  created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
 
-  INDEX idx_instance (instance_id),
-  INDEX idx_source (source_table, source_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE INDEX idx_snapshots_instance ON workflow_snapshots (instance_id);
+CREATE INDEX idx_snapshots_source ON workflow_snapshots (source_table, source_id);
 ```
 
 ### 流程期间数据读写
@@ -490,16 +492,16 @@ interface CaptureParams {
 
 ```sql
 CREATE TABLE workflow_definitions (
-  id          BIGINT PRIMARY KEY AUTO_INCREMENT,
-  workflow_key VARCHAR(64) NOT NULL,      -- 流程标识（不变）
-  version     INT NOT NULL,               -- 版本号
-  name        VARCHAR(128),
-  schema      JSON NOT NULL,              -- 流程定义 JSON
-  status      VARCHAR(32),                -- DRAFT | PUBLISHED | ARCHIVED
-  created_by  BIGINT,
-  created_at  DATETIME DEFAULT NOW(),
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  workflow_key  TEXT NOT NULL,              -- 流程标识（不变）
+  version       INTEGER NOT NULL,           -- 版本号
+  name          TEXT,
+  schema        TEXT NOT NULL,              -- 流程定义 JSON
+  status        TEXT,                       -- DRAFT | PUBLISHED | ARCHIVED
+  created_by    TEXT,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
 
-  UNIQUE KEY uk_key_version (workflow_key, version)
+  UNIQUE (workflow_key, version)
 );
 ```
 
@@ -1011,7 +1013,7 @@ interface ConditionItem {
 
 - **UpdateRecord/DeleteRecord** 必须配置 `filter`，禁止更新/删除全表
 - 支持变量引用：`$jobsMapByNodeKey.xxx.yyy` 引用上游节点结果
-- 支持环境变量：`$env.now`、`$env.currentUser` 等
+- 支持环境变量：`$env.now`、`$user` 等
 - 配置面板使用 `VariableTreeSelector` 选择变量，支持类型校验
 
 ---

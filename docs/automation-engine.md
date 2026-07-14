@@ -104,7 +104,7 @@ interface AutomationCondition {
 }
 
 interface ConditionRule {
-  /** 字段路径（支持嵌套，如 "record.amount"） */
+  /** 字段路径（支持嵌套，如 "$event.data.record.amount"） */
   field: string;
 
   /** 比较运算符 */
@@ -128,13 +128,13 @@ interface ConditionRule {
   "logic": "and",
   "rules": [
     {
-      "field": "record.amount",
+      "field": "$event.data.record.amount",
       "operator": "gt",
       "value": 10000,
       "valueType": "literal"
     },
     {
-      "field": "record.status",
+      "field": "$event.data.record.status",
       "operator": "changed_to",
       "value": "confirmed"
     }
@@ -146,7 +146,7 @@ interface ConditionRule {
   "logic": "or",
   "rules": [
     {
-      "field": "record.amount",
+      "field": "$event.data.record.amount",
       "operator": "gt",
       "value": 20000,
       "valueType": "literal"
@@ -156,8 +156,8 @@ interface ConditionRule {
     {
       "logic": "and",
       "rules": [
-        { "field": "record.amount", "operator": "gt", "value": 5000 },
-        { "field": "record.customerLevel", "operator": "eq", "value": "VIP" }
+        { "field": "$event.data.record.amount", "operator": "gt", "value": 5000 },
+        { "field": "$event.data.record.customerLevel", "operator": "eq", "value": "VIP" }
       ]
     }
   ]
@@ -388,46 +388,47 @@ interface AutomationExecutionLog {
 ```sql
 -- 自动化规则表
 CREATE TABLE automation_rules (
-  id              VARCHAR(64)   NOT NULL PRIMARY KEY,
-  tenant_id       VARCHAR(64)   NOT NULL,
-  app_id          VARCHAR(64)   NOT NULL,
-  name            VARCHAR(128)  NOT NULL,
-  description     VARCHAR(512)  NULL,
-  status          ENUM('enabled', 'disabled', 'draft') NOT NULL DEFAULT 'draft',
-  trigger_config  JSON          NOT NULL COMMENT '触发器配置',
-  condition_config JSON         NULL COMMENT '条件配置',
-  actions_config  JSON          NOT NULL COMMENT '动作配置列表',
-  throttle_config JSON          NULL COMMENT '限流配置',
-  effective_time  JSON          NULL COMMENT '生效时间配置',
-  created_by      VARCHAR(64)   NOT NULL,
-  created_at      DATETIME(3)   NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  updated_by      VARCHAR(64)   NOT NULL,
-  updated_at      DATETIME(3)   NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  id              TEXT NOT NULL PRIMARY KEY,
+  tenant_id       TEXT NOT NULL,
+  app_id          TEXT NOT NULL,
+  name            TEXT NOT NULL,
+  description     TEXT,
+  status          TEXT NOT NULL DEFAULT 'draft'
+                    CHECK (status IN ('enabled', 'disabled', 'draft')),
+  trigger_config  TEXT NOT NULL,              -- 触发器配置（JSON）
+  condition_config TEXT,                      -- 条件配置（JSON）
+  actions_config  TEXT NOT NULL,              -- 动作配置列表（JSON）
+  throttle_config TEXT,                       -- 限流配置（JSON）
+  effective_time  TEXT,                       -- 生效时间配置（JSON）
+  created_by      TEXT NOT NULL,
+  created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_by      TEXT NOT NULL,
+  updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
 
-  INDEX idx_tenant_app (tenant_id, app_id),
-  INDEX idx_status (tenant_id, status),
-  INDEX idx_trigger_type (tenant_id, (JSON_UNQUOTE(JSON_EXTRACT(trigger_config, '$.type'))))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE INDEX idx_automation_tenant_app ON automation_rules (tenant_id, app_id);
+CREATE INDEX idx_automation_status ON automation_rules (tenant_id, status);
 
 -- 执行日志表
 CREATE TABLE automation_execution_logs (
-  id              VARCHAR(64)   NOT NULL PRIMARY KEY,
-  tenant_id       VARCHAR(64)   NOT NULL,
-  rule_id         VARCHAR(64)   NOT NULL,
-  rule_name       VARCHAR(128)  NOT NULL,
-  event_type      VARCHAR(64)   NOT NULL,
-  event_source    VARCHAR(64)   NOT NULL,
-  event_data      JSON          NOT NULL,
-  condition_result JSON          NOT NULL,
-  action_results  JSON          NOT NULL,
-  status          ENUM('success', 'partial_success', 'failed') NOT NULL,
-  total_duration_ms INT UNSIGNED NOT NULL,
-  created_at      DATETIME(3)   NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  id              TEXT NOT NULL PRIMARY KEY,
+  tenant_id       TEXT NOT NULL,
+  rule_id         TEXT NOT NULL,
+  rule_name       TEXT NOT NULL,
+  event_type      TEXT NOT NULL,
+  event_source    TEXT NOT NULL,
+  event_data      TEXT NOT NULL,              -- JSON
+  condition_result TEXT NOT NULL,             -- JSON
+  action_results  TEXT NOT NULL,              -- JSON
+  status          TEXT NOT NULL
+                    CHECK (status IN ('success', 'partial_success', 'failed')),
+  total_duration_ms INTEGER NOT NULL,
+  created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
 
-  INDEX idx_rule (tenant_id, rule_id, created_at),
-  INDEX idx_status (tenant_id, status, created_at),
-  INDEX idx_event_type (tenant_id, event_type, created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE INDEX idx_exec_log_rule ON automation_execution_logs (tenant_id, rule_id, created_at);
+CREATE INDEX idx_exec_log_status ON automation_execution_logs (tenant_id, status, created_at);
+CREATE INDEX idx_exec_log_event ON automation_execution_logs (tenant_id, event_type, created_at);
 ```
 
 ## 管理界面

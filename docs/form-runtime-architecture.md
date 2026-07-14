@@ -130,7 +130,7 @@ interface FormDataContext {
   "type": "input",
   "label": "申请人",
   // 动态默认值：表达式，初始化时由运算引擎求值
-  "defaultValueExpression": "currentUser().name"
+  "defaultValueExpression": "$user.name"
 }
 ```
 
@@ -140,7 +140,7 @@ interface FormDataContext {
   "type": "select",
   "label": "部门",
   // 默认值可依赖其他字段（需保证被依赖字段先初始化，由拓扑序保证）
-  "defaultValueExpression": "currentUser().departmentId"
+  "defaultValueExpression": "$user.departmentId"
 }
 ```
 
@@ -439,7 +439,7 @@ interface ConditionalRule {
  * 支持三种赋值模式：
  *   literal   — 直接返回字面量（0.85、"VIP" 等）
  *   expression — 通过运算引擎求值（如 "price * 0.8"）
- *   variable  — 按路径从上下文中取值（如 "currentUser.department.manager"）
+ *   variable  — 按路径从上下文中取值（如 "$user.department.manager"）
  */
 private async executeConditionalLinkage(
   rule: ConditionalRule,
@@ -480,7 +480,7 @@ private resolveBranchValue(
       return computationEngine.evaluate(branch.value, context);
 
     case 'variable':
-      // 按点路径从上下文中取值，如 "currentUser.department.manager"
+      // 按点路径从上下文中取值，如 "$user.department.manager"
       return get(context, branch.value);
   }
 }
@@ -505,7 +505,7 @@ private resolveBranchValue(
 // 模式 3: variable — 从上下文变量中取值
 {
   "condition": "region === 'east'",
-  "value": "currentUser.department.managerEast",
+  "value": "$user.department.managerEast",
   "valueType": "variable"
 }
 ```

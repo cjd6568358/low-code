@@ -169,28 +169,29 @@ interface MessagePayload {
 
 ```sql
 CREATE TABLE messages (
-  id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  tenant_id       VARCHAR(64)   NOT NULL,
-  recipient_id    VARCHAR(64)   NOT NULL COMMENT '接收人ID',
-  sender_id       VARCHAR(64)   NULL COMMENT '发送人ID（系统消息为NULL）',
-  template_id     VARCHAR(64)   NULL COMMENT '消息模板ID',
-  category        VARCHAR(32)   NOT NULL COMMENT '消息分类',
-  title           VARCHAR(256)  NOT NULL,
-  content         TEXT          NOT NULL,
-  content_type    VARCHAR(16)   NOT NULL DEFAULT 'text',
-  action_url      VARCHAR(512)  NULL COMMENT '操作链接',
-  is_read         TINYINT(1)    NOT NULL DEFAULT 0,
-  read_at         DATETIME      NULL,
-  channel         VARCHAR(16)   NOT NULL COMMENT '发送渠道',
-  status          ENUM('pending','sent','delivered','failed') NOT NULL,
-  related_type    VARCHAR(32)   NULL COMMENT '关联资源类型',
-  related_id      VARCHAR(128)  NULL COMMENT '关联资源ID',
-  created_at      DATETIME(3)   NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id       TEXT NOT NULL,
+  recipient_id    TEXT NOT NULL,              -- 接收人ID
+  sender_id       TEXT,                       -- 发送人ID（系统消息为NULL）
+  template_id     TEXT,                       -- 消息模板ID
+  category        TEXT NOT NULL,              -- 消息分类
+  title           TEXT NOT NULL,
+  content         TEXT NOT NULL,
+  content_type    TEXT NOT NULL DEFAULT 'text',
+  action_url      TEXT,                       -- 操作链接
+  is_read         INTEGER NOT NULL DEFAULT 0,
+  read_at         TEXT,
+  channel         TEXT NOT NULL,              -- 发送渠道
+  status          TEXT NOT NULL
+                    CHECK (status IN ('pending', 'sent', 'delivered', 'failed')),
+  related_type    TEXT,                       -- 关联资源类型
+  related_id      TEXT,                       -- 关联资源ID
+  created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
 
-  INDEX idx_recipient (tenant_id, recipient_id, is_read, created_at),
-  INDEX idx_category (tenant_id, recipient_id, category),
-  INDEX idx_related (related_type, related_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE INDEX idx_msg_recipient ON messages (tenant_id, recipient_id, is_read, created_at);
+CREATE INDEX idx_msg_category ON messages (tenant_id, recipient_id, category);
+CREATE INDEX idx_msg_related ON messages (related_type, related_id);
 ```
 
 ### 消息状态流转

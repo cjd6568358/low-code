@@ -271,16 +271,16 @@ interface ValidationRule {
         "branches": [
           {
             "condition": "region === 'east'",
-            "value": "currentUser.department.managerEast",
+            "value": "$user.department.managerEast",
             "valueType": "variable"
           },
           {
             "condition": "region === 'west'",
-            "value": "currentUser.department.managerWest",
+            "value": "$user.department.managerWest",
             "valueType": "variable"
           }
         ],
-        "default": "currentUser.department.managerDefault"
+        "default": "$user.department.managerDefault"
       }
     }
   ]
@@ -506,7 +506,7 @@ interface ValidationRule {
     "required": true,
     "storageType": "base64",       // base64 | oss
     "watermark": {
-      "text": "{{currentUser}} {{currentDate}}",
+      "text": "{{$user.name}} {{$now}}",
       "color": "#cccccc"
     }
   }

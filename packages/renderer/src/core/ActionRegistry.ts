@@ -377,7 +377,6 @@ export function createDefaultActionRegistry(): ActionRegistryImpl {
   // UI
   registry.register('showModal', showModalExecutor);
   registry.register('closeModal', closeModalExecutor);
-  registry.register('message', messageExecutor);
   registry.register('showMessage', messageExecutor);
   registry.register('notification', notificationExecutor);
   registry.register('refreshComponent', refreshComponentExecutor);
@@ -387,7 +386,6 @@ export function createDefaultActionRegistry(): ActionRegistryImpl {
   // Workflow
   registry.register('triggerWorkflow', triggerWorkflowExecutor);
   registry.register('executeScript', executeScriptExecutor);
-  registry.register('customScript', executeScriptExecutor);
 
   // Control
   registry.register('condition', conditionExecutor);
