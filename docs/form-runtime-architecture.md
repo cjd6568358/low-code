@@ -158,10 +158,10 @@ FormWithProvider 挂载
   ├─ 1. preEvaluateForm() 扫描所有子组件 props
   │     └─ 收集 expression bindings（如 initialValue: { type: 'expression', ... }）
   │
-  ├─ 2. 按依赖拓扑排序
-  │     └─ 无 $component 依赖的先求值，有依赖的后求值
+  ├─ 2. 按依赖拓扑排序（分层）
+  │     └─ 无 $component 依赖的为第 0 层，有依赖的为第 1 层
   │
-  ├─ 3. 批量求值（同步 safeEvaluate，异步 await evaluateAsync）
+  ├─ 3. 按层求值（同层内 Promise.all 并行）
   │     └─ 结果写入 BindingCache（模块级表达式结果缓存）
   │
   ├─ 4. form.setFieldsValue(预求值结果)
@@ -178,7 +178,7 @@ FormWithProvider 挂载
 | 模块 | 职责 |
 |------|------|
 | `BindingCache` | 模块级表达式结果缓存，key = `componentId.propKey` |
-| `FormPreEvaluator` | 扫描子组件 → 依赖排序 → 批量求值 → 写入缓存 |
+| `FormPreEvaluator` | 扫描子组件 → 依赖分层 → 同层并行求值 → 写入缓存 |
 | `useBindings` | 表达式求值前查 `BindingCache`，命中直接复用 |
 | `FormWithProvider` | 调用 `preEvaluateForm`，预求值期间显示 loading |
 
@@ -205,6 +205,34 @@ FormWithProvider 挂载
 #### 与 useBindings 的关系
 
 预求值调用的是和 `useBindings` 相同的表达式引擎，结果写入共享的 `BindingCache`。子组件渲染时 `useBindings` 查缓存命中，直接复用结果，依赖变更时缓存失效重新求值。预求值是"提前调用 useBindings 的逻辑"，不是绕过它。
+
+#### 值级比较优化
+
+`useBindings` 内部对 `syncResolved`（变量引用解析结果）和 `resolvedProps`（最终合并结果）均做值级比较（`shallowEqual`）。当 `context` 引用变化但实际解析值未变时，复用上一次的对象引用，避免下游 `ResolvedComponent` 的无效 re-render。
+
+```typescript
+// syncResolved — 值级 guard
+const prevSyncResolvedRef = useRef<Record<string, any>>({});
+const syncResolved = useMemo(() => {
+  const resolved = /* ... 解析变量引用 ... */;
+  if (shallowEqual(prevSyncResolvedRef.current, resolved)) {
+    return prevSyncResolvedRef.current; // 值没变，复用旧引用
+  }
+  prevSyncResolvedRef.current = resolved;
+  return resolved;
+}, [variableBindings, context, varVersion]);
+
+// resolvedProps — 同理
+const prevResolvedPropsRef = useRef<Record<string, any>>({});
+const resolvedProps = useMemo(() => {
+  const merged = { ...literals, ...syncResolved, ...expressionValues };
+  if (shallowEqual(prevResolvedPropsRef.current, merged)) {
+    return prevResolvedPropsRef.current;
+  }
+  prevResolvedPropsRef.current = merged;
+  return merged;
+}, [literals, syncResolved, expressionValues]);
+```
 
 ### 1.5 流程节点表单的初始值
 
@@ -816,7 +844,7 @@ private buildDAG(rules: LinkageRule[]): void {
 
 | Action | 说明 | 参数 |
 |--------|------|------|
-| `customScript` | 执行自定义 JS | `{ script: string }` |
+| `executeScript` | 执行自定义 JS | `{ script: string }` |
 
 ### 3.4 事件桥接层实现
 
@@ -999,21 +1027,29 @@ const apiCallExecutor: ActionExecutor = {
   }
 };
 
-// ── customScript ──
-const customScriptExecutor: ActionExecutor = {
-  async execute(params, context, nativeEvent) {
-    // 在沙箱中执行用户自定义脚本
-    // 暴露有限的 API，禁止访问全局对象
-    // $form 从 formRegistry.getFormData() 获取，指向当前活跃表单的数据
-    return await safeEvalAsync(params.script, {
-      $form: context.formRegistry?.getFormData(params.formId) ?? {},
-      $values: context.formRegistry?.getFormData(params.formId) ?? {},
-      $event: nativeEvent,
-      $message: message,
-      $request: request,
-    });
-  }
-};
+// ── executeScript ──
+// 使用表达式引擎的 evaluateAsync 执行，获得编译缓存 + 超时控制
+function createExecuteScriptExecutor(expressionEngine: DefaultExpressionEngine): ActionExecutor {
+  return {
+    async execute(params, context) {
+      const { script } = params;
+      if (!script) return;
+      const evalContext = {
+        $context: context.renderContext?.$context,
+        $result: context.$result,
+        $event: context.event,
+        $fetch: context.apiRequest,
+        $component: context.renderContext?.$component,
+      };
+      // ExpressionBinding 模式：拼接为 async ({$context, $result, ...}) => { script }
+      // 不经过 sanitizeExpression，保留原始脚本语义；编译结果缓存在 compiledCache
+      return await expressionEngine.evaluateAsync(
+        { type: 'expression', value: script, async: true },
+        evalContext,
+      );
+    },
+  };
+}
 
 // 注册所有执行器
 const actionRegistry = new Map<string, ActionExecutor>([
@@ -1033,7 +1069,7 @@ const actionRegistry = new Map<string, ActionExecutor>([
   ['setDisabled',     setDisabledExecutor],
   ['setLoading',      setLoadingExecutor],
   ['triggerWorkflow', triggerWorkflowExecutor],
-  ['customScript',    customScriptExecutor],
+  ['executeScript',   createExecuteScriptExecutor(expressionEngine)],
 ]);
 ```
 
@@ -1360,7 +1396,7 @@ function renderComponentWithEvents(
 │  └ 触发工作流 (triggerWorkflow)   │
 │                                  │
 │  高级                             │
-│  └ 自定义脚本 (customScript)      │
+│  └ 自定义脚本 (executeScript)     │
 │                                  │
 │  弹窗操作                         │
 │  ├ resolveModal (弹窗返回结果)    │
@@ -1375,31 +1411,28 @@ function renderComponentWithEvents(
 
 ### 6.1 自定义脚本沙箱
 
-用户配置的 `customScript` 在沙箱中执行，禁止访问危险 API：
+用户配置的 `executeScript` 通过表达式引擎的 `evaluateAsync` 执行，编译缓存 + 超时控制：
 
 ```typescript
-// 沙箱白名单
-const SANDBOX_GLOBALS = {
-  Math,
-  Date,
-  JSON,
-  parseInt,
-  parseFloat,
-  isNaN,
-  isFinite,
-  // 禁止: window, document, eval, Function, import, require, fetch, XMLHttpRequest
-};
+// executeScript 通过表达式引擎执行，自动获得：
+// 1. 编译缓存 — 同一脚本只编译一次（compiledCache）
+// 2. 超时控制 — 默认 5s，防止死循环
+// 3. 沙箱模型 — 表达式引擎的 FORBIDDEN_GLOBALS 黑名单
 
-async function safeEvalAsync(script: string, context: Record<string, any>): Promise<any> {
-  // 使用 new Function + with 语句构建沙箱作用域
-  // 或使用 iframe sandbox / Web Worker / vm2 等隔离方案
-  const sandboxed = new Function(
-    ...Object.keys(SANDBOX_GLOBALS),
-    ...Object.keys(context),
-    `"use strict"; return (async () => { ${script} })()`
-  );
-  return sandboxed(...Object.values(SANDBOX_GLOBALS), ...Object.values(context));
-}
+// 实现原理（ActionRegistry.ts）:
+const evalContext = {
+  $context: renderContext.$context,
+  $result: context.$result,
+  $event: context.event,
+  $fetch: context.apiRequest,
+  $component: renderContext.$component,
+};
+// evaluateAsync 的 ExpressionBinding 模式拼接为：
+// async ({$context, $result, $event, $fetch, $component}) => { script }
+return await expressionEngine.evaluateAsync(
+  { type: 'expression', value: script, async: true },
+  evalContext,
+);
 ```
 
 ### 6.2 模板变量注入防护

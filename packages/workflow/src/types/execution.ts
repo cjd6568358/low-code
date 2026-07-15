@@ -11,6 +11,7 @@ import type {
   WorkflowSnapshot,
 } from '../schema';
 import type { InstanceRecord, TaskRecord, SnapshotRecord, CheckpointRecord } from './engine';
+import type { DefinitionIndex } from '../engine/DefinitionIndex';
 
 /** 执行上下文 */
 export interface ExecutionContext {
@@ -18,6 +19,8 @@ export interface ExecutionContext {
   instance: InstanceRecord;
   /** 流程定义 */
   definition: ProcessDefinition;
+  /** 流程定义索引（可选，提供 O(1) 节点/连线查找） */
+  definitionIndex?: DefinitionIndex;
   /** 当前节点 */
   currentNode: FlowNode;
   /** 当前快照 */

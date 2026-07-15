@@ -1,4 +1,5 @@
 import type { ActionExecutor, ActionContext } from '@low-code/shared';
+import type { DefaultExpressionEngine } from '@low-code/shared';
 
 /**
  * 动作注册表
@@ -320,30 +321,41 @@ const triggerWorkflowExecutor: ActionExecutor = {
   },
 };
 
-/** 执行脚本（customScript） — 支持 async/await，注入完整上下文 */
-const executeScriptExecutor: ActionExecutor = {
-  async execute(params, context) {
-    const { script } = params;
-    if (!script) return;
-    try {
-      // 使用 AsyncFunction 支持脚本中直接 await
-      const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
-      const fn = new AsyncFunction(
-        '$context', '$result', '$event', '$fetch', '$component',
-        script,
-      );
-      return await fn(
-        context.renderContext?.$context,
-        context.$result,
-        context.event,
-        context.apiRequest,
-        context.renderContext?.$component,
-      );
-    } catch (e) {
-      console.error('Script execution error:', e);
-    }
-  },
-};
+/**
+ * 创建脚本执行器（executeScript）
+ *
+ * 使用表达式引擎的 evaluateAsync 执行，获得：
+ * - 编译缓存（同一脚本只编译一次）
+ * - 超时控制
+ * - 与表达式引擎统一的沙箱模型
+ */
+function createExecuteScriptExecutor(expressionEngine: DefaultExpressionEngine): ActionExecutor {
+  return {
+    async execute(params, context) {
+      const { script } = params;
+      if (!script) return;
+      try {
+        // 构造与原 AsyncFunction 签名一致的求值上下文
+        const evalContext: Record<string, unknown> = {
+          $context: context.renderContext?.$context,
+          $result: context.$result,
+          $event: context.event,
+          $fetch: context.apiRequest,
+          $component: context.renderContext?.$component,
+        };
+        // evaluateAsync 的 ExpressionBinding 模式会拼接为
+        // async ({$context, $result, $event, $fetch, $component}) => { script }
+        // 不经过 sanitizeExpression，保留原始脚本语义
+        return await expressionEngine.evaluateAsync(
+          { type: 'expression', value: script, async: true },
+          evalContext,
+        );
+      } catch (e) {
+        console.error('Script execution error:', e);
+      }
+    },
+  };
+}
 
 /** 条件分支 */
 const conditionExecutor: ActionExecutor = {
@@ -355,8 +367,10 @@ const conditionExecutor: ActionExecutor = {
 
 /**
  * 创建默认动作注册表（包含所有内建动作）
+ *
+ * @param expressionEngine 表达式引擎（用于 executeScript 编译缓存和超时控制）
  */
-export function createDefaultActionRegistry(): ActionRegistryImpl {
+export function createDefaultActionRegistry(expressionEngine: DefaultExpressionEngine): ActionRegistryImpl {
   const registry = new ActionRegistryImpl();
 
   // Navigation
@@ -385,7 +399,7 @@ export function createDefaultActionRegistry(): ActionRegistryImpl {
 
   // Workflow
   registry.register('triggerWorkflow', triggerWorkflowExecutor);
-  registry.register('executeScript', executeScriptExecutor);
+  registry.register('executeScript', createExecuteScriptExecutor(expressionEngine));
 
   // Control
   registry.register('condition', conditionExecutor);

@@ -123,6 +123,8 @@ const VARIABLE_PATH_REGEX = /\$[a-zA-Z_][a-zA-Z0-9_.]*/g;
  */
 export class DefaultExpressionEngine implements ExpressionEngine {
   private options: Required<ExpressionEngineOptions>;
+  /** workerpool 单例（懒初始化，首次 safeEvaluate 时创建） */
+  private pool: import('workerpool').Pool | null = null;
 
   constructor(options?: ExpressionEngineOptions) {
     this.options = {
@@ -130,6 +132,29 @@ export class DefaultExpressionEngine implements ExpressionEngine {
       defaultTimeout: options?.defaultTimeout ?? 5000,
       strictMode: options?.strictMode ?? true,
     };
+  }
+
+  /**
+   * 获取或创建 workerpool 单例
+   *
+   * expression-worker.ts 通过 workerpool.worker({ evaluate }) 注册方法。
+   * - Node.js：tsx 直接加载 .ts 文件
+   * - 浏览器：Vite 识别 new URL() 模式，自动打包为独立 chunk（含 workerpool 依赖）
+   */
+  private async getPool(): Promise<import('workerpool').Pool> {
+    if (this.pool) return this.pool;
+
+    const { pool, isMainThread } = await import('workerpool');
+
+    if (!isMainThread) {
+      throw new Error('safeEvaluate 不能在 Worker 线程内调用');
+    }
+
+    // 两端共用同一 worker 文件，运行时自动适配
+    const workerUrl = new URL('./expression-worker.ts', import.meta.url);
+    this.pool = pool(workerUrl.href, { workerType: 'thread' });
+
+    return this.pool!;
   }
 
   /**
@@ -221,6 +246,9 @@ export class DefaultExpressionEngine implements ExpressionEngine {
   /**
    * 安全求值（带超时控制）
    *
+   * 通过 workerpool 在独立线程执行表达式，超时时 pool.terminate() 硬杀。
+   * Node.js 和浏览器统一使用相同 API，无环境分支。
+   *
    * @param expression 表达式内容
    * @param context 上下文变量
    * @param timeout 超时时间（毫秒）
@@ -228,17 +256,24 @@ export class DefaultExpressionEngine implements ExpressionEngine {
    */
   async safeEvaluate(expression: string, context: Record<string, unknown>, timeout?: number): Promise<unknown> {
     const timeoutMs = timeout ?? this.options.defaultTimeout;
+    const poolInstance = await this.getPool();
 
-    // 使用 Promise.race 实现超时控制
-    const evaluationPromise = this.evaluate(expression, context);
-
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => {
-        reject(this.createError('timeout', `表达式求值超时（${timeoutMs}ms）`));
-      }, timeoutMs);
-    });
-
-    return Promise.race([evaluationPromise, timeoutPromise]);
+    try {
+      return await poolInstance.exec('evaluate', [
+        expression,
+        Object.keys(context),
+        Object.values(context),
+      ], { timeout: timeoutMs });
+    } catch (err) {
+      const message = (err as Error).message;
+      if (message.includes('Timeout') || message.includes('timeout')) {
+        // 超时后 worker 已被杀死，销毁 pool 以便下次重建
+        await poolInstance.terminate(true);
+        this.pool = null;
+        throw this.createError('timeout', `表达式求值超时（${timeoutMs}ms）`);
+      }
+      throw this.createError('runtime', message);
+    }
   }
 
   /**
@@ -314,13 +349,16 @@ export class DefaultExpressionEngine implements ExpressionEngine {
       }
     })();
 
+    let timer: ReturnType<typeof setTimeout>;
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => {
+      timer = setTimeout(() => {
         reject(this.createError('timeout', `表达式求值超时（${timeoutMs}ms）`));
       }, timeoutMs);
     });
 
-    return Promise.race([evaluationPromise, timeoutPromise]);
+    return Promise.race([evaluationPromise, timeoutPromise]).finally(() => {
+      clearTimeout(timer);
+    });
   }
 
   /**

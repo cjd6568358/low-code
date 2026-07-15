@@ -26,6 +26,7 @@
   },
   "packageManager": "yarn@4.17.0",
   "dependencies": {
-    "react-flow-builder": "^2.11.0"
+    "react-flow-builder": "^2.11.0",
+    "workerpool": "^10.0.3"
   }
 }

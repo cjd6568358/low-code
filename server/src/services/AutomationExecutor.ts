@@ -15,6 +15,7 @@
  */
 
 import path from 'path';
+import { watch, type FSWatcher } from 'fs';
 import { CronScheduler, validateCronExpression } from './CronScheduler.js';
 import { createExpressionEngine, interpolateTemplate, type ExpressionEngine } from '@low-code/shared';
 import { TENANTS_DIR } from '../config/index.js';
@@ -210,12 +211,156 @@ export interface WorkflowExecutor {
 }
 
 /**
+ * 自动化规则缓存
+ *
+ * 启动时一次性加载所有规则到内存，通过 fs.watch 监听文件变更增量更新，
+ * 避免每次事件触发时重复读取磁盘。
+ */
+class RuleCache {
+  /** appId -> 规则列表 */
+  private rulesByApp: Map<string, AutomationRule[]> = new Map();
+  /** 全量规则快照（供 loadAllRules 使用） */
+  private allRules: AutomationRule[] = [];
+  /** 文件系统 watcher 列表 */
+  private watchers: FSWatcher[] = [];
+  /** debounce 定时器（appId -> timer） */
+  private pendingReloads: Map<string, ReturnType<typeof setTimeout>> = new Map();
+  /** debounce 延迟（毫秒） */
+  private static readonly DEBOUNCE_MS = 300;
+
+  constructor(private tenantId: string) {}
+
+  /**
+   * 首次加载全部规则并启动文件监听
+   */
+  async loadAll(): Promise<void> {
+    const appsDir = path.join(TENANTS_DIR, this.tenantId, 'apps');
+
+    if (!await existsAsync(appsDir)) {
+      return;
+    }
+
+    const appDirs = (await readdir(appsDir, { withFileTypes: true }))
+      .filter(d => d.isDirectory() && d.name.startsWith('app_'));
+
+    for (const appDir of appDirs) {
+      const appId = appDir.name.replace('app_', '');
+      await this.reloadApp(appId);
+      this.watchApp(appId);
+    }
+
+    this.rebuildAllRules();
+  }
+
+  /**
+   * 获取指定应用的规则（从缓存）
+   */
+  getByApp(appId: string): AutomationRule[] {
+    return this.rulesByApp.get(appId) ?? [];
+  }
+
+  /**
+   * 获取全部规则（从缓存）
+   */
+  getAll(): AutomationRule[] {
+    return this.allRules;
+  }
+
+  /**
+   * 重新加载单个应用的规则并更新缓存
+   */
+  private async reloadApp(appId: string): Promise<void> {
+    const automationsDir = path.join(
+      TENANTS_DIR, this.tenantId, 'apps', `app_${appId}`, 'automations',
+    );
+
+    if (!await existsAsync(automationsDir)) {
+      this.rulesByApp.set(appId, []);
+      this.rebuildAllRules();
+      return;
+    }
+
+    const entries = await readdir(automationsDir, { withFileTypes: true });
+    const rules: AutomationRule[] = [];
+
+    for (const e of entries) {
+      if (e.isFile() && e.name.endsWith('.json')) {
+        try {
+          const content = await readFile(path.join(automationsDir, e.name), 'utf-8');
+          const rule = JSON.parse(content) as AutomationRule;
+          if (rule !== null && !rule._deleted) {
+            rules.push(rule);
+          }
+        } catch {
+          // 跳过损坏的规则文件
+        }
+      }
+    }
+
+    this.rulesByApp.set(appId, rules);
+    this.rebuildAllRules();
+  }
+
+  /**
+   * 监听单个应用的 automations 目录
+   */
+  private watchApp(appId: string): void {
+    const automationsDir = path.join(
+      TENANTS_DIR, this.tenantId, 'apps', `app_${appId}`, 'automations',
+    );
+
+    try {
+      const watcher = watch(automationsDir, { persistent: false }, (_event, filename) => {
+        if (!filename?.endsWith('.json')) return;
+
+        // debounce：批量保存时只重载一次
+        const existing = this.pendingReloads.get(appId);
+        if (existing) clearTimeout(existing);
+
+        this.pendingReloads.set(appId, setTimeout(() => {
+          this.pendingReloads.delete(appId);
+          this.reloadApp(appId).catch(err => {
+            console.error(`[RuleCache] 重载规则失败 (${appId}):`, err);
+          });
+        }, RuleCache.DEBOUNCE_MS));
+      });
+
+      this.watchers.push(watcher);
+    } catch {
+      // 目录不存在等情况，静默忽略
+    }
+  }
+
+  /**
+   * 重建全量规则快照
+   */
+  private rebuildAllRules(): void {
+    this.allRules = Array.from(this.rulesByApp.values()).flat();
+  }
+
+  /**
+   * 清理所有 watcher
+   */
+  dispose(): void {
+    for (const w of this.watchers) {
+      w.close();
+    }
+    this.watchers = [];
+    for (const timer of this.pendingReloads.values()) {
+      clearTimeout(timer);
+    }
+    this.pendingReloads.clear();
+  }
+}
+
+/**
  * 自动化执行引擎
  */
 export class AutomationExecutor {
   private config: AutomationExecutorConfig;
   private registeredJobs: Map<string, string> = new Map(); // ruleId -> jobId
   private executionLogs: Map<string, ExecutionResult[]> = new Map(); // ruleId -> logs
+  private cache: RuleCache | null = null;
 
   constructor(config: AutomationExecutorConfig) {
     this.config = config;
@@ -229,27 +374,16 @@ export class AutomationExecutor {
   async initialize(): Promise<void> {
     const { tenantId } = this.config;
 
-    // 扫描所有应用的自动化规则
-    const appsDir = path.join(TENANTS_DIR, tenantId, 'apps');
-    if (!await existsAsync(appsDir)) {
-      console.log('[AutomationExecutor] 应用目录不存在');
-      return;
-    }
-
-    const appDirs = (await readdir(appsDir, { withFileTypes: true }))
-      .filter(d => d.isDirectory() && d.name.startsWith('app_'));
+    // 初始化规则缓存（加载全部规则 + 启动文件监听）
+    this.cache = new RuleCache(tenantId);
+    await this.cache.loadAll();
 
     let registeredCount = 0;
 
-    for (const appDir of appDirs) {
-      const appId = appDir.name.replace('app_', '');
-      const rules = await this.loadRules(tenantId, appId);
-
-      for (const rule of rules) {
-        if (rule.status === 'enabled' && rule.trigger.type === 'schedule') {
-          await this.registerScheduledRule(rule);
-          registeredCount++;
-        }
+    for (const rule of this.cache.getAll()) {
+      if (rule.status === 'enabled' && rule.trigger.type === 'schedule') {
+        await this.registerScheduledRule(rule);
+        registeredCount++;
       }
     }
 
@@ -338,10 +472,10 @@ export class AutomationExecutor {
     const { tenantId } = this.config;
     const results: ExecutionResult[] = [];
 
-    // 获取所有匹配的规则
+    // 从缓存获取规则
     const rules = appId
-      ? await this.loadRules(tenantId, appId)
-      : await this.loadAllRules(tenantId);
+      ? this.cache?.getByApp(appId) ?? []
+      : this.cache?.getAll() ?? [];
 
     const matchedRules = rules.filter(rule => {
       if (rule.status !== 'enabled') return false;
@@ -845,58 +979,6 @@ export class AutomationExecutor {
     }
 
     return current;
-  }
-
-  /**
-   * 加载规则
-   */
-  private async loadRules(tenantId: string, appId: string): Promise<AutomationRule[]> {
-    const automationsDir = path.join(TENANTS_DIR, tenantId, 'apps', `app_${appId}`, 'automations');
-
-    if (!await existsAsync(automationsDir)) {
-      return [];
-    }
-
-    const entries = await readdir(automationsDir, { withFileTypes: true });
-
-    const rules: AutomationRule[] = [];
-    for (const e of entries) {
-      if (e.isFile() && e.name.endsWith('.json')) {
-        try {
-          const content = await readFile(path.join(automationsDir, e.name), 'utf-8');
-          const rule = JSON.parse(content) as AutomationRule;
-          if (rule !== null && !rule._deleted) {
-            rules.push(rule);
-          }
-        } catch {
-          // 跳过损坏的规则文件
-        }
-      }
-    }
-    return rules;
-  }
-
-  /**
-   * 加载所有规则
-   */
-  private async loadAllRules(tenantId: string): Promise<AutomationRule[]> {
-    const appsDir = path.join(TENANTS_DIR, tenantId, 'apps');
-
-    if (!await existsAsync(appsDir)) {
-      return [];
-    }
-
-    const appDirs = (await readdir(appsDir, { withFileTypes: true }))
-      .filter(d => d.isDirectory() && d.name.startsWith('app_'));
-
-    const rules: AutomationRule[] = [];
-
-    for (const appDir of appDirs) {
-      const appId = appDir.name.replace('app_', '');
-      rules.push(...await this.loadRules(tenantId, appId));
-    }
-
-    return rules;
   }
 
   /**

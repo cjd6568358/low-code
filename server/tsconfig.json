@@ -4,8 +4,7 @@
     "composite": false,
     "declaration": false,
     "declarationMap": false,
-    "outDir": "dist",
-    "rootDir": "src",
+    "noEmit": true,
     "module": "ESNext",
     "moduleResolution": "bundler"
   },

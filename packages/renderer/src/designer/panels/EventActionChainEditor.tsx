@@ -186,7 +186,7 @@ const ACTION_TYPES = [
   { value: 'invokeMethod', label: '调用组件方法' },
   { value: 'refreshComponent', label: '刷新组件' },
   { value: 'condition', label: '条件分支' },
-  { value: 'customScript', label: '自定义脚本' },
+  { value: 'executeScript', label: '自定义脚本' },
 ];
 
 /** 组件方法描述（卡片实例暴露的方法） */
@@ -816,7 +816,7 @@ function ParamsEditor({
         />
       );
 
-    case 'customScript':
+    case 'executeScript':
       return (
         <CustomScriptEditor
           params={params}

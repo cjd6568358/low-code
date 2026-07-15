@@ -8,7 +8,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { WorkflowEngine, WorkflowError } from '@low-code/workflow';
+import { WorkflowEngine, WorkflowError, ConditionExpressionEvaluator } from '@low-code/workflow';
 import { FileDatabaseAdapter } from '../services/FileDatabaseAdapter.js';
 import { FileSnapshotService } from '../services/FileSnapshotService.js';
 import type { BpmnDocument } from '@low-code/workflow';
@@ -33,7 +33,7 @@ function createApprovalWorkflow(): BpmnDocument {
           id: 'approval',
           $type: 'bpmn:UserTask',
           name: '部门经理审批',
-          assignee: 'manager',
+          assignee: { type: 'user', userIds: ['manager'] },
           incoming: ['flow1'],
           outgoing: ['flow2'],
         },
@@ -79,7 +79,7 @@ function createConditionalWorkflow(): BpmnDocument {
           id: 'manager_approval',
           $type: 'bpmn:UserTask',
           name: '经理审批',
-          assignee: 'manager',
+          assignee: { type: 'user', userIds: ['manager'] },
           incoming: ['flow2'],
           outgoing: ['flow4'],
         },
@@ -87,7 +87,7 @@ function createConditionalWorkflow(): BpmnDocument {
           id: 'director_approval',
           $type: 'bpmn:UserTask',
           name: '总监审批',
-          assignee: 'director',
+          assignee: { type: 'user', userIds: ['director'] },
           incoming: ['flow3'],
           outgoing: ['flow5'],
         },
@@ -145,6 +145,7 @@ describe('WorkflowEngine 端到端测试', () => {
     engine = new WorkflowEngine({
       db,
       snapshotService,
+      expressionEvaluator: new ConditionExpressionEvaluator(),
     });
   });
 

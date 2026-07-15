@@ -1118,3 +1118,40 @@ API 路由（租户级）：
 | **运算引擎** | 流程条件判断使用运算引擎表达式，节点数据操作可触发运算 |
 | **权限引擎** | 节点表单的字段可见/可编辑权限由权限引擎控制 |
 | **安全审计** | 快照操作自动写入审计日志，支持合规审查 |
+
+---
+
+## 性能优化
+
+### DefinitionIndex — O(1) 节点/连线查找
+
+**问题**：原实现中 `definition.nodes.find()` 和 `definition.edges.filter()` 在每次节点转换时做 O(n) 线性扫描，且 `handleExecutionResult()` 在循环内对同一个 definitionId 重复调用 `getDefinitionById()`。
+
+**方案**：新增 `DefinitionIndex` 类（`packages/workflow/src/engine/DefinitionIndex.ts`），在定义加载时一次性构建 4 个 Map 索引：
+
+| 索引 | 类型 | 用途 |
+|------|------|------|
+| `nodeMap` | `Map<string, FlowNode>` | O(1) 节点查找 |
+| `edgeMap` | `Map<string, Edge>` | O(1) 连线查找 |
+| `outgoingMap` | `Map<string, Edge[]>` | 节点 → 出口连线 |
+| `incomingMap` | `Map<string, Edge[]>` | 节点 → 入口连线 |
+
+**集成方式**：
+
+- `ExecutionContext.definitionIndex` — 可选字段，所有网关执行器优先使用索引查找
+- `WorkflowEngine.definitionIndexCache` — 引擎级缓存，`loadDefinitionWithIndex()` 一次性加载定义 + 构建索引
+- `handleExecutionResult()` — 定义查询从循环内提升到循环外（修复 N+1 查询）
+- 并行网关分支 — `Promise.all` 并发执行（修复顺序执行）
+
+**兼容性**：所有查找位置保留 fallback（`definitionIndex ? index.getNode(id) : nodes.find(...)`），确保未传入索引时行为不变。
+
+### 选人组件接口 N+1 查询优化
+
+**问题**：`/users/selectable` 和 `/users/batch` 接口先查用户列表，再循环每个用户单独查部门/岗位信息。100 用户 = 101 次 DB 查询。
+
+**方案**：改为 2 次固定查询 + 内存分组：
+1. 查询用户列表
+2. `WHERE user_id IN (...)` 批量查询所有用户的部门岗位关联
+3. `Map<userId, depts[]>` 在内存中按 userId 分组，映射回用户列表
+
+**效果**：100 用户从 101 次查询降为 2 次，数据量越大优化越明显。

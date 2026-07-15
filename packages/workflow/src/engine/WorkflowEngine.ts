@@ -49,6 +49,7 @@ import type {
 } from '../types/execution';
 import type { JobRecord, JobStatus } from '../types/job';
 import { StateMachine } from './StateMachine';
+import { DefinitionIndex } from './DefinitionIndex';
 import { SnapshotEngine } from '../snapshot/SnapshotEngine';
 import { RecoveryManager } from '../recovery/RecoveryManager';
 import { TimeoutManager } from './TimeoutManager';
@@ -121,6 +122,9 @@ export class WorkflowEngine {
   /** 已中止的实例 ID 集合（用于在执行过程中检查） */
   private readonly abortedInstances = new Set<string>();
 
+  /** 流程定义索引缓存（definitionId → index），避免重复构建 */
+  private readonly definitionIndexCache = new Map<string, DefinitionIndex>();
+
   /** 节点超时回调映射 */
   private readonly nodeTimeoutCallbacks = new Map<string, () => void>();
 
@@ -183,7 +187,7 @@ export class WorkflowEngine {
       );
     }
 
-    // 2. 解析 BPMN 文档
+    // 2. 解析 BPMN 文档 + 构建索引
     const bpmnDoc = definition.schema;
     const process = bpmnDoc.processes[0];
     if (!process) {
@@ -193,8 +197,11 @@ export class WorkflowEngine {
       );
     }
 
-    // 3. 找到开始事件
-    const startEvent = process.nodes.find((n: FlowNode) => isStartEvent(n));
+    const index = new DefinitionIndex(process);
+    this.definitionIndexCache.set(definition.id, index);
+
+    // 3. 找到开始事件（使用索引）
+    const startEvent = index.nodes.find(n => isStartEvent(n));
     if (!startEvent) {
       throw new WorkflowError(
         WorkflowErrorCode.DEFINITION_NOT_FOUND,
@@ -240,7 +247,7 @@ export class WorkflowEngine {
       // 7. 注入系统变量
       const systemVariables = {
         $env: {
-          NODE_ENV: process.env.NODE_ENV || 'development',
+          NODE_ENV: process?.env?.NODE_ENV || 'development',
           ...(params.variables?.$env || {}),
         },
         $now: Date.now(),
@@ -254,6 +261,7 @@ export class WorkflowEngine {
       const context: ExecutionContext = {
         instance,
         definition: process,
+        definitionIndex: index,
         currentNode: startEvent,
         variables: {
           ...systemVariables,
@@ -316,16 +324,16 @@ export class WorkflowEngine {
     }
 
     // 5. 获取流程定义
-    const definition = await this.getDefinitionById(instance.workflowDefId);
-    if (!definition) {
+    const loaded = await this.loadDefinitionWithIndex(instance.workflowDefId);
+    if (!loaded) {
       throw new WorkflowError(
         WorkflowErrorCode.DEFINITION_NOT_FOUND,
         `流程定义不存在: ${instance.workflowDefId}`
       );
     }
 
-    const process = definition.schema.processes[0];
-    const node = process.nodes.find((n: FlowNode) => n.id === task.nodeId);
+    const { process, index } = loaded;
+    const node = index.getNode(task.nodeId);
     if (!node) {
       throw new WorkflowError(
         WorkflowErrorCode.NODE_EXECUTION_FAILED,
@@ -335,7 +343,7 @@ export class WorkflowEngine {
 
     // 6. 更新任务状态
     await this.updateTask(params.taskId, {
-      status: 'completed',
+      status: 'resolved',
       formData: params.formData,
       comment: params.comment,
       completedAt: new Date().toISOString(),
@@ -361,7 +369,15 @@ export class WorkflowEngine {
           [task.instanceId, task.nodeId]
         );
 
-        const resumeResult = await (executor as any).resume(context, allTasks);
+        const resumeContext: ExecutionContext = {
+          instance,
+          definition: process,
+          definitionIndex: index,
+          currentNode: node,
+          variables: instance.variables || {},
+          initiator: { id: params.operatorId, name: params.operatorName || '' },
+        };
+        const resumeResult = await (executor as any).resume(resumeContext, allTasks);
         if (resumeResult.waiting) {
           // 会签/或签未完成，等待其他审批
           return instance;
@@ -403,6 +419,7 @@ export class WorkflowEngine {
     const context: ExecutionContext = {
       instance,
       definition: process,
+      definitionIndex: index,
       currentNode: node,
       variables: {
         ...operatorVariables,
@@ -457,16 +474,16 @@ export class WorkflowEngine {
       );
     }
 
-    const definition = await this.getDefinitionById(instance.workflowDefId);
-    if (!definition) {
+    const loaded = await this.loadDefinitionWithIndex(instance.workflowDefId);
+    if (!loaded) {
       throw new WorkflowError(
         WorkflowErrorCode.DEFINITION_NOT_FOUND,
         `流程定义不存在: ${instance.workflowDefId}`
       );
     }
 
-    const process = definition.schema.processes[0];
-    const node = process.nodes.find((n: FlowNode) => n.id === task.nodeId);
+    const { index } = loaded;
+    const node = index.getNode(task.nodeId);
     if (!node) {
       throw new WorkflowError(
         WorkflowErrorCode.NODE_EXECUTION_FAILED,
@@ -816,6 +833,28 @@ export class WorkflowEngine {
     );
   }
 
+  /**
+   * 加载流程定义并构建索引（带缓存）
+   * 返回 [DefinitionRecord, ProcessDefinition, DefinitionIndex] 三元组
+   */
+  private async loadDefinitionWithIndex(
+    definitionId: string
+  ): Promise<{ record: DefinitionRecord; process: ProcessDefinition; index: DefinitionIndex } | undefined> {
+    const record = await this.getDefinitionById(definitionId);
+    if (!record) return undefined;
+
+    const process = record.schema.processes[0];
+    if (!process) return undefined;
+
+    let index = this.definitionIndexCache.get(definitionId);
+    if (!index) {
+      index = new DefinitionIndex(process);
+      this.definitionIndexCache.set(definitionId, index);
+    }
+
+    return { record, process, index };
+  }
+
   // ==================== Job 管理 ====================
 
   /**
@@ -996,12 +1035,12 @@ export class WorkflowEngine {
    * 执行节点后续逻辑（任务完成后）
    */
   private async executeNodePostLogic(context: ExecutionContext): Promise<ExecutionResult> {
-    const { currentNode, definition } = context;
+    const { currentNode, definition, definitionIndex } = context;
 
-    // 找到出口连线
-    const outgoingEdges = definition.edges.filter((e: Edge) =>
-      currentNode.outgoing?.includes(e.id)
-    );
+    // 使用索引获取出口连线（O(1) 替代 O(n) filter）
+    const outgoingEdges = definitionIndex
+      ? definitionIndex.getOutgoingByNode(currentNode)
+      : definition.edges.filter((e: Edge) => currentNode.outgoing?.includes(e.id));
 
     if (outgoingEdges.length === 0) {
       // 没有出口，可能是结束节点
@@ -1010,11 +1049,14 @@ export class WorkflowEngine {
 
     // 单出口
     if (outgoingEdges.length === 1) {
-      const targetNode = definition.nodes.find((n: FlowNode) => n.id === outgoingEdges[0].targetRef);
+      const targetRef = (outgoingEdges[0] as { targetRef?: string }).targetRef;
+      const targetNode = definitionIndex
+        ? (targetRef ? definitionIndex.getNode(targetRef) : undefined)
+        : definition.nodes.find((n: FlowNode) => n.id === targetRef);
       if (!targetNode) {
         throw new WorkflowError(
           WorkflowErrorCode.NODE_EXECUTION_FAILED,
-          `目标节点不存在: ${outgoingEdges[0].targetRef}`
+          `目标节点不存在: ${targetRef}`
         );
       }
 
@@ -1067,24 +1109,27 @@ export class WorkflowEngine {
     context: ExecutionContext,
     edges: Edge[]
   ): Promise<ExecutionResult> {
-    const { variables, definition } = context;
+    const { variables, definition, definitionIndex } = context;
 
     // 找到默认连线
     const defaultEdge = edges.find((e: Edge) =>
-      (e as any).conditionExpression?.body === 'default' ||
-      (context.currentNode as any).default === e.id
+      (e as { conditionExpression?: { body?: string } }).conditionExpression?.body === 'default' ||
+      (context.currentNode as { default?: string }).default === e.id
     );
 
     // 评估条件
     for (const edge of edges) {
       if (edge === defaultEdge) continue;
 
-      const condition = (edge as any).conditionExpression;
-      if (condition && this.expressionEvaluator) {
+      const condition = (edge as { conditionExpression?: { body?: string } }).conditionExpression;
+      if (condition?.body && this.expressionEvaluator) {
         try {
           const result = this.expressionEvaluator.evaluateBoolean(condition.body, { variables });
           if (result) {
-            const targetNode = definition.nodes.find((n: FlowNode) => n.id === edge.targetRef);
+            const targetRef = (edge as { targetRef?: string }).targetRef;
+            const targetNode = definitionIndex
+              ? (targetRef ? definitionIndex.getNode(targetRef) : undefined)
+              : definition.nodes.find((n: FlowNode) => n.id === targetRef);
             if (targetNode) {
               return {
                 success: true,
@@ -1100,7 +1145,10 @@ export class WorkflowEngine {
 
     // 使用默认连线
     if (defaultEdge) {
-      const targetNode = definition.nodes.find((n: FlowNode) => n.id === defaultEdge.targetRef);
+      const targetRef = (defaultEdge as { targetRef?: string }).targetRef;
+      const targetNode = definitionIndex
+        ? (targetRef ? definitionIndex.getNode(targetRef) : undefined)
+        : definition.nodes.find((n: FlowNode) => n.id === targetRef);
       if (targetNode) {
         return {
           success: true,
@@ -1122,17 +1170,22 @@ export class WorkflowEngine {
     context: ExecutionContext,
     edges: Edge[]
   ): Promise<ExecutionResult> {
-    const { definition, currentNode } = context;
+    const { definition, currentNode, definitionIndex } = context;
 
     // 检查是分支还是汇聚
     const incomingCount = currentNode.incoming?.length || 0;
 
     if (incomingCount <= 1) {
-      // 分支：所有出口都需要执行
-      const nextNodes = edges.map((edge: Edge) => {
-        const targetNode = definition.nodes.find((n: FlowNode) => n.id === edge.targetRef);
-        return { node: targetNode!, edge };
-      }).filter((item: { node: FlowNode; edge: Edge }) => item.node);
+      // 分支：所有出口都需要执行（使用索引 O(1) 查找目标节点）
+      const nextNodes = edges
+        .map((edge: Edge) => {
+          const targetRef = (edge as { targetRef?: string }).targetRef;
+          const targetNode = definitionIndex
+            ? (targetRef ? definitionIndex.getNode(targetRef) : undefined)
+            : definition.nodes.find((n: FlowNode) => n.id === targetRef);
+          return targetNode ? { node: targetNode, edge } : undefined;
+        })
+        .filter((item): item is { node: FlowNode; edge: Edge } => item !== undefined);
 
       return {
         success: true,
@@ -1148,22 +1201,21 @@ export class WorkflowEngine {
    * 处理并行网关汇聚
    */
   private async handleParallelJoin(context: ExecutionContext): Promise<ExecutionResult> {
-    const { instance, currentNode } = context;
+    const { instance, currentNode, definition, definitionIndex } = context;
 
     // 检查所有入口分支是否都已完成
-    const checkpoint = instance.checkpoint as any;
-    const parallelState = checkpoint?.parallelState;
+    const checkpoint = instance.checkpoint as Record<string, unknown> | undefined;
+    const parallelState = checkpoint?.parallelState as { completedBranches: string[]; activeBranches: string[] } | undefined;
 
     if (!parallelState) {
       // 初始化并行状态
-      const incomingEdges = context.definition.edges.filter((e: Edge) =>
-        currentNode.incoming?.includes(e.id)
-      );
+      const _incomingEdges = definitionIndex
+        ? definitionIndex.getIncomingByNode(currentNode)
+        : definition.edges.filter((e: Edge) => currentNode.incoming?.includes(e.id));
 
       return {
         success: true,
         waiting: true,
-        // 需要记录等待状态
       };
     }
 
@@ -1176,12 +1228,15 @@ export class WorkflowEngine {
     }
 
     // 所有分支完成，继续执行
-    const outgoingEdges = context.definition.edges.filter((e: Edge) =>
-      currentNode.outgoing?.includes(e.id)
-    );
+    const outgoingEdges = definitionIndex
+      ? definitionIndex.getOutgoingByNode(currentNode)
+      : definition.edges.filter((e: Edge) => currentNode.outgoing?.includes(e.id));
 
     if (outgoingEdges.length === 1) {
-      const targetNode = context.definition.nodes.find((n: FlowNode) => n.id === outgoingEdges[0].targetRef);
+      const targetRef = (outgoingEdges[0] as { targetRef?: string }).targetRef;
+      const targetNode = definitionIndex
+        ? (targetRef ? definitionIndex.getNode(targetRef) : undefined)
+        : definition.nodes.find((n: FlowNode) => n.id === targetRef);
       if (targetNode) {
         const nextContext: ExecutionContext = {
           ...context,
@@ -1201,7 +1256,7 @@ export class WorkflowEngine {
     context: ExecutionContext,
     edges: Edge[]
   ): Promise<ExecutionResult> {
-    const { variables, definition, currentNode } = context;
+    const { variables, definition, currentNode, definitionIndex } = context;
 
     // 检查是分支还是汇聚
     const incomingCount = currentNode.incoming?.length || 0;
@@ -1211,12 +1266,16 @@ export class WorkflowEngine {
       const nextNodes: Array<{ node: FlowNode; edge: Edge }> = [];
 
       for (const edge of edges) {
-        const condition = (edge as any).conditionExpression;
-        if (condition && this.expressionEvaluator) {
+        const condition = (edge as { conditionExpression?: { body?: string } }).conditionExpression;
+        const targetRef = (edge as { targetRef?: string }).targetRef;
+
+        if (condition?.body && this.expressionEvaluator) {
           try {
             const result = this.expressionEvaluator.evaluateBoolean(condition.body, { variables });
             if (result) {
-              const targetNode = definition.nodes.find((n: FlowNode) => n.id === edge.targetRef);
+              const targetNode = definitionIndex
+                ? (targetRef ? definitionIndex.getNode(targetRef) : undefined)
+                : definition.nodes.find((n: FlowNode) => n.id === targetRef);
               if (targetNode) {
                 nextNodes.push({ node: targetNode, edge });
               }
@@ -1226,7 +1285,9 @@ export class WorkflowEngine {
           }
         } else {
           // 没有条件，视为默认路径
-          const targetNode = definition.nodes.find((n: FlowNode) => n.id === edge.targetRef);
+          const targetNode = definitionIndex
+            ? (targetRef ? definitionIndex.getNode(targetRef) : undefined)
+            : definition.nodes.find((n: FlowNode) => n.id === targetRef);
           if (targetNode) {
             nextNodes.push({ node: targetNode, edge });
           }
@@ -1301,20 +1362,39 @@ export class WorkflowEngine {
     }
 
     if (result.nextNodes && result.nextNodes.length > 0) {
-      // 继续执行下一个节点
-      for (const { node } of result.nextNodes) {
-        const definition = await this.getDefinitionById(instance.workflowDefId);
-        if (definition) {
-          const process = definition.schema.processes[0];
-          const context: ExecutionContext = {
-            instance,
-            definition: process,
-            currentNode: node,
-            variables: instance.variables,
-          };
-          const nextResult = await this.executeNode(context);
-          await this.handleExecutionResult(instance, nextResult);
-        }
+      // 只查询一次定义（修复：原来在循环内重复查询）
+      const loaded = await this.loadDefinitionWithIndex(instance.workflowDefId);
+      if (!loaded) return;
+
+      const { process, index } = loaded;
+
+      if (result.nextNodes.length > 1) {
+        // 并行网关多分支：Promise.all 并发执行（修复：原来顺序执行）
+        await Promise.all(
+          result.nextNodes.map(async ({ node }) => {
+            const context: ExecutionContext = {
+              instance,
+              definition: process,
+              definitionIndex: index,
+              currentNode: node,
+              variables: instance.variables,
+            };
+            const nextResult = await this.executeNode(context);
+            await this.handleExecutionResult(instance, nextResult);
+          })
+        );
+      } else {
+        // 单分支顺序执行
+        const { node } = result.nextNodes[0];
+        const context: ExecutionContext = {
+          instance,
+          definition: process,
+          definitionIndex: index,
+          currentNode: node,
+          variables: instance.variables,
+        };
+        const nextResult = await this.executeNode(context);
+        await this.handleExecutionResult(instance, nextResult);
       }
     }
   }
@@ -1355,27 +1435,31 @@ export class WorkflowEngine {
     params: RejectParams
   ): Promise<void> {
     // 获取节点的驳回配置
-    const rejectAction = (node as any).extensionElements?.approvalConfig?.rejectAction || 'rejectToStart';
+    const rejectAction = (node as { extensionElements?: { approvalConfig?: { rejectAction?: string } } })
+      .extensionElements?.approvalConfig?.rejectAction || 'rejectToStart';
 
     let targetNodeId: string | undefined;
 
+    // 一次性加载定义 + 索引（后续两个 case 都用到）
+    const loaded = await this.loadDefinitionWithIndex(instance.workflowDefId);
+
     switch (rejectAction) {
-      case 'rejectToStart':
-        // 驳回到开始事件
-        const process = instance.variables as any;
-        const definition = await this.getDefinitionById(instance.workflowDefId);
-        if (definition) {
-          const startEvent = definition.schema.processes[0].nodes.find((n: FlowNode) => isStartEvent(n));
+      case 'rejectToStart': {
+        // 驳回到开始事件（使用索引遍历节点找 StartEvent）
+        if (loaded) {
+          const startEvent = loaded.index.nodes.find(n => isStartEvent(n));
           targetNodeId = startEvent?.id;
         }
         break;
-      case 'rejectToPrevious':
+      }
+      case 'rejectToPrevious': {
         // 驳回到上一个节点
         const snapshots = await this.snapshotEngine.getChain(instance.id);
         if (snapshots.length >= 2) {
           targetNodeId = snapshots[snapshots.length - 2].nodeId;
         }
         break;
+      }
       case 'rejectToNode':
         // 驳回到指定节点
         targetNodeId = params.targetNodeId;
@@ -1389,32 +1473,30 @@ export class WorkflowEngine {
         return;
     }
 
-    if (targetNodeId) {
+    if (targetNodeId && loaded) {
       // 更新当前节点
       await this.updateInstance(instance.id, {
         currentNodeId: targetNodeId,
         status: 'running',
       });
 
-      // 重新执行目标节点
-      const definition = await this.getDefinitionById(instance.workflowDefId);
-      if (definition) {
-        const process = definition.schema.processes[0];
-        const targetNode = process.nodes.find((n: FlowNode) => n.id === targetNodeId);
-        if (targetNode) {
-          const context: ExecutionContext = {
-            instance,
-            definition: process,
-            currentNode: targetNode,
-            variables: instance.variables,
-            operator: params.operatorId ? {
-              id: params.operatorId,
-              name: params.operatorName || '',
-            } : undefined,
-          };
-          const result = await this.executeNode(context);
-          await this.handleExecutionResult(instance, result);
-        }
+      // 重新执行目标节点（使用索引 O(1) 查找）
+      const { process, index } = loaded;
+      const targetNode = index.getNode(targetNodeId);
+      if (targetNode) {
+        const context: ExecutionContext = {
+          instance,
+          definition: process,
+          definitionIndex: index,
+          currentNode: targetNode,
+          variables: instance.variables,
+          operator: params.operatorId ? {
+            id: params.operatorId,
+            name: params.operatorName || '',
+          } : undefined,
+        };
+        const result = await this.executeNode(context);
+        await this.handleExecutionResult(instance, result);
       }
     }
   }

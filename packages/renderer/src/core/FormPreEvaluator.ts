@@ -78,25 +78,16 @@ function extractExpressionBindings(
 }
 
 /**
- * 简单拓扑排序：按依赖层数分组，无依赖的先求值
+ * 简单拓扑排序：按依赖层数分组，返回二维数组（每层可并行求值）
  *
  * 对于表单内的表达式，依赖关系通常是：
- * - 依赖外部变量（$route、$user 等）→ 可以立即求值
- * - 依赖其他组件的值（$component.xxx.value）→ 需要等依赖组件的表达式先求值
+ * - 依赖外部变量（$route、$user 等）→ 可以立即求值（第 0 层）
+ * - 依赖其他组件的值（$component.xxx.value）→ 需要等依赖组件的表达式先求值（第 1 层）
  *
- * 这里用简单的 BFS 分层：先求值无内部依赖的，再求值依赖已求值结果的。
+ * 同层内的表达式互不依赖，可并行求值。
  */
-function topologicalSort(expressions: PendingExpression[]): PendingExpression[] {
-  // 构建 componentId → 已求值的 propKey 集合
-  // 初始时，所有字面量和变量引用的 prop 视为"已就绪"
-  // 这里简化处理：只对 expression bindings 排序
-  // 依赖外部变量（$route、$user 等）的表达式可以立即求值
-  // 依赖 $component.xxx 的表达式需要等对应组件的表达式先求值
-
-  // 提取所有 expression 的 componentId
-  const expressionComponentIds = new Set(expressions.map((e) => e.componentId));
-
-  // 分层：无 $component 依赖的先求值，有 $component 依赖的后求值
+function topologicalSort(expressions: PendingExpression[]): PendingExpression[][] {
+  // 无 $component 依赖的先求值，有 $component 依赖的后求值
   const noInternalDep: PendingExpression[] = [];
   const hasInternalDep: PendingExpression[] = [];
 
@@ -109,7 +100,10 @@ function topologicalSort(expressions: PendingExpression[]): PendingExpression[] 
     }
   }
 
-  return [...noInternalDep, ...hasInternalDep];
+  const layers: PendingExpression[][] = [];
+  if (noInternalDep.length > 0) layers.push(noInternalDep);
+  if (hasInternalDep.length > 0) layers.push(hasInternalDep);
+  return layers;
 }
 
 /**
@@ -138,36 +132,43 @@ export async function preEvaluateForm(
     return { fieldValues: {} };
   }
 
-  // 3. 拓扑排序
-  const sorted = topologicalSort(allExpressions);
+  // 3. 拓扑排序（分层，同层可并行）
+  const layers = topologicalSort(allExpressions);
 
-  // 4. 依次求值
+  // 4. 按层求值（同层内并行）
   const results: Array<{ componentId: string; propKey: string; value: any }> = [];
 
-  for (const expr of sorted) {
-    try {
-      let result: any;
+  for (const layer of layers) {
+    const layerResults = await Promise.all(
+      layer.map(async (expr) => {
+        try {
+          let result: any;
 
-      if (expr.async) {
-        // 异步表达式：await evaluateAsync
-        result = await expressionEngine.evaluateAsync(
-          { type: 'expression', value: expr.value, async: true },
-          context,
-        );
-      } else {
-        // 同步表达式：safeEvaluate
-        result = await expressionEngine.safeEvaluate(expr.value, context);
-      }
+          if (expr.async) {
+            result = await expressionEngine.evaluateAsync(
+              { type: 'expression', value: expr.value, async: true },
+              context,
+            );
+          } else {
+            result = await expressionEngine.safeEvaluate(expr.value, context);
+          }
 
-      results.push({
-        componentId: expr.componentId,
-        propKey: expr.propKey,
-        value: result,
-      });
-    } catch (e) {
-      console.warn(
-        `[FormPreEvaluator] ${expr.componentId}.${expr.propKey} 求值失败: ${e}`,
-      );
+          return {
+            componentId: expr.componentId,
+            propKey: expr.propKey,
+            value: result,
+          };
+        } catch (e) {
+          console.warn(
+            `[FormPreEvaluator] ${expr.componentId}.${expr.propKey} 求值失败: ${e}`,
+          );
+          return null;
+        }
+      }),
+    );
+
+    for (const r of layerResults) {
+      if (r) results.push(r);
     }
   }
 

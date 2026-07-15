@@ -78,6 +78,7 @@ const sqlite3_bind_text = lib.func('sqlite3_bind_text', 'int', [sqlite3_stmt_ptr
 const sqlite3_bind_blob = lib.func('sqlite3_bind_blob', 'int', [sqlite3_stmt_ptr, 'int', 'void *', 'int', 'void *']);
 const sqlite3_bind_null = lib.func('sqlite3_bind_null', 'int', [sqlite3_stmt_ptr, 'int']);
 const sqlite3_bind_parameter_count = lib.func('sqlite3_bind_parameter_count', 'int', [sqlite3_stmt_ptr]);
+const sqlite3_clear_bindings = lib.func('sqlite3_clear_bindings', 'int', [sqlite3_stmt_ptr]);
 
 // 获取列值
 const sqlite3_column_count = lib.func('sqlite3_column_count', 'int', [sqlite3_stmt_ptr]);
@@ -102,6 +103,8 @@ const sqlite3_free = lib.func('sqlite3_free', 'void', ['void *']);
 export class KoffiDatabase {
   private db: any = null;
   private dbPath: string;
+  /** PreparedStatement 缓存：SQL 文本 → 已编译的 stmt wrapper */
+  private stmtCache = new Map<string, PreparedStatementWrapper>();
 
   constructor(dbPath: string) {
     this.dbPath = dbPath;
@@ -143,11 +146,21 @@ export class KoffiDatabase {
     if (value !== undefined) {
       // 设置 pragma 值
       const stmt = this.prepare(`PRAGMA ${pragma} = ${value}`);
-      stmt.get();
+      try {
+        stmt.get();
+      } finally {
+        stmt.finalize();
+      }
       return undefined;
     } else {
       // 获取 pragma 值
-      const result = this.prepare(`PRAGMA ${pragma}`).get();
+      const stmt = this.prepare(`PRAGMA ${pragma}`);
+      let result: any;
+      try {
+        result = stmt.get();
+      } finally {
+        stmt.finalize();
+      }
       // pragma 结果通常是单行单列，返回第一个值
       if (result && typeof result === 'object') {
         const keys = Object.keys(result);
@@ -158,9 +171,18 @@ export class KoffiDatabase {
   }
 
   /**
-   * 准备 SQL 语句
+   * 准备 SQL 语句（带缓存）
+   *
+   * 相同 SQL 文本的语句会被缓存复用，避免重复 prepare。
+   * 执行后自动 reset 归还缓存，close() 时统一 finalize 释放。
    */
   prepare(sql: string): PreparedStatementWrapper {
+    const cached = this.stmtCache.get(sql);
+    if (cached && !cached._finalized) {
+      sqlite3_reset(cached.stmt);
+      return cached;
+    }
+
     const outStmt = [null];
     const rc = sqlite3_prepare_v2(this.db, sql, -1, outStmt, null);
 
@@ -168,7 +190,9 @@ export class KoffiDatabase {
       throw new Error(`Failed to prepare statement: ${sqlite3_errmsg(this.db)}`);
     }
 
-    return new PreparedStatementWrapper(this.db, outStmt[0], sql);
+    const wrapper = new PreparedStatementWrapper(this.db, outStmt[0], sql, this.stmtCache);
+    this.stmtCache.set(sql, wrapper);
+    return wrapper;
   }
 
   /**
@@ -205,6 +229,13 @@ export class KoffiDatabase {
    */
   close(): void {
     if (this.db) {
+      // 先 finalize 所有缓存的 stmt，否则 sqlite3_close 返回 SQLITE_BUSY
+      for (const wrapper of this.stmtCache.values()) {
+        if (!wrapper._finalized) {
+          wrapper.finalize();
+        }
+      }
+      this.stmtCache.clear();
       sqlite3_close(this.db);
       this.db = null;
     }
@@ -215,13 +246,17 @@ export class KoffiDatabase {
 
 export class PreparedStatementWrapper {
   private db: any;
-  private stmt: any;
+  /** @internal */ stmt: any;
   private sql: string;
+  /** @internal 是否已 finalize（供 KoffiDatabase 缓存判断） */
+  _finalized = false;
+  private stmtCache: Map<string, PreparedStatementWrapper> | null;
 
-  constructor(db: any, stmt: any, sql: string) {
+  constructor(db: any, stmt: any, sql: string, stmtCache: Map<string, PreparedStatementWrapper> | null = null) {
     this.db = db;
     this.stmt = stmt;
     this.sql = sql;
+    this.stmtCache = stmtCache;
   }
 
   /**
@@ -267,15 +302,18 @@ export class PreparedStatementWrapper {
   all(...params: any[]): any[] {
     if (params.length > 0) this.bind(...params);
 
-    const results: any[] = [];
-    const columns = this.getColumnNames();
+    try {
+      const results: any[] = [];
+      const columns = this.getColumnNames();
 
-    while (sqlite3_step(this.stmt) === SQLITE_ROW) {
-      results.push(this.readRow(columns));
+      while (sqlite3_step(this.stmt) === SQLITE_ROW) {
+        results.push(this.readRow(columns));
+      }
+
+      return results;
+    } finally {
+      this.reset();
     }
-
-    sqlite3_reset(this.stmt);
-    return results;
   }
 
   /**
@@ -284,17 +322,18 @@ export class PreparedStatementWrapper {
   get(...params: any[]): any {
     if (params.length > 0) this.bind(...params);
 
-    const columns = this.getColumnNames();
-    const rc = sqlite3_step(this.stmt);
+    try {
+      const columns = this.getColumnNames();
+      const rc = sqlite3_step(this.stmt);
 
-    if (rc === SQLITE_ROW) {
-      const row = this.readRow(columns);
-      sqlite3_reset(this.stmt);
-      return row;
+      if (rc === SQLITE_ROW) {
+        return this.readRow(columns);
+      }
+
+      return undefined;
+    } finally {
+      this.reset();
     }
-
-    sqlite3_reset(this.stmt);
-    return undefined;
   }
 
   /**
@@ -303,12 +342,14 @@ export class PreparedStatementWrapper {
   run(...params: any[]): { changes: number; lastInsertRowid: bigint } {
     if (params.length > 0) this.bind(...params);
 
-    sqlite3_step(this.stmt);
-    const changes = sqlite3_changes(this.db);
-    const lastInsertRowid = sqlite3_last_insert_rowid(this.db);
-
-    sqlite3_reset(this.stmt);
-    return { changes, lastInsertRowid };
+    try {
+      sqlite3_step(this.stmt);
+      const changes = sqlite3_changes(this.db);
+      const lastInsertRowid = sqlite3_last_insert_rowid(this.db);
+      return { changes, lastInsertRowid };
+    } finally {
+      this.reset();
+    }
   }
 
   /**
@@ -363,11 +404,28 @@ export class PreparedStatementWrapper {
   }
 
   /**
-   * 释放语句资源
+   * 重置语句状态，归还缓存池
+   *
+   * 清除绑定参数和执行状态，使语句可被下次 prepare() 复用。
+   * 由 all()/get()/run() 自动调用，无需手动调用。
+   */
+  reset(): void {
+    if (this.stmt && !this._finalized) {
+      sqlite3_reset(this.stmt);
+      sqlite3_clear_bindings(this.stmt);
+    }
+  }
+
+  /**
+   * 释放语句资源（不可逆）
+   *
+   * 调用后语句从缓存中移除，无法再使用。
+   * 正常使用无需调用 — close() 会自动 finalize 所有缓存语句。
    */
   finalize(): void {
-    if (this.stmt) {
+    if (this.stmt && !this._finalized) {
       sqlite3_finalize(this.stmt);
+      this._finalized = true;
       this.stmt = null;
     }
   }

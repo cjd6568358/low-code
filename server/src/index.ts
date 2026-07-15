@@ -7,11 +7,14 @@
 
 import Koa from 'koa';
 import bodyParser from 'koa-bodyparser';
+import compress from 'koa-compress';
+import zlib from 'zlib';
 import { PORT } from './config/index.js';
 import { errorMiddleware } from './middlewares/error.js';
 import { corsMiddleware } from './middlewares/cors.js';
 import { loggerMiddleware } from './middlewares/logger.js';
 import { authMiddleware } from './middlewares/auth.js';
+import { timeoutMiddleware } from './middlewares/timeout.js';
 import { registerRoutes } from './routes/index.js';
 import { CronScheduler } from './services/CronScheduler.js';
 import { AutomationExecutor, type WorkflowExecutor } from './services/AutomationExecutor.js';
@@ -102,7 +105,13 @@ async function main() {
   app.use(errorMiddleware);
   app.use(corsMiddleware);
   app.use(loggerMiddleware);
-  app.use(bodyParser());
+  app.use(timeoutMiddleware(30_000));
+  app.use(compress({
+    threshold: 1024,
+    gzip: { flush: zlib.constants.Z_SYNC_FLUSH },
+    deflate: { flush: zlib.constants.Z_SYNC_FLUSH },
+  }));
+  app.use(bodyParser({ jsonLimit: '2mb' }));
   app.use(authMiddleware);
 
   // ─── 路由 ──────────────────────────────────────

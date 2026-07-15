@@ -230,7 +230,7 @@ $now - createdAt > 30 * 24 * 3600 * 1000
 | 禁止全局访问 | `window`、`global`、`process`、`require`、`import` 不可用 |
 | 禁止原型链访问 | 不允许 `constructor`、`__proto__`、`prototype` 等访问 |
 | 禁止副作用 | 不允许赋值（`=`）、`delete`、`new`（除 `new Date()`） |
-| 执行超时 | 单次表达式求值超时 100ms 自动终止 |
+| 执行超时 | `safeEvaluate` 通过 workerpool 在独立线程执行，超时 `pool.terminate(true)` 物理杀死线程（Node.js 和浏览器均有效） |
 | 调用栈限制 | 递归深度上限 10 层 |
 
 ---
@@ -558,5 +558,5 @@ Response:
 ### 与其他模块的集成
 
 - **表达式引擎**：复用 ExpressionEditor 组件，支持完整的表达式语法
-- **运算执行器**：服务端 `ComputationExecutor` 负责沙箱执行
+- **运算执行器**：统一使用 `@low-code/shared` ExpressionEngine，支持沙箱执行和超时保护
 - **流程引擎**：计算节点可选择运算规则，运行时传入参数执行

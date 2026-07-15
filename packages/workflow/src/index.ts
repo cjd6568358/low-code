@@ -26,6 +26,9 @@ export type { UserTaskStats } from './engine/TaskStatsManager';
 export { StateMachine } from './engine/StateMachine';
 export type { StateMachineEvent } from './engine/StateMachine';
 
+// 流程定义索引
+export { DefinitionIndex } from './engine/DefinitionIndex';
+
 // 表达式求值器
 export {
   ConditionExpressionEvaluator,

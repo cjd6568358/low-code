@@ -2,7 +2,7 @@
  * 跨平台 Cron 调度器
  *
  * 提供定时任务调度功能，支持标准 cron 表达式。
- * 纯 TypeScript 实现，不依赖外部库，跨平台兼容。
+ * 基于 cron-parser 库实现，支持完整 cron 语法和时区处理。
  *
  * Cron 表达式格式：分 时 日 月 周
  * - * : 任意值
@@ -11,6 +11,8 @@
  * - / : 步长（如 star/5，star 代表 *）
  * - 特殊值：L（最后一天）、W（最近工作日）、#（第N个星期几）
  */
+
+import { CronExpressionParser } from 'cron-parser';
 
 /** Cron 字段类型 */
 type CronField = 'minute' | 'hour' | 'dayOfMonth' | 'month' | 'dayOfWeek';
@@ -341,50 +343,23 @@ export class CronScheduler {
 
   /**
    * 计算下次执行时间
+   *
+   * 基于 cron-parser 库，使用数学算法而非暴力遍历。
    */
   private calculateNextRun(job: CronJobInstance): Date | undefined {
     if (!job.enabled) return undefined;
 
-    const now = new Date();
     const timezone = job.config.timezone || this.timezone;
 
-    // 从下一分钟开始查找
-    const next = new Date(now);
-    next.setSeconds(0);
-    next.setMilliseconds(0);
-    next.setMinutes(next.getMinutes() + 1);
-
-    // 最多查找 366 天
-    for (let i = 0; i < 366 * 24 * 60; i++) {
-      if (this.matchesCron(job.parsed, next, timezone)) {
-        return next;
-      }
-      next.setMinutes(next.getMinutes() + 1);
+    try {
+      const interval = CronExpressionParser.parse(job.config.expression, {
+        currentDate: new Date(),
+        tz: timezone,
+      });
+      return interval.next().toDate();
+    } catch {
+      return undefined;
     }
-
-    return undefined;
-  }
-
-  /**
-   * 检查时间是否匹配 cron 表达式
-   */
-  private matchesCron(parsed: ParsedCronExpression, date: Date, timezone: string): boolean {
-    // 获取时区对应的时间
-    const tzDate = new Date(date.toLocaleString('en-US', { timeZone: timezone }));
-
-    const minute = tzDate.getMinutes();
-    const hour = tzDate.getHours();
-    const dayOfMonth = tzDate.getDate();
-    const month = tzDate.getMonth() + 1;
-    const dayOfWeek = tzDate.getDay();
-
-    return (
-      parsed.minute.values.has(minute) &&
-      parsed.hour.values.has(hour) &&
-      parsed.dayOfMonth.values.has(dayOfMonth) &&
-      parsed.month.values.has(month) &&
-      parsed.dayOfWeek.values.has(dayOfWeek)
-    );
   }
 }
 
@@ -560,46 +535,19 @@ export function getNextRunTimes(
   count: number = 5,
   timezone: string = 'Asia/Shanghai'
 ): Date[] {
-  const parsed = parseCronExpression(expression);
-  const results: Date[] = [];
-  const now = new Date();
-
-  // 从下一分钟开始查找
-  const next = new Date(now);
-  next.setSeconds(0);
-  next.setMilliseconds(0);
-  next.setMinutes(next.getMinutes() + 1);
-
-  // 最多查找 366 天
-  for (let i = 0; i < 366 * 24 * 60 && results.length < count; i++) {
-    if (matchesCronStatic(parsed, next, timezone)) {
-      results.push(new Date(next));
+  try {
+    const interval = CronExpressionParser.parse(expression, {
+      currentDate: new Date(),
+      tz: timezone,
+    });
+    const results: Date[] = [];
+    for (let i = 0; i < count; i++) {
+      results.push(interval.next().toDate());
     }
-    next.setMinutes(next.getMinutes() + 1);
+    return results;
+  } catch {
+    return [];
   }
-
-  return results;
-}
-
-/**
- * 静态版本的时间匹配检查
- */
-function matchesCronStatic(parsed: ParsedCronExpression, date: Date, timezone: string): boolean {
-  const tzDate = new Date(date.toLocaleString('en-US', { timeZone: timezone }));
-
-  const minute = tzDate.getMinutes();
-  const hour = tzDate.getHours();
-  const dayOfMonth = tzDate.getDate();
-  const month = tzDate.getMonth() + 1;
-  const dayOfWeek = tzDate.getDay();
-
-  return (
-    parsed.minute.values.has(minute) &&
-    parsed.hour.values.has(hour) &&
-    parsed.dayOfMonth.values.has(dayOfMonth) &&
-    parsed.month.values.has(month) &&
-    parsed.dayOfWeek.values.has(dayOfWeek)
-  );
 }
 
 /**

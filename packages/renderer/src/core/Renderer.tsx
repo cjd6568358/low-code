@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useRef, useEffect, useState } from 'react';
+import React, { useMemo, useCallback, useRef, useEffect, useState, useSyncExternalStore } from 'react';
 import { message } from 'antd';
 import type {
   PageSchema,
@@ -23,6 +23,7 @@ import { createTableProxy } from './QueryProxy';
 import { ResolvedComponent } from './ResolvedComponent';
 import { FormRegistry } from './FormRegistry';
 import { ComponentMethodRegistry } from './ComponentMethodRegistry';
+import { ComponentOverrideStore } from './ComponentOverrideStore';
 import { FormRegistryContext } from '../components/FormRegistryContext';
 import { ComponentMethodRegistryContext } from '../components/ComponentMethodRegistryContext';
 import type { PlatformAdapter } from '@low-code/shared';
@@ -41,6 +42,30 @@ export interface RendererConfig {
   /** 自定义卡片定义映射（cardId → CustomCardDefinition），用于卡片渲染和方法注册 */
   cardDefinitions?: Map<string, import('@low-code/shared').CustomCardDefinition>;
 }
+
+/**
+ * per-component overrides 订阅包装
+ *
+ * 通过 useSyncExternalStore 订阅 ComponentOverrideStore 中单个组件的覆盖 props，
+ * store 变化时仅该组件 re-render，不影响兄弟节点。
+ *
+ * React.memo 只比较 nodeId + store（均为稳定引用），
+ * renderContent 不参与比较（它是闭包，每次父级调用都会新建）。
+ */
+const NodeOverrides = React.memo(
+  ({ nodeId, store, renderContent }: {
+    nodeId: string;
+    store: ComponentOverrideStore;
+    renderContent: (overrides: Record<string, any>) => React.ReactNode;
+  }) => {
+    const overrides = useSyncExternalStore(
+      store.subscribe,
+      () => store.getOverrides(nodeId),
+    );
+    return <>{renderContent(overrides)}</>;
+  },
+  (prev, next) => prev.nodeId === next.nodeId && prev.store === next.store,
+);
 
 /**
  * 主渲染器
@@ -68,7 +93,7 @@ export function PageRenderer(config: RendererConfig) {
     () => new ConditionRuleEngine(expressionEngine),
     [],
   );
-  const actionRegistry = useMemo(() => createDefaultActionRegistry(), []);
+  const actionRegistry = useMemo(() => createDefaultActionRegistry(expressionEngine), []);
   const eventCompiler = useMemo(
     () => new EventCompiler(actionRegistry, expressionEngine),
     [actionRegistry],
@@ -132,8 +157,8 @@ export function PageRenderer(config: RendererConfig) {
     return () => { methodRegistry.clear(); };
   }, [schema.components, registry, methodRegistry]);
 
-  // 组件属性覆盖（setValues 运行时写入）
-  const [componentOverrides, setComponentOverrides] = useState<Record<string, Record<string, any>>>({});
+  // 组件属性覆盖（setValues 运行时写入）— 外部 store，支持 per-component 粒度订阅
+  const overrideStore = useMemo(() => new ComponentOverrideStore(), []);
 
   // 全局加载状态（showLoading/hideLoading 动作使用）
   const [loadingState, setLoadingState] = useState<{ visible: boolean; message?: string }>({ visible: false });
@@ -145,11 +170,8 @@ export function PageRenderer(config: RendererConfig) {
   }, []);
 
   const setComponentProp = useCallback((componentId: string, propName: string, value: any) => {
-    setComponentOverrides((prev) => ({
-      ...prev,
-      [componentId]: { ...prev[componentId], [propName]: value },
-    }));
-  }, []);
+    overrideStore.setProp(componentId, propName, value);
+  }, [overrideStore]);
 
   // 当前渲染路径中的 formId 栈（支持嵌套表单）
   const formIdStackRef = useRef<string[]>([]);
@@ -460,7 +482,9 @@ export function PageRenderer(config: RendererConfig) {
       const layoutStyle = resolveLayoutStyle(node.layout, schema.layout);
 
       // 7. 使用 ResolvedComponent 处理表达式
-      return (
+      //    NodeOverrides 通过 useSyncExternalStore 订阅 per-component 覆盖，
+      //    overrideStore 变化只触发受影响节点的 re-render，不触发整棵树。
+      const renderContent = (overrides: Record<string, any>) => (
         <ResolvedComponent
           key={node.id}
           componentId={node.id}
@@ -484,8 +508,7 @@ export function PageRenderer(config: RendererConfig) {
               resolvedProps.value = ruleResult.setValues[node.id];
             }
 
-            // 10.5. 合并 setValues 运行时覆盖
-            const overrides = componentOverrides[node.id];
+            // 10.5. 合并 setValues 运行时覆盖（来自 overrideStore）
             if (overrides) {
               resolvedProps = { ...resolvedProps, ...overrides };
             }
@@ -553,6 +576,10 @@ export function PageRenderer(config: RendererConfig) {
           }}
         </ResolvedComponent>
       );
+
+      return (
+        <NodeOverrides key={node.id} nodeId={node.id} store={overrideStore} renderContent={renderContent} />
+      );
     },
     [
       componentMap,
@@ -565,7 +592,7 @@ export function PageRenderer(config: RendererConfig) {
       registry,
       adapter,
       formRegistry,
-      componentOverrides,
+      overrideStore,
       cardDefinitions,
       cardRenderer,
       methodRegistry,
@@ -575,14 +602,19 @@ export function PageRenderer(config: RendererConfig) {
   // 渲染布局容器
   const layoutStyle = resolvePageLayoutStyle(schema.layout);
 
-  const rootChildren = schema.components
-    .filter((c) => !c.parentId)
-    .sort((a, b) => {
-      const orderA = a.layout?.order ?? 0;
-      const orderB = b.layout?.order ?? 0;
-      return orderA - orderB;
-    })
-    .map((node) => renderNode(node));
+  // memoize：renderNode 引用不变时复用上一次元素，避免 overrideStore 变更导致整棵树重建
+  const rootChildren = useMemo(
+    () =>
+      schema.components
+        .filter((c) => !c.parentId)
+        .sort((a, b) => {
+          const orderA = a.layout?.order ?? 0;
+          const orderB = b.layout?.order ?? 0;
+          return orderA - orderB;
+        })
+        .map((node) => renderNode(node)),
+    [schema.components, renderNode],
+  );
 
   // 数据源未加载完毕时显示 loading
   if (!dataReady && schema.dataSource) {

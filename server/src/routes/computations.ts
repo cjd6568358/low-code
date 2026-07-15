@@ -13,9 +13,52 @@
 
 import KoaRouter from '@koa/router';
 import { TENANTS_DIR } from '../config/index.js';
-import { computationExecutor } from '../services/ComputationExecutor.js';
+import { createExpressionEngine, type ExpressionEngine } from '@low-code/shared';
 import { existsAsync, resolveAppDir, readFile, writeFile, readdir, mkdir, unlink } from '../utils/fs-utils.js';
 import path from 'path';
+
+/** 表达式引擎实例 */
+const expressionEngine: ExpressionEngine = createExpressionEngine({ defaultTimeout: 100 });
+
+/** 运算规则 Schema */
+interface ComputationSchema {
+  computationId: string;
+  appId: string;
+  name: string;
+  type: string;
+  status: string;
+  inputs: Array<{
+    key: string;
+    label: string;
+    fieldType: string;
+    required?: boolean;
+  }>;
+  expression: {
+    type: string;
+    value: string;
+    async?: boolean;
+  };
+  output: {
+    name: string;
+    type: string;
+    format?: string;
+    precision?: number;
+  };
+}
+
+/** 加载运算规则 */
+async function loadComputation(appDir: string, computationId: string): Promise<ComputationSchema | null> {
+  const dirName = computationId.startsWith('computation_') ? computationId : `computation_${computationId}`;
+  const computationFile = path.join(appDir, 'computations', `${dirName}.json`);
+
+  try {
+    if (!await existsAsync(computationFile)) return null;
+    const content = await readFile(computationFile, 'utf-8');
+    return JSON.parse(content) as ComputationSchema;
+  } catch {
+    return null;
+  }
+}
 
 /** 生成 8 位 hex ID */
 function generateHexId(): string {
@@ -88,22 +131,15 @@ export function createComputationsRouter(): KoaRouter {
   router.get('/:id', async (ctx) => {
     const { id } = ctx.params;
     const appDir = ctx.state.appDir as string;
-    const dirName = id.startsWith('computation_') ? id : `computation_${id}`;
-    const computationFile = path.join(appDir, 'computations', `${dirName}.json`);
 
-    try {
-      if (!await existsAsync(computationFile)) {
-        ctx.status = 404;
-        ctx.body = { success: false, error: '运算规则不存在' };
-        return;
-      }
-
-      const content = await readFile(computationFile, 'utf-8');
-      ctx.body = { success: true, data: JSON.parse(content) };
-    } catch {
-      ctx.status = 500;
-      ctx.body = { success: false, error: '加载运算规则失败' };
+    const computation = await loadComputation(appDir, id);
+    if (!computation) {
+      ctx.status = 404;
+      ctx.body = { success: false, error: '运算规则不存在' };
+      return;
     }
+
+    ctx.body = { success: true, data: computation };
   });
 
   /**
@@ -222,14 +258,49 @@ export function createComputationsRouter(): KoaRouter {
    */
   router.post('/:id/execute', async (ctx) => {
     const { id } = ctx.params;
-    const appId = ctx.state.appId as string;
+    const appDir = ctx.state.appDir as string;
 
     const body = ctx.request.body as Record<string, unknown>;
     const params = (body.params || {}) as Record<string, unknown>;
 
-    const tenantId = (ctx.state as { tenantId: string }).tenantId;
-    const result = await computationExecutor.execute(appId, id, params, tenantId);
-    ctx.body = result;
+    // 加载运算规则
+    const computation = await loadComputation(appDir, id);
+    if (!computation) {
+      ctx.status = 404;
+      ctx.body = { success: false, error: `运算规则不存在: ${id}` };
+      return;
+    }
+
+    // 检查状态
+    if (computation.status !== 'active') {
+      ctx.body = { success: false, error: `运算规则未启用: ${computation.status}` };
+      return;
+    }
+
+    // 验证必填输入
+    for (const input of computation.inputs) {
+      if (input.required && (params[input.key] === undefined || params[input.key] === null)) {
+        ctx.body = { success: false, error: `缺少必填参数: ${input.label || input.key}` };
+        return;
+      }
+    }
+
+    // 使用表达式引擎执行
+    const startTime = Date.now();
+    try {
+      const result = await expressionEngine.safeEvaluate(
+        computation.expression.value,
+        params,
+        100
+      );
+      ctx.body = { success: true, result, duration: Date.now() - startTime };
+    } catch (error) {
+      ctx.body = {
+        success: false,
+        error: error instanceof Error ? error.message : '表达式执行失败',
+        duration: Date.now() - startTime,
+      };
+    }
   });
 
   /**
@@ -237,11 +308,9 @@ export function createComputationsRouter(): KoaRouter {
    * 预览表达式执行结果
    */
   router.post('/preview', async (ctx) => {
-    const appId = ctx.state.appId as string;
     const body = ctx.request.body as {
       expression?: string;
       context?: Record<string, unknown>;
-      outputType?: string;
     };
 
     if (!body.expression) {
@@ -250,13 +319,21 @@ export function createComputationsRouter(): KoaRouter {
       return;
     }
 
-    const result = await computationExecutor.preview(
-      body.expression,
-      { ...body.context, appId },
-      body.outputType || 'string'
-    );
-
-    ctx.body = result;
+    const startTime = Date.now();
+    try {
+      const result = await expressionEngine.safeEvaluate(
+        body.expression,
+        body.context || {},
+        100
+      );
+      ctx.body = { success: true, result, duration: Date.now() - startTime };
+    } catch (error) {
+      ctx.body = {
+        success: false,
+        error: error instanceof Error ? error.message : '表达式执行失败',
+        duration: Date.now() - startTime,
+      };
+    }
   });
 
   return router;

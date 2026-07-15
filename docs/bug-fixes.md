@@ -1,5 +1,62 @@
 # Bug 修复记录
 
+## 2026-07-15 (二)
+
+### 运算沙箱超时对同步死循环无效
+
+**现象**：`safeEvaluate` 使用 `Promise.race + setTimeout` 实现超时，但 `while(true){}` 等同步死循环会永久阻塞主线程，setTimeout 回调无法触发，100ms 超时形同虚设。
+
+**根因**：`new Function()` 创建的函数同步执行。死循环卡死主线程 → 事件循环停止 → setTimeout 排队但永远不执行 → `Promise.race` 两个 Promise 都不 settle。
+
+**修复**：`safeEvaluate` 改用 `workerpool` 统一沙箱方案：
+- Node.js 和浏览器**共用同一 worker 文件**（`expression-worker.ts`），通过 `workerpool.worker({ evaluate })` 注册方法
+- Node.js：tsx 直接加载 .ts
+- 浏览器：Vite 识别 `new URL()` 模式，自动打包为独立 chunk（含 workerpool 依赖）
+- 统一 API：`pool.exec('evaluate', [expr, keys, values], { timeout })`，超时 `pool.terminate(true)` 硬杀
+
+**涉及文件**：
+- `packages/shared/src/engine/expression-worker.ts` — 新建，workerpool Worker 脚本
+- `packages/shared/src/engine/expression.ts` — safeEvaluate 改用 workerpool
+- `packages/shared/package.json` — 新增 workerpool 依赖
+
+---
+
+## 2026-07-15 (二)
+
+### FormPreEvaluator 无并行求值
+
+**现象**：表单预求值时，无 `$component` 依赖的表达式也串行 `await`，拖慢整体渲染速度。
+
+**根因**：`topologicalSort` 将表达式分为两组（无内部依赖 / 有内部依赖），但返回扁平数组后 `preEvaluateForm` 用 `for...of` 逐一 `await`，同层内互不依赖的表达式也被串行执行。
+
+**修复**：
+1. `topologicalSort` 返回 `PendingExpression[][]`（二维数组，每层可并行）
+2. `preEvaluateForm` 改为按层迭代，同层内用 `Promise.all` 并行求值
+3. 单个表达式失败不影响同层其他表达式（`catch` 后返回 `null`，最终过滤）
+
+**涉及文件**：
+- `packages/renderer/src/core/FormPreEvaluator.ts` — 拓扑排序改为分层 + 同层并行
+
+---
+
+## 2026-07-15 (二)
+
+### 选人组件接口 N+1 查询性能问题
+
+**现象**：`/users/selectable` 和 `/users/batch` 接口在用户量较大时响应缓慢。
+
+**根因**：先查用户列表，再循环每个用户单独执行 `SELECT ... FROM user_departments WHERE user_id = ?` 查询部门/岗位。100 用户 = 101 次 DB 查询。
+
+**修复**：改为 2 次固定查询 + 内存分组：
+1. 查询用户列表
+2. `WHERE user_id IN (...)` 批量查询所有用户的部门岗位关联
+3. `Map<userId, depts[]>` 在内存中按 userId 分组
+
+**涉及文件**：
+- `server/src/routes/tenants.ts` — `/selectable` 和 `/batch` 两个接口
+
+---
+
 ## 2026-07-08 (三)
 
 ### CronScheduler 注释中 `*/` 提前关闭块注释导致后端无法启动

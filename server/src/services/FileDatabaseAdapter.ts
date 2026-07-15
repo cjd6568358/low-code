@@ -252,6 +252,7 @@ export class FileDatabaseAdapter implements DatabaseAdapter {
       }
     }
 
+
     // 应用 WHERE 条件
     records = this.applyWhereClause(records, sql, params);
 

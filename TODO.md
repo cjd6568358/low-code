@@ -142,9 +142,9 @@
   - 运算模式只保留 `$user`、`$now`、`$env`
   - 去掉 `$component`、`$route`、`$data` 等页面相关变量
 - ✅ **存储格式**：PropValue 格式 `{ type: 'expression', value: '...', async: false }`
-- ✅ **运算执行器**（`server/src/services/ComputationExecutor.ts`）
+- ✅ **运算执行器**（已迁移至 `@low-code/shared` ExpressionEngine）
   - 沙箱执行，禁止危险操作
-  - 类型转换和格式化
+  - 超时保护（workerpool 沙箱，100ms 硬杀）
   - 依赖分析
 - ✅ **完整 CRUD API**（统一走 apps 路由）
   - `GET /api/apps/:appId/computations` — 列表

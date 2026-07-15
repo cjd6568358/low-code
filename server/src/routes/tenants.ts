@@ -181,38 +181,51 @@ export function createTenantsRouter(): KoaRouter {
         avatar: string | null;
       }>;
 
-      // 获取每个用户的部门岗位信息
-      const users = rows.map((r) => {
-        const depts = db.prepare(`
-          SELECT d.dept_id, d.name AS dept_name, p.position_id, p.name AS position_name, ud.is_primary
-          FROM user_departments ud
-          JOIN departments d ON d.dept_id = ud.dept_id
-          LEFT JOIN positions p ON p.position_id = ud.position_id
-          WHERE ud.user_id = ?
-          ORDER BY ud.is_primary DESC
-        `).all(r.user_id) as Array<{
-          dept_id: string;
-          dept_name: string;
-          position_id: string | null;
-          position_name: string | null;
-          is_primary: number;
-        }>;
+      // 批量获取所有用户的部门岗位信息（避免 N+1 查询）
+      const userIds = rows.map((r) => r.user_id);
+      const deptRows = userIds.length > 0
+        ? (db.prepare(`
+            SELECT ud.user_id, d.dept_id, d.name AS dept_name, p.position_id, p.name AS position_name, ud.is_primary
+            FROM user_departments ud
+            JOIN departments d ON d.dept_id = ud.dept_id
+            LEFT JOIN positions p ON p.position_id = ud.position_id
+            WHERE ud.user_id IN (${userIds.map(() => '?').join(',')})
+            ORDER BY ud.is_primary DESC
+          `).all(...userIds) as Array<{
+            user_id: string;
+            dept_id: string;
+            dept_name: string;
+            position_id: string | null;
+            position_name: string | null;
+            is_primary: number;
+          }>)
+        : [];
 
-        return {
-          userId: r.user_id,
-          name: r.name,
-          email: r.email || '',
-          phone: r.phone || '',
-          avatar: r.avatar || '',
-          departments: depts.map((d) => ({
-            deptId: d.dept_id,
-            deptName: d.dept_name,
-            positionId: d.position_id || undefined,
-            positionName: d.position_name || undefined,
-            isPrimary: d.is_primary === 1,
-          })),
-        };
-      });
+      // 按 userId 分组
+      const deptMap = new Map<string, typeof deptRows>();
+      for (const d of deptRows) {
+        const list = deptMap.get(d.user_id);
+        if (list) {
+          list.push(d);
+        } else {
+          deptMap.set(d.user_id, [d]);
+        }
+      }
+
+      const users = rows.map((r) => ({
+        userId: r.user_id,
+        name: r.name,
+        email: r.email || '',
+        phone: r.phone || '',
+        avatar: r.avatar || '',
+        departments: (deptMap.get(r.user_id) || []).map((d) => ({
+          deptId: d.dept_id,
+          deptName: d.dept_name,
+          positionId: d.position_id || undefined,
+          positionName: d.position_name || undefined,
+          isPrimary: d.is_primary === 1,
+        })),
+      }));
 
       ctx.body = { success: true, data: users };
     } catch (error) {
@@ -252,37 +265,50 @@ export function createTenantsRouter(): KoaRouter {
         avatar: string | null;
       }>;
 
-      const users = rows.map((r) => {
-        const depts = db.prepare(`
-          SELECT d.dept_id, d.name AS dept_name, p.position_id, p.name AS position_name, ud.is_primary
-          FROM user_departments ud
-          JOIN departments d ON d.dept_id = ud.dept_id
-          LEFT JOIN positions p ON p.position_id = ud.position_id
-          WHERE ud.user_id = ?
-          ORDER BY ud.is_primary DESC
-        `).all(r.user_id) as Array<{
-          dept_id: string;
-          dept_name: string;
-          position_id: string | null;
-          position_name: string | null;
-          is_primary: number;
-        }>;
+      // 批量获取所有用户的部门岗位信息（避免 N+1 查询）
+      const deptRows = userIds.length > 0
+        ? (db.prepare(`
+            SELECT ud.user_id, d.dept_id, d.name AS dept_name, p.position_id, p.name AS position_name, ud.is_primary
+            FROM user_departments ud
+            JOIN departments d ON d.dept_id = ud.dept_id
+            LEFT JOIN positions p ON p.position_id = ud.position_id
+            WHERE ud.user_id IN (${userIds.map(() => '?').join(',')})
+            ORDER BY ud.is_primary DESC
+          `).all(...userIds) as Array<{
+            user_id: string;
+            dept_id: string;
+            dept_name: string;
+            position_id: string | null;
+            position_name: string | null;
+            is_primary: number;
+          }>)
+        : [];
 
-        return {
-          userId: r.user_id,
-          name: r.name,
-          email: r.email || '',
-          phone: r.phone || '',
-          avatar: r.avatar || '',
-          departments: depts.map((d) => ({
-            deptId: d.dept_id,
-            deptName: d.dept_name,
-            positionId: d.position_id || undefined,
-            positionName: d.position_name || undefined,
-            isPrimary: d.is_primary === 1,
-          })),
-        };
-      });
+      // 按 userId 分组
+      const deptMap = new Map<string, typeof deptRows>();
+      for (const d of deptRows) {
+        const list = deptMap.get(d.user_id);
+        if (list) {
+          list.push(d);
+        } else {
+          deptMap.set(d.user_id, [d]);
+        }
+      }
+
+      const users = rows.map((r) => ({
+        userId: r.user_id,
+        name: r.name,
+        email: r.email || '',
+        phone: r.phone || '',
+        avatar: r.avatar || '',
+        departments: (deptMap.get(r.user_id) || []).map((d) => ({
+          deptId: d.dept_id,
+          deptName: d.dept_name,
+          positionId: d.position_id || undefined,
+          positionName: d.position_name || undefined,
+          isPrimary: d.is_primary === 1,
+        })),
+      }));
 
       ctx.body = { success: true, data: users };
     } catch (error) {

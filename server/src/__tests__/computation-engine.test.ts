@@ -577,7 +577,7 @@ describe('运算引擎', () => {
 
   describe('错误处理', () => {
     it('语法错误', () => {
-      const result = evaluateExpression('1 + + + 2', {}, 'number');
+      const result = evaluateExpression('1 + ', {}, 'number');
       expect(result.success).toBe(false);
       expect(result.error).toBeDefined();
     });

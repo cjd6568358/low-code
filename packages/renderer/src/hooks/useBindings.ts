@@ -9,6 +9,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { shallowEqual } from '../utils/shallowEqual';
 import type { ExpressionBinding } from '@low-code/shared';
 import type { DefaultExpressionEngine } from '@low-code/shared';
 import { dependencyGraph, extractDependencies } from '../core/DependencyGraph';
@@ -98,6 +99,7 @@ export function useBindings(
   }, [allBindings]);
 
   // 同步解析变量引用（varVersion 变化时重算）
+  const prevSyncResolvedRef = useRef<Record<string, any>>({});
   const syncResolved = useMemo(() => {
     const bindingResolver = new DataBindingResolver();
     const resolved: Record<string, any> = {};
@@ -107,6 +109,11 @@ export function useBindings(
         context as any,
       );
     }
+    // 值级比较：解析结果引用不变时复用上一次对象，避免下游无效 re-render
+    if (shallowEqual(prevSyncResolvedRef.current, resolved)) {
+      return prevSyncResolvedRef.current;
+    }
+    prevSyncResolvedRef.current = resolved;
     return resolved;
     // varVersion 变化时重新解析
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -215,12 +222,20 @@ export function useBindings(
     return () => { mountedRef.current = false; };
   }, []);
 
-  // 合并最终 props
-  const resolvedProps = useMemo(() => ({
-    ...literals,
-    ...syncResolved,
-    ...expressionValues,
-  }), [literals, syncResolved, expressionValues]);
+  // 合并最终 props（值级比较，避免引用变化但值未变时的下游 re-render）
+  const prevResolvedPropsRef = useRef<Record<string, any>>({});
+  const resolvedProps = useMemo(() => {
+    const merged = {
+      ...literals,
+      ...syncResolved,
+      ...expressionValues,
+    };
+    if (shallowEqual(prevResolvedPropsRef.current, merged)) {
+      return prevResolvedPropsRef.current;
+    }
+    prevResolvedPropsRef.current = merged;
+    return merged;
+  }, [literals, syncResolved, expressionValues]);
 
   return { resolvedProps, loading, errors };
 }

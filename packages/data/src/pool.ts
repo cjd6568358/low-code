@@ -33,11 +33,11 @@ export class TenantDatabasePool {
    * 如果已打开则复用，否则新打开一个连接。
    * 池满时淘汰最久未使用的连接。
    */
-  get(tenantId: string, dbPath: string): SqliteDb {
+  get(tenantId: string, dbPath: string): { db: SqliteDb; isNew: boolean } {
     const existing = this.pool.get(tenantId);
     if (existing) {
       existing.lastAccess = Date.now();
-      return existing.db;
+      return { db: existing.db, isNew: false };
     }
 
     // 池满时淘汰
@@ -47,7 +47,7 @@ export class TenantDatabasePool {
 
     const db = this.open(dbPath);
     this.pool.set(tenantId, { db, lastAccess: Date.now() });
-    return db;
+    return { db, isNew: true };
   }
 
   /**

@@ -81,8 +81,10 @@ export class DatabaseManager {
    */
   getTenantDb(tenantId: string): SqliteDb {
     const dbPath = this.tenantDbPath(tenantId);
-    const db = this.pool.get(tenantId, dbPath);
-    runMigrations(db, TENANT_MIGRATIONS);
+    const { db, isNew } = this.pool.get(tenantId, dbPath);
+    if (isNew) {
+      runMigrations(db, TENANT_MIGRATIONS);
+    }
     return db;
   }
 
@@ -159,7 +161,7 @@ export class DatabaseManager {
 
     // Create database
     const dbPath = this.tenantDbPath(tenantId);
-    const db = this.pool.get(tenantId, dbPath);
+    const { db } = this.pool.get(tenantId, dbPath);
     runMigrations(db, TENANT_MIGRATIONS);
 
     // Seed builtin roles

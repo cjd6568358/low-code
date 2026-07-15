@@ -317,7 +317,7 @@ const db = outDb[0]; // sqlite3* 指针
 
 1. **初始值注入 (FormDataContext)** — 统一数据模型，支持 5 种来源（默认值/URL参数/草稿/业务数据/快照），按优先级合并，初始化时静默执行联动
 2. **联动执行引擎 (LinkageEngine)** — 触发索引 + DAG 拓扑排序 + 批量更新，支持值联动/选项联动/显隐联动/属性联动的运行时执行，含循环依赖检测
-3. **组件事件桥接 (EventBridge + ActionSystem)** — 组件保持纯净只触发原生事件，桥接层将设计器配置的事件 Schema 编译为可执行函数，定义了 17 种标准动作类型（setValue/submit/apiCall/customScript 等）
+3. **组件事件桥接 (EventBridge + ActionSystem)** — 组件保持纯净只触发原生事件，桥接层将设计器配置的事件 Schema 编译为可执行函数，定义了 17 种标准动作类型（setValue/submit 等）
 4. **弹框栈机制 (ModalStack)** — `showModal` 返回 Promise 阻塞 action chain，`closeModal` 携带 result resolve 该 Promise，通过栈结构支持多层弹框嵌套（A→B→C 逐级返回），级联关闭防止幽灵弹框
 5. **Form.Item name 统一使用组件 ID** — Renderer 将 `node.id` 注入为 Form.Item 的 `name` prop，同时作为 form store key。`setValues` 设置 `$component.xxx.value` 时同步调用 `form.setFieldsValue()` 更新 antd Form store，防止 Form.Item 的 `cloneElement` 注入空值覆盖
 6. **事件处理器直接注入 props** — `withPlatform` 的 `enhanceValueOnChange` 将编译后的事件处理器（onClick/onBlur 等）直接注入为组件 props，而非嵌套在 `events` 对象中，确保非 onChange 事件能正确触发

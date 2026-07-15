@@ -2287,11 +2287,11 @@ interface ActionContext {
 }
 ```
 
-运行时通过 `componentOverrides` 机制将组件属性覆盖合并到 `resolvedProps`，触发 React 重渲染。
+运行时通过 `ComponentOverrideStore`（外部 store）将组件属性覆盖合并到 `resolvedProps`。`setComponentProp` 写入 store，`NodeOverrides` 组件通过 `useSyncExternalStore` 订阅单个组件的覆盖值，store 变化时仅目标组件 re-render，不影响兄弟节点。
 
 **变量多选模式**：`triggerWorkflow` 和 `showModal` 的数据参数支持变量多选，返回格式为 `{ type: "variable", value: { key1: "$data.a", key2: "$data.b" } }`，运行时逐 key 按路径取值合并为对象。
 
-**Form store 同步**：当 `setValues` 设置 `$component.xxx.value` 时，除了更新 `componentOverrides`，还会同步调用 `form.setFieldsValue()` 更新 antd Form store。这是因为 Form.Item 通过 `React.cloneElement` 注入表单 store 的 value，会覆盖 `componentOverrides` 中的值。组件 ID（`node.id`）同时作为 Form.Item 的 `name` prop 和 form store key，保持三者统一。
+**Form store 同步**：当 `setValues` 设置 `$component.xxx.value` 时，除了写入 `ComponentOverrideStore`，还会同步调用 `form.setFieldsValue()` 更新 antd Form store。这是因为 Form.Item 通过 `React.cloneElement` 注入表单 store 的 value，会覆盖 `ComponentOverrideStore` 中的值。组件 ID（`node.id`）同时作为 Form.Item 的 `name` prop 和 form store key，保持三者统一。
 
 #### Form 组件注册
 
