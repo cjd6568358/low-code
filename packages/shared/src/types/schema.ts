@@ -1,5 +1,6 @@
 import type { ThemeConfig } from './theme';
 import type { ActionChain } from './actions';
+import type { LinkageRule } from './form';
 
 /**
  * 属性值类型 — 支持字面量、变量引用、表达式
@@ -63,6 +64,8 @@ export interface PageSchema {
   layout: LayoutConfig;
   components: ComponentNode[];
   rules?: PageRule[];
+  /** 页面级联动规则（组件间联动，使用 component.id 作为字段标识） */
+  linkageRules?: LinkageRule[];
   /** 页面数据源表达式（单个表达式，多个请求用 Promise.all，执行结果赋给 $data） */
   dataSource?: string;
   /** 页面水印配置 */

@@ -7,6 +7,7 @@ import type {
   ThemeConfig,
   ActionContext,
   ComponentRegistration,
+  ComponentState,
 } from '@low-code/shared';
 import { expressionEngine } from '@low-code/shared';
 import { ComponentRegistryImpl } from './ComponentRegistry';
@@ -257,8 +258,11 @@ export function PageRenderer(config: RendererConfig) {
     }
   }, [schema.rules, conditionEngine]);
 
-  // 初始化联动引擎
+  // 初始化联动引擎（规则 + 回调）
   useEffect(() => {
+    if (schema.linkageRules?.length) {
+      linkageEngine.init(schema.linkageRules);
+    }
     linkageEngine.setUpdateCallback((updates) => {
       if (onFormValueChange) {
         for (const [field, value] of Object.entries(updates)) {
@@ -266,7 +270,7 @@ export function PageRenderer(config: RendererConfig) {
         }
       }
     });
-  }, [linkageEngine, onFormValueChange]);
+  }, [linkageEngine, schema.linkageRules, onFormValueChange]);
 
   // 初始化组件刷新管理器和依赖图
   useEffect(() => {
@@ -321,45 +325,78 @@ export function PageRenderer(config: RendererConfig) {
     return map;
   }, [schema.components]);
 
+  // 组件级数据源结果（写入 $component 上下文，供其他组件表达式引用）
+  const [enrichedComponent, setEnrichedComponent] = useState<Record<string, ComponentState>>({});
+
   // 合并数据源结果和环境变量到上下文
   const runtimeContext = useMemo(() => {
     const baseContext = { ...context, ...envContext };
 
+    // 组件数据源结果合并到 $component
+    const $component = Object.keys(enrichedComponent).length > 0
+      ? { ...context.$component, ...enrichedComponent }
+      : context.$component;
+
+    const ctx = { ...baseContext, $component };
+
     if (!dataReady || schema.dataSource === undefined) {
-      return baseContext;
+      return ctx;
     }
 
     // $data 直接就是表达式执行结果
     return {
-      ...baseContext,
+      ...ctx,
       $data: dataResult,
     };
-  }, [dataReady, context, dataResult, schema.dataSource, envContext]);
+  }, [dataReady, context, dataResult, schema.dataSource, envContext, enrichedComponent]);
 
-  // 组件级数据源缓存
-  const [componentDataSourceCache, setComponentDataSourceCache] = useState<Map<string, any>>(new Map());
-
-  // 加载组件级数据源
+  // 加载组件级数据源（并发加载，结果写入 $component）
   useEffect(() => {
     if (!dataReady) return;
 
     const loadAllComponentDataSources = async () => {
-      const newCache = new Map<string, any>();
+      const componentsWithDataSource = schema.components.filter(c => c.dataSource);
 
-      for (const component of schema.components) {
-        if (component.dataSource) {
-          const result = await loadComponentDataSource(component.dataSource, runtimeContext);
-          if (result.success) {
-            newCache.set(component.id, result.data);
-          }
-        }
+      if (componentsWithDataSource.length === 0) return;
+
+      // 并发加载所有组件数据源
+      const tasks = componentsWithDataSource.map(async (component) => {
+        const result = await loadComponentDataSource(component.dataSource!, runtimeContext);
+        return result.success
+          ? { id: component.id, targetProp: component.dataSource!.targetProp, data: result.data }
+          : null;
+      });
+
+      const results = (await Promise.all(tasks)).filter(Boolean) as Array<{
+        id: string;
+        targetProp: string;
+        data: any;
+      }>;
+
+      if (results.length === 0) return;
+
+      // 写入 $component 上下文
+      const enriched: Record<string, ComponentState> = {};
+      for (const r of results) {
+        enriched[r.id] = {
+          ...(context.$component?.[r.id] ?? { value: undefined, visible: true, disabled: false, loading: false }),
+          [r.targetProp]: r.data,
+        };
       }
-
-      setComponentDataSourceCache(newCache);
+      setEnrichedComponent(prev => ({ ...prev, ...enriched }));
     };
 
     loadAllComponentDataSources();
   }, [schema.components, runtimeContext, dataReady]);
+
+  // 组件数据源加载完毕后，执行初始联动
+  useEffect(() => {
+    if (!schema.linkageRules?.length) return;
+    if (Object.keys(enrichedComponent).length === 0) return;
+
+    // 用最新的 runtimeContext 执行初始联动（此时 $component 已包含数据源结果）
+    linkageEngine.initLinkage(runtimeContext);
+  }, [enrichedComponent, schema.linkageRules, linkageEngine, runtimeContext]);
 
   // 渲染动作上下文
   const actionContext = useMemo<ActionContext>(
@@ -493,22 +530,17 @@ export function PageRenderer(config: RendererConfig) {
           expressionEngine={expressionEngine}
         >
           {(resolvedProps) => {
-            // 8. 处理组件级数据源（从缓存中获取）
-            if (componentDataSourceCache.has(node.id) && node.dataSource) {
-              resolvedProps[node.dataSource.targetProp] = componentDataSourceCache.get(node.id);
-            }
-
-            // 9. 合并规则设置的属性
+            // 8. 合并规则设置的属性
             if (ruleResult.setProps[node.id]) {
               resolvedProps = { ...resolvedProps, ...ruleResult.setProps[node.id] };
             }
 
-            // 10. 合并规则设置的值
+            // 9. 合并规则设置的值
             if (ruleResult.setValues[node.id] !== undefined) {
               resolvedProps.value = ruleResult.setValues[node.id];
             }
 
-            // 10.5. 合并 setValues 运行时覆盖（来自 overrideStore）
+            // 10. 合并 setValues 运行时覆盖（来自 overrideStore）
             if (overrides) {
               resolvedProps = { ...resolvedProps, ...overrides };
             }
