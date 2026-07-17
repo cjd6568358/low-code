@@ -350,9 +350,28 @@ export function restoreRecord(db: SqliteDb, tableId: string, recordId: string | 
 export function queryRecords(
   db: SqliteDb,
   tableId: string,
-  options: { includeDeleted?: boolean; where?: string; params?: any[] } = {},
+  filterOrOptions?: Record<string, any> | { includeDeleted?: boolean; where?: string; params?: any[] },
 ): any[] {
-  const { includeDeleted = false, where, params = [] } = options;
+  let includeDeleted = false;
+  let sqlWhere: string | undefined;
+  let sqlParams: any[] = [];
+  let mongoFilter: Record<string, any> | undefined;
+
+  if (filterOrOptions) {
+    // 判断是 MongoDB 风格 filter 还是旧版 options
+    const isLegacyOptions = 'includeDeleted' in filterOrOptions
+      || 'where' in filterOrOptions
+      || 'params' in filterOrOptions;
+
+    if (isLegacyOptions) {
+      const opts = filterOrOptions as { includeDeleted?: boolean; where?: string; params?: any[] };
+      includeDeleted = opts.includeDeleted ?? false;
+      sqlWhere = opts.where;
+      sqlParams = opts.params ?? [];
+    } else {
+      mongoFilter = filterOrOptions;
+    }
+  }
 
   let sql = `SELECT * FROM [${tableId}]`;
   const conditions: string[] = [];
@@ -360,15 +379,20 @@ export function queryRecords(
   if (!includeDeleted) {
     conditions.push('_deleted = 0');
   }
-  if (where) {
-    conditions.push(`(${where})`);
+
+  if (mongoFilter) {
+    const clause = buildWhereClause(mongoFilter);
+    conditions.push(...clause.conditions);
+    sqlParams.push(...clause.params);
+  } else if (sqlWhere) {
+    conditions.push(`(${sqlWhere})`);
   }
 
   if (conditions.length > 0) {
     sql += ` WHERE ${conditions.join(' AND ')}`;
   }
 
-  return db.prepare(sql).all(...params);
+  return db.prepare(sql).all(...sqlParams);
 }
 
 /** 高级查询选项 */
@@ -377,18 +401,23 @@ export interface AdvancedQueryOptions {
   select?: string[];
   /** 过滤条件（MongoDB 风格操作符） */
   where?: Record<string, any>;
-  /** 排序 */
-  orderBy?: Record<string, 'asc' | 'desc'>;
+  /** 排序：Record 格式或对象格式 */
+  orderBy?: Record<string, 'asc' | 'desc'> | { field: string; direction: 'asc' | 'desc' };
   /** 限制数量 */
   limit?: number;
   /** 偏移量 */
   offset?: number;
-  /** 聚合函数 */
-  aggregate?: { type: 'count' | 'sum' | 'avg' | 'min' | 'max'; field?: string };
+  /** 页码（与 limit/offset 二选一） */
+  page?: number;
+  /** 每页数量（与 limit/offset 二选一） */
+  pageSize?: number;
+  /** 聚合函数（标准格式：{ type, field } 或简写格式：{ field, fn }） */
+  aggregate?: { type: 'count' | 'sum' | 'avg' | 'min' | 'max'; field?: string }
+    | { field: string; fn: string };
   /** 是否包含已删除记录 */
   includeDeleted?: boolean;
   /** 安全白名单：允许的列名，防止 SQL 注入 */
-  allowedColumns: string[];
+  allowedColumns?: string[];
   /** 内存过滤函数（当 SQL 无法表达时的降级方案） */
   memoryFilter?: (record: any) => boolean;
   /** 内存过滤时的 SQL 查询上限，默认 10000 */
@@ -403,6 +432,9 @@ const OPERATOR_MAP: Record<string, string> = {
   $gte: '>=',
   $lte: '<=',
   $like: 'LIKE',
+  $not_like: 'NOT LIKE',
+  $in: 'IN',
+  $not_in: 'NOT IN',
 };
 
 /**
@@ -418,18 +450,38 @@ function assertColumnAllowed(column: string, allowedColumns: string[]): void {
  * 将 MongoDB 风格的 where 对象转换为 SQL 条件和参数
  *
  * @param where 过滤条件对象
- * @param allowedColumns 允许的列名白名单
+ * @param allowedColumns 允许的列名白名单（为空时跳过校验）
  * @returns SQL 条件片段和参数数组
  */
 function buildWhereClause(
   where: Record<string, any>,
-  allowedColumns: string[],
+  allowedColumns?: string[],
 ): { conditions: string[]; params: any[] } {
   const conditions: string[] = [];
   const params: any[] = [];
 
   for (const [field, value] of Object.entries(where)) {
-    assertColumnAllowed(field, allowedColumns);
+    // 逻辑操作符
+    if (field === '$and' || field === '$or') {
+      if (!Array.isArray(value)) {
+        throw new Error(`${field} requires an array`);
+      }
+      const joinOp = field === '$and' ? ' AND ' : ' OR ';
+      const groupConditions: string[] = [];
+      for (const subWhere of value) {
+        const sub = buildWhereClause(subWhere, allowedColumns);
+        groupConditions.push(...sub.conditions);
+        params.push(...sub.params);
+      }
+      if (groupConditions.length > 0) {
+        conditions.push(`(${groupConditions.join(joinOp)})`);
+      }
+      continue;
+    }
+
+    if (allowedColumns) {
+      assertColumnAllowed(field, allowedColumns);
+    }
 
     if (value === null || value === undefined) {
       conditions.push(`[${field}] IS NULL`);
@@ -439,25 +491,61 @@ function buildWhereClause(
     if (typeof value === 'object' && !Array.isArray(value)) {
       // 操作符对象：{ $ne: v, $gt: v, ... }
       for (const [op, opValue] of Object.entries(value)) {
-        const sqlOp = OPERATOR_MAP[op];
-        if (!sqlOp) {
-          throw new Error(`Unsupported operator: ${op}`);
-        }
-        if (op === '$in') {
-          if (!Array.isArray(opValue)) {
-            throw new Error('$in operator requires an array value');
+        switch (op) {
+          case '$in':
+          case '$not_in': {
+            if (!Array.isArray(opValue)) {
+              throw new Error(`${op} operator requires an array value`);
+            }
+            const sqlInOp = op === '$in' ? 'IN' : 'NOT IN';
+            if (opValue.length === 0) {
+              conditions.push(op === '$in' ? '1 = 0' : '1 = 1');
+            } else {
+              const placeholders = opValue.map(() => '?').join(', ');
+              conditions.push(`[${field}] ${sqlInOp} (${placeholders})`);
+              params.push(...opValue);
+            }
+            break;
           }
-          if (opValue.length === 0) {
-            // IN 空数组 → 永假条件
-            conditions.push('1 = 0');
-          } else {
-            const placeholders = opValue.map(() => '?').join(', ');
-            conditions.push(`[${field}] IN (${placeholders})`);
-            params.push(...opValue);
+          case '$like':
+          case '$not_like': {
+            const sqlLikeOp = op === '$like' ? 'LIKE' : 'NOT LIKE';
+            conditions.push(`[${field}] ${sqlLikeOp} ?`);
+            params.push(opValue);
+            break;
           }
-        } else {
-          conditions.push(`[${field}] ${sqlOp} ?`);
-          params.push(opValue);
+          case '$between': {
+            if (!Array.isArray(opValue) || opValue.length !== 2) {
+              throw new Error('$between operator requires a two-element array');
+            }
+            conditions.push(`[${field}] BETWEEN ? AND ?`);
+            params.push(opValue[0], opValue[1]);
+            break;
+          }
+          case '$is_null': {
+            if (opValue) {
+              conditions.push(`[${field}] IS NULL`);
+            } else {
+              conditions.push(`[${field}] IS NOT NULL`);
+            }
+            break;
+          }
+          case '$is_not_null': {
+            if (opValue) {
+              conditions.push(`[${field}] IS NOT NULL`);
+            } else {
+              conditions.push(`[${field}] IS NULL`);
+            }
+            break;
+          }
+          default: {
+            const sqlOp = OPERATOR_MAP[op];
+            if (!sqlOp) {
+              throw new Error(`Unsupported operator: ${op}`);
+            }
+            conditions.push(`[${field}] ${sqlOp} ?`);
+            params.push(opValue);
+          }
         }
       }
     } else {
@@ -476,19 +564,21 @@ function buildWhereClause(
  * @param db SQLite 数据库实例
  * @param tableId 物理表名（裸 hex ID）
  * @param options 查询选项
- * @returns 查询结果数组（聚合时返回 [{ result: number }]）
+ * @returns 查询结果数组；聚合时返回单对象 { count/sum/avg/min/max: value }
  */
 export function queryRecordsAdvanced(
   db: SqliteDb,
   tableId: string,
   options: AdvancedQueryOptions,
-): any[] {
+): any {
   const {
     select,
     where,
-    orderBy,
-    limit,
-    offset,
+    orderBy: rawOrderBy,
+    limit: rawLimit,
+    offset: rawOffset,
+    page,
+    pageSize,
     aggregate,
     includeDeleted = false,
     allowedColumns,
@@ -496,8 +586,36 @@ export function queryRecordsAdvanced(
     memoryFilterLimit = 10000,
   } = options;
 
+  // page/pageSize → limit/offset 转换
+  let limit = rawLimit;
+  let offset = rawOffset;
+  if (page !== undefined && pageSize !== undefined) {
+    limit = pageSize;
+    offset = (page - 1) * pageSize;
+  }
+
+  // orderBy 标准化：{ field, direction } → Record<string, 'asc'|'desc'>
+  let orderBy: Record<string, 'asc' | 'desc'> | undefined;
+  if (rawOrderBy) {
+    if ('field' in rawOrderBy && 'direction' in rawOrderBy) {
+      orderBy = { [(rawOrderBy as any).field]: (rawOrderBy as any).direction };
+    } else {
+      orderBy = rawOrderBy as Record<string, 'asc' | 'desc'>;
+    }
+  }
+
+  // 聚合：兼容 { field, fn } 和 { type, field } 两种格式
+  let normalizedAggregate = aggregate;
+  if (normalizedAggregate && 'fn' in normalizedAggregate) {
+    const shim = normalizedAggregate as any;
+    normalizedAggregate = { type: shim.fn, field: shim.field === '*' ? undefined : shim.field };
+  } else if (!normalizedAggregate && (options as any).aggregateShim) {
+    const shim = (options as any).aggregateShim;
+    normalizedAggregate = { type: shim.fn, field: shim.field === '*' ? undefined : shim.field };
+  }
+
   // 聚合查询
-  if (aggregate) {
+  if (normalizedAggregate) {
     let sql: string;
     const params: any[] = [];
     const whereConditions: string[] = [];
@@ -515,7 +633,7 @@ export function queryRecordsAdvanced(
       ? ` WHERE ${whereConditions.join(' AND ')}`
       : '';
 
-    switch (aggregate.type) {
+    switch (normalizedAggregate.type) {
       case 'count':
         sql = `SELECT COUNT(*) as result FROM [${tableId}]${whereStr}`;
         break;
@@ -523,25 +641,30 @@ export function queryRecordsAdvanced(
       case 'avg':
       case 'min':
       case 'max': {
-        if (!aggregate.field) {
-          throw new Error(`Aggregate "${aggregate.type}" requires a field`);
+        if (!normalizedAggregate.field) {
+          throw new Error(`Aggregate "${normalizedAggregate.type}" requires a field`);
         }
-        assertColumnAllowed(aggregate.field, allowedColumns);
-        const func = aggregate.type.toUpperCase();
-        sql = `SELECT ${func}([${aggregate.field}]) as result FROM [${tableId}]${whereStr}`;
+        if (allowedColumns) {
+          assertColumnAllowed(normalizedAggregate.field, allowedColumns);
+        }
+        const func = normalizedAggregate.type.toUpperCase();
+        sql = `SELECT ${func}([${normalizedAggregate.field}]) as result FROM [${tableId}]${whereStr}`;
         break;
       }
       default:
-        throw new Error(`Unsupported aggregate type: ${aggregate.type}`);
+        throw new Error(`Unsupported aggregate type: ${normalizedAggregate.type}`);
     }
 
-    return db.prepare(sql).all(...params);
+    const rows = db.prepare(sql).all(...params);
+    // 返回单对象：{ count: 5 } / { sum: 800 } 等
+    const row = rows[0] as any;
+    return { [normalizedAggregate.type]: row?.result ?? 0 };
   }
 
   // 非聚合查询
   const selectClause = select && select.length > 0
     ? select.map(f => {
-        assertColumnAllowed(f, allowedColumns);
+        if (allowedColumns) assertColumnAllowed(f, allowedColumns);
         return `[${f}]`;
       }).join(', ')
     : '*';
@@ -566,7 +689,7 @@ export function queryRecordsAdvanced(
   // ORDER BY
   if (orderBy) {
     const orderClauses = Object.entries(orderBy).map(([field, direction]) => {
-      assertColumnAllowed(field, allowedColumns);
+      if (allowedColumns) assertColumnAllowed(field, allowedColumns);
       return `[${field}] ${direction.toUpperCase()}`;
     });
     sql += ` ORDER BY ${orderClauses.join(', ')}`;

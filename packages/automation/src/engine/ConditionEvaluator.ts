@@ -214,6 +214,10 @@ export class ConditionEvaluator {
         return this.doesContain(actual, expected);
       case 'not_contains':
         return !this.doesContain(actual, expected);
+      case 'starts_with':
+        return this.startsWith(actual, expected);
+      case 'ends_with':
+        return this.endsWith(actual, expected);
       case 'is_empty':
         return this.isEmpty(actual);
       case 'is_not_empty':
@@ -293,6 +297,22 @@ export class ConditionEvaluator {
   private doesContain(actual: unknown, expected: unknown): boolean {
     if (typeof actual !== 'string' || typeof expected !== 'string') return false;
     return actual.includes(expected);
+  }
+
+  /**
+   * 字符串前缀匹配
+   */
+  private startsWith(actual: unknown, expected: unknown): boolean {
+    if (typeof actual !== 'string' || typeof expected !== 'string') return false;
+    return actual.startsWith(expected);
+  }
+
+  /**
+   * 字符串后缀匹配
+   */
+  private endsWith(actual: unknown, expected: unknown): boolean {
+    if (typeof actual !== 'string' || typeof expected !== 'string') return false;
+    return actual.endsWith(expected);
   }
 
   /**

@@ -1,5 +1,5 @@
 /**
- * 自动化执行引擎
+ * 自动化引擎
  *
  * 负责执行自动化规则，支持：
  * - 定时触发（Cron 调度）
@@ -9,7 +9,7 @@
  * 执行流程：
  * 1. 读取启用的自动化规则
  * 2. 根据触发器类型注册到调度器
- * 3. 触发时执行条件检查
+ * 3. 触发时执行条件检查（复用 @low-code/automation 的 ConditionEvaluator）
  * 4. 条件满足时执行动作
  * 5. 记录执行日志
  */
@@ -22,6 +22,12 @@ import { TENANTS_DIR } from '../config/index.js';
 import { getDbManager } from '../config/db.js';
 import { generateHexId } from '@low-code/shared';
 import { insertRecord, updateRecord, softDeleteRecord } from '@low-code/data';
+import {
+  ConditionEvaluator,
+  type AutomationCondition,
+  type PlatformEvent,
+  type ConditionEvaluationResult,
+} from '@low-code/automation';
 import type {
   AutomationRuleStatus,
   TriggerType,
@@ -43,7 +49,7 @@ interface AutomationRule {
   description?: string;
   status: AutomationStatus;
   trigger: TriggerConfig;
-  condition?: ConditionConfig;
+  condition?: ConditionStorage;
   actions: ActionConfig[];
   throttle?: ThrottleConfig;
   effectiveTime?: EffectiveTimeConfig;
@@ -71,14 +77,43 @@ interface TriggerConfig {
   };
 }
 
-/** 条件配置 */
-interface ConditionConfig {
+/**
+ * 条件配置（JSON 存储格式）
+ *
+ * JSON 文件中的平铺格式，运行时通过 convertCondition 转换为 AutomationCondition。
+ */
+interface ConditionStorage {
   logic: 'and' | 'or';
   conditions: Array<{
     field: string;
     operator: string;
     value: unknown;
   }>;
+}
+
+/** 操作符别名 → 标准运算符映射 */
+const OPERATOR_ALIASES: Record<string, string> = {
+  '=': 'eq',
+  '==': 'eq',
+  '!=': 'ne',
+  '>': 'gt',
+  '>=': 'gte',
+  '<': 'lt',
+  '<=': 'lte',
+};
+
+/**
+ * 将存储格式的条件转换为 @low-code/automation 的 AutomationCondition
+ */
+function convertCondition(storage: ConditionStorage): AutomationCondition {
+  return {
+    logic: storage.logic,
+    rules: storage.conditions.map(c => ({
+      field: c.field,
+      operator: (OPERATOR_ALIASES[c.operator] ?? c.operator) as AutomationCondition['rules'][0]['operator'],
+      value: c.value,
+    })),
+  };
 }
 
 /** 动作配置 */
@@ -159,19 +194,7 @@ interface ExecutionResult {
   /** 事件数据 */
   eventData: Record<string, unknown>;
   /** 条件结果 */
-  conditionResult?: {
-    matched: boolean;
-    details: Array<{
-      rule: string;
-      field: string;
-      operator: string;
-      expected: unknown;
-      actual: unknown;
-      matched: boolean;
-    }>;
-    evaluatedAt: string;
-    durationMs: number;
-  };
+  conditionResult?: ConditionEvaluationResult;
   /** 动作结果 */
   actionResults: Array<{
     actionType: string;
@@ -192,8 +215,8 @@ interface ExecutionResult {
   createdAt: string;
 }
 
-/** 自动化执行引擎配置 */
-export interface AutomationExecutorConfig {
+/** 自动化引擎配置 */
+export interface AutomationEngineConfig {
   /** 租户 ID */
   tenantId: string;
   /** Cron 调度器 */
@@ -354,15 +377,16 @@ class RuleCache {
 }
 
 /**
- * 自动化执行引擎
+ * 自动化引擎
  */
-export class AutomationExecutor {
-  private config: AutomationExecutorConfig;
+export class AutomationEngine {
+  private config: AutomationEngineConfig;
   private registeredJobs: Map<string, string> = new Map(); // ruleId -> jobId
   private executionLogs: Map<string, ExecutionResult[]> = new Map(); // ruleId -> logs
   private cache: RuleCache | null = null;
+  private readonly conditionEvaluator = new ConditionEvaluator();
 
-  constructor(config: AutomationExecutorConfig) {
+  constructor(config: AutomationEngineConfig) {
     this.config = config;
   }
 
@@ -387,7 +411,7 @@ export class AutomationExecutor {
       }
     }
 
-    console.log(`[AutomationExecutor] 初始化完成，已注册 ${registeredCount} 个定时任务`);
+    console.log(`[AutomationEngine] 初始化完成，已注册 ${registeredCount} 个定时任务`);
   }
 
   /**
@@ -398,20 +422,20 @@ export class AutomationExecutor {
     const schedule = rule.trigger.schedule;
 
     if (!schedule?.cron) {
-      console.warn(`[AutomationExecutor] 规则 ${rule.id} 缺少 cron 表达式`);
+      console.warn(`[AutomationEngine] 规则 ${rule.id} 缺少 cron 表达式`);
       return;
     }
 
     // 校验 cron 表达式
     const validation = validateCronExpression(schedule.cron);
     if (!validation.valid) {
-      console.error(`[AutomationExecutor] 规则 ${rule.id} cron 表达式无效: ${validation.error}`);
+      console.error(`[AutomationEngine] 规则 ${rule.id} cron 表达式无效: ${validation.error}`);
       return;
     }
 
     // 检查生效时间
     if (!this.isRuleEffective(rule)) {
-      console.log(`[AutomationExecutor] 规则 ${rule.id} 不在生效时间内`);
+      console.log(`[AutomationEngine] 规则 ${rule.id} 不在生效时间内`);
       return;
     }
 
@@ -440,7 +464,7 @@ export class AutomationExecutor {
     });
 
     this.registeredJobs.set(rule.id, jobId);
-    console.log(`[AutomationExecutor] 注册定时任务: ${rule.name} (${schedule.cron})`);
+    console.log(`[AutomationEngine] 注册定时任务: ${rule.name} (${schedule.cron})`);
   }
 
   /**
@@ -453,7 +477,7 @@ export class AutomationExecutor {
     if (jobId) {
       scheduler.removeJob(jobId);
       this.registeredJobs.delete(ruleId);
-      console.log(`[AutomationExecutor] 注销任务: ${ruleId}`);
+      console.log(`[AutomationEngine] 注销任务: ${ruleId}`);
     }
   }
 
@@ -506,7 +530,7 @@ export class AutomationExecutor {
     const startTime = Date.now();
     const executionId = generateHexId();
 
-    console.log(`[AutomationExecutor] 执行规则: ${rule.name} (${rule.id})`);
+    console.log(`[AutomationEngine] 执行规则: ${rule.name} (${rule.id})`);
 
     const result: ExecutionResult = {
       executionId,
@@ -522,18 +546,15 @@ export class AutomationExecutor {
     };
 
     try {
-      // 1. 检查条件
+      // 1. 检查条件（复用 @low-code/automation 的 ConditionEvaluator）
       if (rule.condition) {
-        const conditionStart = Date.now();
-        const conditionResult = this.evaluateCondition(rule.condition, context);
-        result.conditionResult = {
-          ...conditionResult,
-          evaluatedAt: new Date().toISOString(),
-          durationMs: Date.now() - conditionStart,
-        };
+        const condition = convertCondition(rule.condition);
+        const event = this.buildPlatformEvent(context);
+        const conditionResult = this.conditionEvaluator.evaluate(condition, event);
+        result.conditionResult = conditionResult;
 
         if (!conditionResult.matched) {
-          console.log(`[AutomationExecutor] 条件不满足，跳过执行`);
+          console.log(`[AutomationEngine] 条件不满足，跳过执行`);
           result.status = 'success';
           result.totalDurationMs = Date.now() - startTime;
           this.saveExecutionLog(context.tenantId, context.ruleId, result);
@@ -554,7 +575,7 @@ export class AutomationExecutor {
       }
     } catch (error) {
       result.status = 'failed';
-      console.error(`[AutomationExecutor] 规则执行失败:`, error);
+      console.error(`[AutomationEngine] 规则执行失败:`, error);
     }
 
     result.totalDurationMs = Date.now() - startTime;
@@ -811,82 +832,6 @@ export class AutomationExecutor {
   }
 
   /**
-   * 评估条件
-   */
-  private evaluateCondition(
-    condition: ConditionConfig,
-    context: ExecutionContext
-  ): { matched: boolean; details: ExecutionResult['conditionResult']['details'] } {
-    const details: ExecutionResult['conditionResult']['details'] = [];
-    const eventData = context.eventData || {};
-
-    for (const cond of condition.conditions) {
-      const actual = this.getNestedValue(eventData, cond.field);
-      const matched = this.evaluateOperator(actual, cond.operator, cond.value);
-
-      details.push({
-        rule: `${cond.field} ${cond.operator} ${JSON.stringify(cond.value)}`,
-        field: cond.field,
-        operator: cond.operator,
-        expected: cond.value,
-        actual,
-        matched,
-      });
-    }
-
-    const matched = condition.logic === 'and'
-      ? details.every(d => d.matched)
-      : details.some(d => d.matched);
-
-    return { matched, details };
-  }
-
-  /**
-   * 评估操作符
-   */
-  private evaluateOperator(actual: unknown, operator: string, expected: unknown): boolean {
-    switch (operator) {
-      case 'eq':
-      case '=':
-      case '==':
-        return actual === expected;
-      case 'ne':
-      case '!=':
-        return actual !== expected;
-      case 'gt':
-      case '>':
-        return (actual as number) > (expected as number);
-      case 'gte':
-      case '>=':
-        return (actual as number) >= (expected as number);
-      case 'lt':
-      case '<':
-        return (actual as number) < (expected as number);
-      case 'lte':
-      case '<=':
-        return (actual as number) <= (expected as number);
-      case 'in':
-        return Array.isArray(expected) && expected.includes(actual);
-      case 'not_in':
-        return Array.isArray(expected) && !expected.includes(actual);
-      case 'contains':
-        return typeof actual === 'string' && actual.includes(expected as string);
-      case 'not_contains':
-        return typeof actual === 'string' && !actual.includes(expected as string);
-      case 'starts_with':
-        return typeof actual === 'string' && actual.startsWith(expected as string);
-      case 'ends_with':
-        return typeof actual === 'string' && actual.endsWith(expected as string);
-      case 'is_empty':
-        return actual === null || actual === undefined || actual === '';
-      case 'is_not_empty':
-        return actual !== null && actual !== undefined && actual !== '';
-      default:
-        return false;
-    }
-  }
-
-  /**
    * 检查触发器是否匹配事件
    */
   private matchesTrigger(
@@ -918,6 +863,20 @@ export class AutomationExecutor {
     if (config.entityCode && eventData.entityCode !== config.entityCode) return false;
 
     return true;
+  }
+
+  /**
+   * 构建 PlatformEvent 供 ConditionEvaluator 使用
+   */
+  private buildPlatformEvent(context: ExecutionContext): PlatformEvent {
+    return {
+      type: context.eventData?.triggerType as string || 'unknown',
+      source: context.appId,
+      data: context.eventData || {},
+      timestamp: context.executedAt.toISOString(),
+      tenantId: context.tenantId,
+      appId: context.appId,
+    };
   }
 
   /**
@@ -965,23 +924,6 @@ export class AutomationExecutor {
   }
 
   /**
-   * 获取嵌套对象值
-   */
-  private getNestedValue(obj: Record<string, unknown>, path: string): unknown {
-    const parts = path.split('.');
-    let current: unknown = obj;
-
-    for (const part of parts) {
-      if (current === null || current === undefined) {
-        return undefined;
-      }
-      current = (current as Record<string, unknown>)[part];
-    }
-
-    return current;
-  }
-
-  /**
    * 保存执行日志
    */
   private saveExecutionLog(tenantId: string, ruleId: string, result: ExecutionResult): void {
@@ -1008,9 +950,9 @@ export class AutomationExecutor {
         result.createdAt,
       );
 
-      console.log(`[AutomationExecutor] 保存执行日志: ${result.executionId}`);
+      console.log(`[AutomationEngine] 保存执行日志: ${result.executionId}`);
     } catch (error) {
-      console.error('[AutomationExecutor] 保存执行日志失败:', error);
+      console.error('[AutomationEngine] 保存执行日志失败:', error);
     }
   }
 
@@ -1048,7 +990,7 @@ export class AutomationExecutor {
         total: (total as any)?.count || 0,
       };
     } catch (error) {
-      console.error('[AutomationExecutor] 获取执行日志失败:', error);
+      console.error('[AutomationEngine] 获取执行日志失败:', error);
       return { logs: [], total: 0 };
     }
   }
@@ -1086,15 +1028,15 @@ export class AutomationExecutor {
         avgDurationMs: Math.round((stats as any)?.avg_duration || 0),
       };
     } catch (error) {
-      console.error('[AutomationExecutor] 获取执行统计失败:', error);
+      console.error('[AutomationEngine] 获取执行统计失败:', error);
       return { total: 0, success: 0, failed: 0, partialSuccess: 0, avgDurationMs: 0 };
     }
   }
 }
 
 /**
- * 创建自动化执行引擎实例
+ * 创建自动化引擎实例
  */
-export function createAutomationExecutor(config: AutomationExecutorConfig): AutomationExecutor {
-  return new AutomationExecutor(config);
+export function createAutomationEngine(config: AutomationEngineConfig): AutomationEngine {
+  return new AutomationEngine(config);
 }

@@ -26,7 +26,7 @@ export interface DataScopeConfig {
     field: string;
     operator: string;
     value: any;
-    /** 引用变量：$currentUser.id, $currentUser.departmentId 等 */
+    /** 引用变量：$user.id, $user.departmentId 等 */
     valueFrom?: string;
   };
 }

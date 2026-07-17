@@ -17,14 +17,14 @@ import { authMiddleware } from './middlewares/auth.js';
 import { timeoutMiddleware } from './middlewares/timeout.js';
 import { registerRoutes } from './routes/index.js';
 import { CronScheduler } from './services/CronScheduler.js';
-import { AutomationExecutor, type WorkflowExecutor } from './services/AutomationExecutor.js';
+import { AutomationEngine, type WorkflowExecutor } from './services/AutomationEngine.js';
 import { createExpressionEngine } from '@low-code/shared';
 
 /** 全局 Cron 调度器实例 */
 let cronScheduler: CronScheduler | null = null;
 
-/** 全局自动化执行引擎实例 */
-let automationExecutor: AutomationExecutor | null = null;
+/** 全局自动化引擎实例 */
+let automationEngine: AutomationEngine | null = null;
 
 /**
  * 获取 Cron 调度器实例
@@ -37,10 +37,10 @@ export function getCronScheduler(): CronScheduler {
 }
 
 /**
- * 获取自动化执行引擎实例
+ * 获取自动化引擎实例
  */
-export function getAutomationExecutor(): AutomationExecutor | null {
-  return automationExecutor;
+export function getAutomationEngine(): AutomationEngine | null {
+  return automationEngine;
 }
 
 /**
@@ -76,15 +76,15 @@ async function initializeAutomation(): Promise<void> {
     }
 
     if (tenantId) {
-      automationExecutor = new AutomationExecutor({
+      automationEngine = new AutomationEngine({
         tenantId,
         scheduler,
         expressionEngine,
         workflowExecutor,
       });
 
-      // 初始化执行引擎（加载并注册定时任务）
-      await automationExecutor.initialize();
+      // 初始化引擎（加载并注册定时任务）
+      await automationEngine.initialize();
 
       // 启动调度器
       scheduler.start();

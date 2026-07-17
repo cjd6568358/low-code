@@ -10,6 +10,7 @@ export type ConditionOperator =
   | 'gt' | 'gte' | 'lt' | 'lte'
   | 'in' | 'not_in'
   | 'contains' | 'not_contains'
+  | 'starts_with' | 'ends_with'
   | 'is_empty' | 'is_not_empty'
   | 'between'
   | 'changed_to' | 'changed_from';

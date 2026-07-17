@@ -145,6 +145,9 @@ $context.permissions.menus.includes('orderList')
 
 // 可用按钮 ID 列表
 $context.permissions.buttons.includes('exportBtn')
+
+// 获取指定资源类型的所有有权限的资源 ID
+$context.permissions.getResourceIds('menu') // ['orderList', 'userManagement', ...]
 ```
 
 ### RoleRegistry
@@ -159,6 +162,8 @@ interface RoleRegistry {
   resolveRoleChain(roleId: string): Role[];
   registerRole(role: Role): void;
   unregisterRole(roleId: string): boolean;
+  /** 批量注册角色 */
+  registerRoles(roles: Role[]): void;
 }
 ```
 
@@ -303,9 +308,9 @@ interface ButtonPermissionConfig {
 ```typescript
 interface Permission {
   permissionId: string;
-  resourceType: 'menu' | 'button' | 'data' | 'field' | 'api';
+  resourceType: ResourceType;       // 'menu' | 'button' | 'data' | 'field' | 'api'
   resourceId: string;               // 资源标识（页面ID/按钮ID/表名/字段名/接口路径）
-  actions: string[];                // 允许的操作（read/write/delete/publish）
+  actions: ActionType[];            // 'read' | 'create' | 'update' | 'delete' | 'publish'
   scope?: DataScopeConfig;          // 数据权限范围（resourceType=data 时）
   conditions?: Record<string, any>; // 附加条件
 }

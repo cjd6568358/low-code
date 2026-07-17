@@ -60,9 +60,9 @@
   - 支持标准 cron 表达式（分 时 日 月 周）
   - 时区支持
   - 任务状态管理
-- ✅ **自动化执行引擎**（`server/src/services/AutomationExecutor.ts`）
+- ✅ **自动化引擎**（`server/src/services/AutomationEngine.ts`）
   - 支持 6 种动作类型：触发流程、执行脚本、发送通知、数据操作、API 调用、Webhook
-  - 条件评估引擎（支持 and/or 逻辑）
+  - 条件评估复用 `@low-code/automation` 的 ConditionEvaluator（支持嵌套 AND/OR、15 种运算符）
   - 执行日志记录
   - 重试策略
 - ✅ **设计器增强**（`frontend/src/designers/automation/ActionConfig.tsx`）

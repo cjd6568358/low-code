@@ -177,17 +177,21 @@ $now - createdAt > 30 * 24 * 3600 * 1000
 | operator | JS 表达式 |
 |----------|----------|
 | `eq` | `===` |
-| `ne` | `!==` |
+| `neq` | `!==` |
 | `gt` | `>` |
 | `gte` | `>=` |
-| `lt` | `< |
+| `lt` | `<` |
 | `lte` | `<=` |
 | `in` | `.includes()` |
 | `not_in` | `!.includes()` |
 | `contains` | `.includes()` |
+| `not_contains` | `!.includes()` |
+| `starts_with` | `.startsWith()` |
+| `ends_with` | `.endsWith()` |
 | `is_empty` | `isEmpty()` |
 | `is_not_empty` | `isNotEmpty()` |
 | `between` | `>= && <=` |
+| `regex` | `new RegExp().test()` |
 
 ---
 
@@ -199,27 +203,23 @@ $now - createdAt > 30 * 24 * 3600 * 1000
 └──────┬───────┘
        ▼
 ┌──────────────┐
-│ 词法分析      │  → Token 流: [amount, >, 10000, &&, status, ===, 'vip']
+│ 表达式清理    │  → 移除函数包装、箭头函数、return 语句等
 └──────┬───────┘
        ▼
 ┌──────────────┐
-│ 语法分析      │  → AST (抽象语法树)
+│ 安全检查      │  → 正则匹配禁止全局引用（window/process/require 等）
 └──────┬───────┘
        ▼
 ┌──────────────┐
-│ 安全检查      │  → 禁止访问全局对象、禁止危险函数
+│ 递归深度检查  │  → 防止表达式嵌套调用超出 10 层限制
 └──────┬───────┘
        ▼
 ┌──────────────┐
-│ 变量绑定      │  → 注入 context 中的显式变量（$user、$now 等）
+│ 编译执行      │  → new Function() 编译为可执行函数（带缓存），注入 context 变量
 └──────┬───────┘
        ▼
 ┌──────────────┐
-│ 沙箱求值      │  → 在隔离环境中执行 AST，返回结果
-└──────┬───────┘
-       ▼
-┌──────────────┐
-│ 类型转换      │  → 根据输出配置格式化结果
+│ 结果返回      │  → 同步返回求值结果
 └──────────────┘
 ```
 
@@ -227,11 +227,10 @@ $now - createdAt > 30 * 24 * 3600 * 1000
 
 | 约束 | 说明 |
 |------|------|
-| 禁止全局访问 | `window`、`global`、`process`、`require`、`import` 不可用 |
-| 禁止原型链访问 | 不允许 `constructor`、`__proto__`、`prototype` 等访问 |
-| 禁止副作用 | 不允许赋值（`=`）、`delete`、`new`（除 `new Date()`） |
+| 禁止全局访问 | 正则匹配禁止 `window`、`global`、`process`、`require`、`import`、`fetch`、`WebSocket` 等 20+ 全局对象 |
 | 执行超时 | `safeEvaluate` 通过 workerpool 在独立线程执行，超时 `pool.terminate(true)` 物理杀死线程（Node.js 和浏览器均有效） |
-| 调用栈限制 | 递归深度上限 10 层 |
+| 递归深度限制 | `evaluate`/`safeEvaluate`/`evaluateAsync` 均检查递归深度，默认上限 10 层，超出抛出 `runtime` 类型错误 |
+| 表达式缓存 | 编译后的函数按 `表达式内容::变量名` 缓存，同一表达式只编译一次 |
 
 ---
 

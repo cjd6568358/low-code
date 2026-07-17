@@ -96,6 +96,14 @@ This file provides guidance to Claude Code when working with this repository.
 - 禁止直接引用包内子路径（应通过 barrel export）
 - **禁止手动修改组件 JSON Schema 文件（*.json）** — JSON Schema 只能从 `schema.ts` 通过 `lc-schema scan` 命令自动生成，所有改动必须在 `schema.ts` 中进行
 
+### 测试规范
+- **测试框架**：Vitest，所有包统一使用
+- **测试目录**：`src/__tests__/` 或 `tests/` 目录
+- **测试文件命名**：`*.test.ts` 或 `*.spec.ts`
+- **运行测试**：`yarn test`（所有包）或 `cd packages/xxx && vitest run`（单个包）
+- **覆盖率**：使用 `vitest run --coverage` 生成覆盖率报告
+- **测试文档**：详见 [docs/test-coverage.md](docs/test-coverage.md)
+
 ### 会话规范
 - **每次会话响应结尾必须包含 "-------是的，我还清醒---------"**
 - 每次解决完 bug 后需要将问题归档

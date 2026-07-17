@@ -47,6 +47,19 @@ export class ConditionExpressionEvaluator implements IExpressionEvaluator {
         }
       }
 
+      // 处理带引号的字符串字面量
+      if ((resolved.startsWith("'") && resolved.endsWith("'")) ||
+          (resolved.startsWith('"') && resolved.endsWith('"'))) {
+        return resolved.slice(1, -1);
+      }
+
+      // 处理函数调用
+      const funcMatch = resolved.match(/^(\w+)\((.+)\)$/);
+      if (funcMatch) {
+        const [, funcName, argsStr] = funcMatch;
+        return this.evaluateFunction(funcName, argsStr, context);
+      }
+
       return resolved;
     } catch (error) {
       throw new ExpressionParseError(
@@ -156,6 +169,57 @@ export class ConditionExpressionEvaluator implements IExpressionEvaluator {
     }
 
     return current;
+  }
+
+  /**
+   * 求值函数调用
+   */
+  private evaluateFunction(funcName: string, argsStr: string, context: EvaluationContext): unknown {
+    const args = argsStr.split(',').map(arg => {
+      const trimmed = arg.trim();
+      // 处理带引号的字符串字面量
+      if ((trimmed.startsWith("'") && trimmed.endsWith("'")) ||
+          (trimmed.startsWith('"') && trimmed.endsWith('"'))) {
+        return trimmed.slice(1, -1);
+      }
+      // 处理数字
+      const num = Number(trimmed);
+      if (!isNaN(num)) return num;
+      // 处理布尔值
+      if (trimmed === 'true') return true;
+      if (trimmed === 'false') return false;
+      if (trimmed === 'null') return null;
+      if (trimmed === 'undefined') return undefined;
+      // 尝试从上下文获取变量值
+      const { variables, formData } = context;
+      const allVariables = { ...variables, ...formData };
+      const value = this.getNestedValue(allVariables, trimmed);
+      return value ?? trimmed;
+    });
+
+    switch (funcName) {
+      case 'isEmpty':
+        if (args[0] == null) return true;
+        if (typeof args[0] === 'string') return args[0] === '';
+        if (Array.isArray(args[0])) return args[0].length === 0;
+        if (typeof args[0] === 'object') return Object.keys(args[0]).length === 0;
+        return false;
+      case 'length':
+        if (typeof args[0] === 'string' || Array.isArray(args[0])) return args[0].length;
+        return 0;
+      case 'includes':
+        if (typeof args[0] === 'string') return args[0].includes(String(args[1]));
+        if (Array.isArray(args[0])) return args[0].includes(args[1]);
+        return false;
+      case 'toString':
+        return String(args[0]);
+      case 'parseInt':
+        return parseInt(String(args[0]), 10);
+      case 'parseFloat':
+        return parseFloat(String(args[0]));
+      default:
+        return `${funcName}(${argsStr})`;
+    }
   }
 }
 

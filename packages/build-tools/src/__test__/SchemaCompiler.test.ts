@@ -27,11 +27,14 @@ describe('SchemaCompiler', () => {
       expect(typeProp['x-priority']).toBe(11);
       expect(typeProp.title).toBe('文本类型');
 
-      // union literal → enum
-      expect(typeProp.enum).toEqual(
+      // union literal + @enumLabels → oneOf
+      expect(typeProp.oneOf).toBeDefined();
+      const textTypeValues = (typeProp.oneOf as Array<{ const: string }>).map(o => o.const);
+      expect(textTypeValues).toEqual(
         expect.arrayContaining(['secondary', 'success', 'warning', 'danger']),
       );
-      expect(typeProp.type).toBe('string');
+      // enum 已被 @enumLabels 后处理删除
+      expect(typeProp.enum).toBeUndefined();
 
       // BaseProps 继承
       expect(schema.properties!.name).toBeDefined();
@@ -50,9 +53,11 @@ describe('SchemaCompiler', () => {
         'ButtonProps',
       );
 
-      // type 属性有 enum
+      // type 属性：union literal + @enumLabels → oneOf
       const typeProp = schema.properties!.type as Record<string, unknown>;
-      expect(typeProp.enum).toEqual(
+      expect(typeProp.oneOf).toBeDefined();
+      const btnTypeValues = (typeProp.oneOf as Array<{ const: string }>).map(o => o.const);
+      expect(btnTypeValues).toEqual(
         expect.arrayContaining(['primary', 'default', 'dashed', 'text', 'link']),
       );
 

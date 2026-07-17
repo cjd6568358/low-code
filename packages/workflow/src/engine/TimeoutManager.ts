@@ -61,7 +61,7 @@ export class TimeoutManager {
   }
 
   /**
-   * 清除实例级超时定时器
+   * 清除实例级超时定时器及该实例的所有节点级超时定时器
    */
   clear(instanceId: string): void {
     const timer = this.timers.get(instanceId);
@@ -69,6 +69,9 @@ export class TimeoutManager {
       clearTimeout(timer);
       this.timers.delete(instanceId);
     }
+
+    // 同时清除该实例的所有节点级超时
+    this.clearAllNodeTimeouts(instanceId);
   }
 
   /**

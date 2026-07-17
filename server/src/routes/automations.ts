@@ -192,8 +192,8 @@ export function createAutomationsRouter(): KoaRouter {
 
     // 使用自动化执行引擎触发事件
     try {
-      const { getAutomationExecutor } = await import('../index.js');
-      const executor = getAutomationExecutor();
+      const { getAutomationEngine } = await import('../index.js');
+      const executor = getAutomationEngine();
 
       if (executor) {
         const results = await executor.triggerEvent(
@@ -270,8 +270,8 @@ export function createAutomationsRouter(): KoaRouter {
     }
 
     try {
-      const { getAutomationExecutor } = await import('../index.js');
-      const executor = getAutomationExecutor();
+      const { getAutomationEngine } = await import('../index.js');
+      const executor = getAutomationEngine();
 
       if (!executor) {
         ctx.status = 500;
@@ -320,8 +320,8 @@ export function createAutomationsRouter(): KoaRouter {
     const ruleId = ctx.params.id;
 
     try {
-      const { getAutomationExecutor } = await import('../index.js');
-      const executor = getAutomationExecutor();
+      const { getAutomationEngine } = await import('../index.js');
+      const executor = getAutomationEngine();
 
       if (!executor) {
         ctx.status = 500;

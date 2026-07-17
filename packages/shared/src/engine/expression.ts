@@ -73,6 +73,8 @@ export interface ExpressionEngineOptions {
   defaultTimeout?: number;
   /** 是否启用严格模式（禁止访问 Function/eval） */
   strictMode?: boolean;
+  /** 递归深度上限（默认 10） */
+  maxRecursionDepth?: number;
 }
 
 /** 禁止访问的全局对象 */
@@ -125,13 +127,33 @@ export class DefaultExpressionEngine implements ExpressionEngine {
   private options: Required<ExpressionEngineOptions>;
   /** workerpool 单例（懒初始化，首次 safeEvaluate 时创建） */
   private pool: import('workerpool').Pool | null = null;
+  /** 当前递归深度 */
+  private currentDepth = 0;
 
   constructor(options?: ExpressionEngineOptions) {
     this.options = {
       allowedGlobals: options?.allowedGlobals ?? [],
       defaultTimeout: options?.defaultTimeout ?? 5000,
       strictMode: options?.strictMode ?? true,
+      maxRecursionDepth: options?.maxRecursionDepth ?? 10,
     };
+  }
+
+  /**
+   * 检查递归深度并递增
+   *
+   * @throws ExpressionError 超出深度限制时抛出
+   */
+  private enterDepth(): void {
+    if (this.currentDepth >= this.options.maxRecursionDepth) {
+      throw this.createError('runtime', `表达式递归深度超出限制（最大 ${this.options.maxRecursionDepth} 层）`);
+    }
+    this.currentDepth++;
+  }
+
+  /** 递减递归深度 */
+  private exitDepth(): void {
+    this.currentDepth--;
   }
 
   /**
@@ -165,15 +187,19 @@ export class DefaultExpressionEngine implements ExpressionEngine {
    * @returns 求值结果
    */
   async evaluate(expression: string, context: Record<string, unknown>): Promise<unknown> {
-    const sanitized = this.sanitizeExpression(expression);
-    const wrapped = this.wrapExpression(sanitized, context);
-    const contextKeys = Object.keys(context);
-
+    this.enterDepth();
     try {
+      const sanitized = this.sanitizeExpression(expression);
+      const wrapped = this.wrapExpression(sanitized, context);
+      const contextKeys = Object.keys(context);
+
       const fn = this.getOrCompile(wrapped, contextKeys, compiledCache);
       return fn(...Object.values(context));
     } catch (error) {
+      if ((error as ExpressionError).type) throw error;
       throw this.createError('runtime', `表达式求值失败: ${(error as Error).message}`);
+    } finally {
+      this.exitDepth();
     }
   }
 
@@ -255,6 +281,7 @@ export class DefaultExpressionEngine implements ExpressionEngine {
    * @returns 求值结果
    */
   async safeEvaluate(expression: string, context: Record<string, unknown>, timeout?: number): Promise<unknown> {
+    this.enterDepth();
     const timeoutMs = timeout ?? this.options.defaultTimeout;
     const poolInstance = await this.getPool();
 
@@ -272,7 +299,10 @@ export class DefaultExpressionEngine implements ExpressionEngine {
         this.pool = null;
         throw this.createError('timeout', `表达式求值超时（${timeoutMs}ms）`);
       }
+      if ((err as ExpressionError).type) throw err;
       throw this.createError('runtime', message);
+    } finally {
+      this.exitDepth();
     }
   }
 
@@ -283,21 +313,25 @@ export class DefaultExpressionEngine implements ExpressionEngine {
    * 不经过 Promise 包装，性能与原 evaluate 一致。
    */
   safeEvaluateSync(expression: string, context: Record<string, unknown>): unknown {
-    const sanitized = this.sanitizeExpression(expression);
-    const wrapped = this.wrapExpression(sanitized, context);
-    const contextKeys = Object.keys(context);
-
-    // 检查禁止的全局引用
-    const forbiddenRefs = this.findForbiddenReferences(sanitized);
-    if (forbiddenRefs.length > 0) {
-      throw this.createError('runtime', `禁止访问以下全局对象: ${forbiddenRefs.join(', ')}`);
-    }
-
+    this.enterDepth();
     try {
+      const sanitized = this.sanitizeExpression(expression);
+      const wrapped = this.wrapExpression(sanitized, context);
+      const contextKeys = Object.keys(context);
+
+      // 检查禁止的全局引用
+      const forbiddenRefs = this.findForbiddenReferences(sanitized);
+      if (forbiddenRefs.length > 0) {
+        throw this.createError('runtime', `禁止访问以下全局对象: ${forbiddenRefs.join(', ')}`);
+      }
+
       const fn = this.getOrCompile(wrapped, contextKeys, compiledCache);
       return fn(...Object.values(context));
     } catch (error) {
+      if ((error as ExpressionError).type) throw error;
       throw this.createError('runtime', `表达式求值失败: ${(error as Error).message}`);
+    } finally {
+      this.exitDepth();
     }
   }
 
@@ -314,6 +348,7 @@ export class DefaultExpressionEngine implements ExpressionEngine {
    * @returns 求值结果
    */
   async evaluateAsync(expression: string | ExpressionBinding, context: Record<string, unknown>, timeout?: number): Promise<unknown> {
+    this.enterDepth();
     const timeoutMs = timeout ?? this.options.defaultTimeout;
 
     // 判断调用模式
@@ -345,6 +380,7 @@ export class DefaultExpressionEngine implements ExpressionEngine {
           return await fn(...Object.values(context));
         }
       } catch (error) {
+        if ((error as ExpressionError).type) throw error;
         throw this.createError('runtime', `异步表达式求值失败: ${(error as Error).message}`);
       }
     })();
@@ -358,6 +394,7 @@ export class DefaultExpressionEngine implements ExpressionEngine {
 
     return Promise.race([evaluationPromise, timeoutPromise]).finally(() => {
       clearTimeout(timer);
+      this.exitDepth();
     });
   }
 

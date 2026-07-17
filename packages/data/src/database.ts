@@ -80,7 +80,8 @@ export class DatabaseManager {
    * Get tenant database (open if exists, run migrations)
    */
   getTenantDb(tenantId: string): SqliteDb {
-    const dbPath = this.tenantDbPath(tenantId);
+    const tenantDirName = `tenant_${tenantId}`;
+    const dbPath = this.tenantDbPath(tenantDirName);
     const { db, isNew } = this.pool.get(tenantId, dbPath);
     if (isNew) {
       runMigrations(db, TENANT_MIGRATIONS);
@@ -174,7 +175,8 @@ export class DatabaseManager {
    * Delete tenant (remove directory)
    */
   deleteTenant(tenantId: string): void {
-    const tenantDir = path.join(this.config.tenantsDir, tenantId);
+    const tenantDirName = `tenant_${tenantId}`;
+    const tenantDir = path.join(this.config.tenantsDir, tenantDirName);
     if (fs.existsSync(tenantDir)) {
       this.pool.close(tenantId);
       fs.rmSync(tenantDir, { recursive: true, force: true });

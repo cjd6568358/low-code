@@ -55,6 +55,7 @@ export const SQLITE_NULL = 5;
 // 数据库连接
 const sqlite3_open = lib.func('sqlite3_open', 'int', ['str', koffi.out(sqlite3_ptr_ptr)]);
 const sqlite3_close = lib.func('sqlite3_close', 'int', [sqlite3_ptr]);
+const sqlite3_close_v2 = lib.func('sqlite3_close_v2', 'int', [sqlite3_ptr]);
 const sqlite3_errmsg = lib.func('sqlite3_errmsg', 'str', [sqlite3_ptr]);
 
 // SQL 执行
@@ -236,6 +237,15 @@ export class KoffiDatabase {
         }
       }
       this.stmtCache.clear();
+
+      // 强制清理 WAL/journal，确保文件句柄释放
+      try {
+        sqlite3_exec(this.db, 'PRAGMA wal_checkpoint(TRUNCATE)', null, null, null);
+        sqlite3_exec(this.db, 'PRAGMA journal_mode = DELETE', null, null, null);
+      } catch {
+        // 忽略清理错误
+      }
+
       sqlite3_close(this.db);
       this.db = null;
     }
