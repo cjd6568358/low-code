@@ -37,6 +37,7 @@ import type {
   DataOperationType,
 } from '@low-code/automation';
 import { existsAsync, readFile, readdir } from '../utils/fs-utils.js';
+import { AutomationLogService, type ExecutionLog } from './AutomationLogService.js';
 
 /** 自动化规则状态 */
 type AutomationStatus = AutomationRuleStatus;
@@ -225,6 +226,8 @@ export interface AutomationEngineConfig {
   expressionEngine: ExpressionEngine;
   /** 工作流执行器 */
   workflowExecutor?: WorkflowExecutor;
+  /** 日志服务 */
+  logService?: AutomationLogService;
 }
 
 /** 工作流执行器接口 */
@@ -557,7 +560,7 @@ export class AutomationEngine {
           console.log(`[AutomationEngine] 条件不满足，跳过执行`);
           result.status = 'success';
           result.totalDurationMs = Date.now() - startTime;
-          this.saveExecutionLog(context.tenantId, context.ruleId, result);
+          await this.saveExecutionLog(context.tenantId, result);
           return result;
         }
       }
@@ -581,7 +584,7 @@ export class AutomationEngine {
     result.totalDurationMs = Date.now() - startTime;
 
     // 保存执行日志
-    this.saveExecutionLog(context.tenantId, context.ruleId, result);
+    await this.saveExecutionLog(context.tenantId, result);
 
     return result;
   }
@@ -926,30 +929,29 @@ export class AutomationEngine {
   /**
    * 保存执行日志
    */
-  private saveExecutionLog(tenantId: string, ruleId: string, result: ExecutionResult): void {
+  private async saveExecutionLog(tenantId: string, result: ExecutionResult): Promise<void> {
     try {
-      const manager = getDbManager();
-      const db = manager.getTenantDb(tenantId);
+      const logService = this.config.logService;
+      if (!logService) {
+        console.warn('[AutomationEngine] 未配置日志服务，跳过保存日志');
+        return;
+      }
 
-      db.prepare(
-        `INSERT INTO automation_execution_logs (
-          id, rule_id, rule_name, event_type, event_source, event_data,
-          condition_result, action_results, status, total_duration_ms, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).run(
-        result.executionId,
-        result.ruleId,
-        result.ruleName,
-        result.eventType,
-        result.eventSource,
-        JSON.stringify(result.eventData),
-        result.conditionResult ? JSON.stringify(result.conditionResult) : null,
-        JSON.stringify(result.actionResults),
-        result.status,
-        result.totalDurationMs,
-        result.createdAt,
-      );
+      const log: ExecutionLog = {
+        executionId: result.executionId,
+        ruleId: result.ruleId,
+        ruleName: result.ruleName,
+        eventType: result.eventType,
+        eventSource: result.eventSource,
+        eventData: result.eventData,
+        conditionResult: result.conditionResult as Record<string, unknown> | undefined,
+        actionResults: result.actionResults as Array<Record<string, unknown>>,
+        status: result.status,
+        totalDurationMs: result.totalDurationMs,
+        createdAt: result.createdAt,
+      };
 
+      await logService.saveLog(tenantId, log);
       console.log(`[AutomationEngine] 保存执行日志: ${result.executionId}`);
     } catch (error) {
       console.error('[AutomationEngine] 保存执行日志失败:', error);
@@ -959,35 +961,36 @@ export class AutomationEngine {
   /**
    * 获取规则的执行日志
    */
-  getExecutionLogs(
+  async getExecutionLogs(
     tenantId: string,
     ruleId: string,
     limit: number = 20,
-    offset: number = 0
-  ): { logs: ExecutionResult[]; total: number } {
+    offset: number = 0,
+  ): Promise<{ logs: ExecutionResult[]; total: number }> {
     try {
-      const manager = getDbManager();
-      const db = manager.getTenantDb(tenantId);
+      const logService = this.config.logService;
+      if (!logService) {
+        console.warn('[AutomationEngine] 未配置日志服务');
+        return { logs: [], total: 0 };
+      }
 
-      const logs = db.prepare(
-        `SELECT * FROM automation_execution_logs
-         WHERE rule_id = ?
-         ORDER BY created_at DESC
-         LIMIT ? OFFSET ?`,
-      ).all(ruleId, limit, offset);
-
-      const total = db.prepare(
-        'SELECT COUNT(*) as count FROM automation_execution_logs WHERE rule_id = ?',
-      ).get(ruleId);
+      const result = await logService.getLogs(tenantId, ruleId, limit, offset);
 
       return {
-        logs: (logs as any[]).map(log => ({
-          ...log,
-          eventData: JSON.parse(log.event_data || '{}'),
-          conditionResult: log.condition_result ? JSON.parse(log.condition_result) : undefined,
-          actionResults: JSON.parse(log.action_results || '[]'),
+        logs: result.logs.map(log => ({
+          executionId: log.executionId,
+          ruleId: log.ruleId,
+          ruleName: log.ruleName,
+          eventType: log.eventType,
+          eventSource: log.eventSource,
+          eventData: log.eventData,
+          conditionResult: log.conditionResult as ConditionEvaluationResult | undefined,
+          actionResults: log.actionResults as ExecutionResult['actionResults'],
+          status: log.status,
+          totalDurationMs: log.totalDurationMs,
+          createdAt: log.createdAt,
         })),
-        total: (total as any)?.count || 0,
+        total: result.total,
       };
     } catch (error) {
       console.error('[AutomationEngine] 获取执行日志失败:', error);
@@ -998,35 +1001,21 @@ export class AutomationEngine {
   /**
    * 获取规则的执行统计
    */
-  getExecutionStats(tenantId: string, ruleId: string): {
+  async getExecutionStats(tenantId: string, ruleId: string): Promise<{
     total: number;
     success: number;
     failed: number;
     partialSuccess: number;
     avgDurationMs: number;
-  } {
+  }> {
     try {
-      const manager = getDbManager();
-      const db = manager.getTenantDb(tenantId);
+      const logService = this.config.logService;
+      if (!logService) {
+        console.warn('[AutomationEngine] 未配置日志服务');
+        return { total: 0, success: 0, failed: 0, partialSuccess: 0, avgDurationMs: 0 };
+      }
 
-      const stats = db.prepare(
-        `SELECT
-          COUNT(*) as total,
-          SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as success,
-          SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed,
-          SUM(CASE WHEN status = 'partial_success' THEN 1 ELSE 0 END) as partial_success,
-          AVG(total_duration_ms) as avg_duration
-        FROM automation_execution_logs
-        WHERE rule_id = ?`,
-      ).get(ruleId);
-
-      return {
-        total: (stats as any)?.total || 0,
-        success: (stats as any)?.success || 0,
-        failed: (stats as any)?.failed || 0,
-        partialSuccess: (stats as any)?.partial_success || 0,
-        avgDurationMs: Math.round((stats as any)?.avg_duration || 0),
-      };
+      return await logService.getStats(tenantId, ruleId);
     } catch (error) {
       console.error('[AutomationEngine] 获取执行统计失败:', error);
       return { total: 0, success: 0, failed: 0, partialSuccess: 0, avgDurationMs: 0 };

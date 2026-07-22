@@ -8,6 +8,7 @@ import type Koa from 'koa';
 import type KoaRouter from '@koa/router';
 import { getDbManager } from '../config/db.js';
 import { tenantGuard } from '../middlewares/auth.js';
+import type { AuditLogService } from '../services/AuditLogService.js';
 import { createAuthRouter } from './auth.js';
 import { createAppsRouter } from './apps.js';
 import { createTenantsRouter } from './tenants.js';
@@ -20,6 +21,8 @@ import { createQueryRouter } from './query.js';
 import { createMessagesRouter } from './messages.js';
 import { createRolesRouter } from './roles.js';
 import { createPermissionsRouter } from './permissions.js';
+import { createDictionariesRouter } from './dictionaries.js';
+import { createAuditLogsRouter } from './audit-logs.js';
 
 /** 注册单个路由并应用租户守卫 */
 function useTenantRouter(app: Koa, router: KoaRouter): void {
@@ -29,7 +32,7 @@ function useTenantRouter(app: Koa, router: KoaRouter): void {
 }
 
 // Register all routes
-export function registerRoutes(app: Koa): void {
+export function registerRoutes(app: Koa, auditService?: AuditLogService): void {
   const manager = getDbManager();
 
   // Auth routes (login — 不需要租户守卫)
@@ -75,6 +78,16 @@ export function registerRoutes(app: Koa): void {
   // Data query routes
   const queryRouter = createQueryRouter(manager);
   useTenantRouter(app, queryRouter);
+
+  // Dictionary routes (支持全局 + 租户字典，需要租户守卫获取 tenantId)
+  const dictionariesRouter = createDictionariesRouter();
+  useTenantRouter(app, dictionariesRouter);
+
+  // Audit log routes
+  if (auditService) {
+    const auditLogsRouter = createAuditLogsRouter(auditService);
+    useTenantRouter(app, auditLogsRouter);
+  }
 
   // Health check (公开接口)
   const healthRouter = createHealthRouter();

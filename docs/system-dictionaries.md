@@ -4,6 +4,73 @@
 
 ---
 
+## 📁 存储实现
+
+### 存储方式
+
+全局字典采用 **JSON 文件存储**，而非 SQLite 数据库。
+
+```
+data/
+  └── dictionaries/
+        └── global/
+              ├── status.json
+              ├── gender.json
+              ├── approval_status.json
+              ├── priority.json
+              ├── yes_no.json
+              └── resource_type.json
+```
+
+### 设计决策
+
+| 对比项 | SQLite | JSON 文件（✅ 当前方案） |
+|--------|--------|------------------------|
+| 版本控制 | ❌ 二进制不可 diff | ✅ Git 可追踪变更 |
+| 部署迁移 | 需要脚本导出导入 | 直接复制文件 |
+| 可读性 | 需要工具查看 | 文本编辑器即可 |
+| 与项目理念一致 | ❌ | ✅ 文件即数据源 |
+
+### 文件格式
+
+每个字典文件包含完整的字典定义和字典项：
+
+```json
+{
+  "code": "status",
+  "name": "通用状态",
+  "description": "系统通用状态枚举",
+  "status": "active",
+  "items": [
+    { "label": "启用", "value": "active", "sort": 0 },
+    { "label": "禁用", "value": "disabled", "sort": 1 }
+  ]
+}
+```
+
+### API 接口
+
+| 接口 | 说明 |
+|------|------|
+| `GET /api/dictionaries` | 获取字典列表（仅元信息） |
+| `GET /api/dictionaries/:code` | 获取单个字典（含字典项） |
+| `POST /api/dictionaries/batch` | 批量获取字典 |
+| `GET /api/dictionaries/:code/search?q=keyword` | 搜索字典项 |
+| `POST /api/dictionaries/refresh` | 刷新字典缓存（管理员） |
+
+### 服务实现
+
+- **DictionaryService**：`server/src/services/DictionaryService.ts`
+  - 启动时加载所有 JSON 文件到内存缓存
+  - 支持按需刷新缓存（`POST /api/dictionaries/refresh`）
+  - 字典项按 `sort` 字段排序
+
+### 租户级字典
+
+租户级字典仍存储在租户 SQLite 数据库中（`dictionaries` / `dict_items` 表），支持租户自定义字典。
+
+---
+
 ## 📊 数据引擎相关
 
 ### 字段类型字典 (field_types)

@@ -1,0 +1,10 @@
+{
+  "code": "yes_no",
+  "name": "是否",
+  "description": "布尔类型选项",
+  "status": "active",
+  "items": [
+    { "label": "是", "value": "yes", "sort": 0 },
+    { "label": "否", "value": "no", "sort": 1 }
+  ]
+}

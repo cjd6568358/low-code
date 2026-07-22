@@ -354,20 +354,24 @@ low-code/
 ├── tenants/                           # 租户数据（每租户独立目录）
 │   └── tenant_{uuid}/                 # 目录名带前缀，uuid 为 8 位 hex
 │       ├── tenant.json                # 租户元数据（含 uuid 字段）
-│       ├── apps/                      # 应用 Schema
+│       ├── dictionaries/              # 租户字典（JSON 格式，覆盖全局同名字典）
+│       ├── apps/                      # 应用 Schema + 运行时数据
 │       │   └── app_{uuid}/            # 目录名带前缀
 │       │       ├── app.json           # 应用元信息（含 schemaVersion、version、expose）
 │       │       ├── pages/             # 页面 Schema
 │       │       ├── cards/             # 卡片 Schema
 │       │       ├── tables/            # 数据表 Schema
-│       │       ├── workflows/         # 流程 Schema
-│       │       ├── automations/       # 自动化 Schema
-│       │       ├── computations/      # 运算 Schema
+│       │       ├── workflows/         # 流程定义 + 运行时（JSON）
+│       │       ├── automations/       # 自动化规则
+│       │       ├── computations/      # 运算规则
 │       │       └── dist/              # 发布产物
 │       │           └── app.bundle.json
+│       ├── log/                       # 运行时日志（按类型分子目录）
+│       │   ├── automation/            # 自动化执行日志（JSON）
+│       │   └── audit/                 # 审计日志（JSON）
 │       ├── uploads/                   # 上传文件（图片、文档等，跨应用共享）
 │       └── data/                      # 租户 SQLite 数据库
-│           └── tenant.db
+│           └── tenant.db              # 组织架构、权限、密钥、消息、业务数据
 │
 ├── data/                              # 系统级数据
 │   ├── _system.db                     # 平台管理员、套餐配置
@@ -386,8 +390,8 @@ low-code/
 frontend/        ← 应用层（React UI，调用 API）
 server/          ← 核心服务层（Koa，组装引擎，暴露 API）
 packages/*       ← 引擎层（纯逻辑，可独立测试）
-tenants/         ← 租户数据（Schema + SQLite，文件系统即数据源）
-data/            ← 系统级数据（平台管理员、套餐配置）
+tenants/         ← 租户数据（Schema JSON + 运行时 JSON + SQLite）
+data/            ← 系统级数据（平台管理员、套餐、全局字典）
 ```
 
 ---

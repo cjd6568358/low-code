@@ -1,0 +1,12 @@
+{
+  "code": "priority",
+  "name": "优先级",
+  "description": "任务/工单优先级",
+  "status": "active",
+  "items": [
+    { "label": "低", "value": "low", "sort": 0, "color": "#52c41a" },
+    { "label": "中", "value": "medium", "sort": 1, "color": "#1890ff" },
+    { "label": "高", "value": "high", "sort": 2, "color": "#faad14" },
+    { "label": "紧急", "value": "urgent", "sort": 3, "color": "#ff4d4f" }
+  ]
+}

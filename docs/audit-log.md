@@ -50,36 +50,36 @@
 | `app_id` | 应用 ID（应用级操作时） | `app_crm` |
 | `duration` | 操作耗时 (ms) | `120` |
 
-### 日志表结构
+### 日志存储结构
 
-```sql
-CREATE TABLE audit_logs (
-  id             INTEGER PRIMARY KEY AUTOINCREMENT,
-  tenant_id      TEXT NOT NULL,
-  app_id         TEXT,                       -- 应用级操作时有值
-  actor_id       TEXT NOT NULL,              -- 操作人ID
-  actor_name     TEXT NOT NULL,              -- 操作人姓名
-  actor_ip       TEXT,
-  actor_ua       TEXT,
-  action         TEXT NOT NULL,              -- 操作类型 code
-  resource_type  TEXT NOT NULL,              -- 资源类型
-  resource_id    TEXT,                       -- 资源实例ID
-  resource_name  TEXT,                       -- 资源名称（冗余便于展示）
-  detail         TEXT,                       -- 操作详情（JSON，变更前后值等）
-  result         TEXT NOT NULL DEFAULT 'success'
-                   CHECK (result IN ('success', 'failure')),
-  error_msg      TEXT,                       -- 失败原因
-  request_id     TEXT,                       -- 链路追踪ID
-  duration_ms    INTEGER,                    -- 操作耗时
-  created_at     TEXT NOT NULL DEFAULT (datetime('now'))
-);
+审计日志以 JSON 文件存储在租户日志目录下：
 
-CREATE INDEX idx_audit_tenant_time ON audit_logs (tenant_id, created_at);
-CREATE INDEX idx_audit_app_time ON audit_logs (app_id, created_at);
-CREATE INDEX idx_audit_actor ON audit_logs (actor_id, created_at);
-CREATE INDEX idx_audit_action ON audit_logs (action, created_at);
-CREATE INDEX idx_audit_resource ON audit_logs (resource_type, resource_id);
 ```
+tenants/{tenantId}/log/audit/
+  ├── {id}.json
+  └── ...
+```
+
+日志文件结构：
+```json
+{
+  "id": "a1b2c3d4",
+  "appId": "80e88653",
+  "actorId": "user_01",
+  "actorName": "zhangsan@example.com",
+  "actorIp": "192.168.1.100",
+  "actorUa": "Mozilla/5.0 ...",
+  "action": "POST /api/apps",
+  "resourceType": "app",
+  "resourceId": "80e88653",
+  "result": "success",
+  "requestId": "req_xxxxxxxx",
+  "durationMs": 120,
+  "createdAt": "2026-07-22T10:30:00Z"
+}
+```
+
+> SQLite `audit_logs` 表仍保留在租户数据库 Schema 中，可用于未来需要 SQL 查询的场景。当前实现使用文件存储以保持与项目「文件即数据源」理念一致。
 
 ## 审计事件分类
 
@@ -143,32 +143,23 @@ CREATE INDEX idx_audit_resource ON audit_logs (resource_type, resource_id);
 │                                                      │
 │  ┌─────────────┐  ┌──────────────┐  ┌─────────────┐  │
 │  │ 请求上下文采集 │  │  响应结果采集   │  │ 日志异步写入  │  │
-│  │ (who/what/   │  │  (result/     │  │ (消息队列/   │  │
-│  │  where/ip)   │  │   duration)   │  │  批量写入)   │  │
+│  │ (who/what/   │  │  (result/     │  │ (JSON 文件)  │  │
+│  │  where/ip)   │  │   duration)   │  │             │  │
 │  └─────────────┘  └──────────────┘  └─────────────┘  │
 └──────────────────────────────────────────────────────┘
 ```
 
 ### 采集策略
 
-- **中间件拦截**：NestJS Guard / Interceptor 统一拦截，自动采集请求上下文
-- **注解标记**：通过 `@AuditLog({ action: 'data.create', resourceType: 'customer' })` 装饰器标记需要审计的接口
-- **异步写入**：审计日志通过消息队列异步写入，避免影响业务性能
-- **批量刷入**：日志攒批写入（默认每 5 秒或满 100 条），降低数据库压力
+- **中间件拦截**：Koa 中间件统一拦截 POST/PUT/PATCH/DELETE 请求，自动采集请求上下文
+- **跳过规则**：GET/OPTIONS/HEAD 请求不记录；公开路径（登录、健康检查）不记录
+- **异步写入**：审计日志异步写入 JSON 文件，不阻塞业务响应
+- **存储结构**：`tenants/{tenantId}/log/audit/{id}.json`，每条日志一个文件
 
 ```typescript
-// 审计日志装饰器示例
-@Post('customers')
-@AuditLog({
-  action: 'data.create',
-  resourceType: 'customer',
-  resourceId: (req) => req.body.id,
-  resourceName: (req) => req.body.name,
-  detail: (req, res) => ({ newData: req.body }),
-})
-async createCustomer(@Body() dto: CreateCustomerDto) {
-  return this.customerService.create(dto);
-}
+// 审计日志中间件（server/src/middlewares/audit.ts）
+// 自动从 JWT 提取操作人信息，从 URL 提取资源类型和 ID
+// 记录：操作人、IP、UA、动作、资源类型、资源ID、结果、耗时、错误信息
 ```
 
 ## 日志保留与清理

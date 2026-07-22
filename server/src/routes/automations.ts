@@ -3,15 +3,15 @@
  *
  * 提供自动化规则的 CRUD 操作和执行日志查询。
  * 规则数据存储在 tenants/{tenantId}/apps/{appId}/automations/*.json
- * 执行日志存储在 tenant.db 的 automation_execution_logs 表。
+ * 执行日志存储在 tenants/{tenantId}/log/automation/{executionId}.json
  */
 
 import path from 'path';
 import KoaRouter from '@koa/router';
 import { TENANTS_DIR } from '../config/index.js';
 import { existsAsync, stripPrefix, readFile, writeFile, readdir, mkdir, unlink } from '../utils/fs-utils.js';
-import { getDbManager } from '../config/db.js';
 import { generateHexId } from '@low-code/shared';
+import { AutomationLogService } from '../services/AutomationLogService.js';
 
 /** 自动化规则目录 */
 function getAutomationsDir(tenantId: string, appId: string): string {
@@ -84,6 +84,7 @@ async function deleteRuleFile(tenantId: string, appId: string, ruleId: string): 
  */
 export function createAutomationsRouter(): KoaRouter {
   const router = new KoaRouter({ prefix: '/api/automations' });
+  const logService = new AutomationLogService(TENANTS_DIR);
 
   // 注意：基本 CRUD 操作已统一到 apps 路由
   // GET    /api/apps/:appId/automations          - 获取列表
@@ -329,7 +330,7 @@ export function createAutomationsRouter(): KoaRouter {
         return;
       }
 
-      const stats = executor.getExecutionStats(tenantId, ruleId);
+      const stats = await executor.getExecutionStats(tenantId, ruleId);
       ctx.body = { data: stats };
     } catch (error) {
       console.error('[Automations] 获取执行统计失败:', error);
@@ -352,28 +353,16 @@ export function createAutomationsRouter(): KoaRouter {
     const offset = parseInt(ctx.query.offset as string) || 0;
 
     try {
-      const manager = getDbManager();
-      const db = manager.getTenantDb(tenantId);
-
-      const logs = db.prepare(
-        `SELECT * FROM automation_execution_logs
-         WHERE rule_id = ?
-         ORDER BY created_at DESC
-         LIMIT ? OFFSET ?`,
-      ).all(ruleId, limit, offset);
-
-      const total = db.prepare(
-        'SELECT COUNT(*) as count FROM automation_execution_logs WHERE rule_id = ?',
-      ).get(ruleId);
+      const result = await logService.getLogs(tenantId, ruleId, limit, offset);
 
       ctx.body = {
-        data: logs,
-        total: (total as Record<string, unknown>)?.count || 0,
+        data: result.logs,
+        total: result.total,
         limit,
         offset,
       };
     } catch (error) {
-      console.error('[Automations] Failed to query logs:', error);
+      console.error('[Automations] 查询日志失败:', error);
       ctx.body = { data: [], total: 0 };
     }
   });
@@ -390,12 +379,7 @@ export function createAutomationsRouter(): KoaRouter {
     const logId = ctx.params.logId;
 
     try {
-      const manager = getDbManager();
-      const db = manager.getTenantDb(tenantId);
-
-      const log = db.prepare(
-        'SELECT * FROM automation_execution_logs WHERE id = ?',
-      ).get(logId);
+      const log = await logService.getById(tenantId, logId);
 
       if (!log) {
         ctx.status = 404;
@@ -405,7 +389,7 @@ export function createAutomationsRouter(): KoaRouter {
 
       ctx.body = { data: log };
     } catch (error) {
-      console.error('[Automations] Failed to query log:', error);
+      console.error('[Automations] 查询日志失败:', error);
       ctx.status = 500;
       ctx.body = { error: '查询日志失败' };
     }

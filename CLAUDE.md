@@ -192,11 +192,13 @@ frontend/        ← 前端门户（Vite + React，端口 5173）
 server/          ← 后端 API（Koa，端口 3001）
   src/config/      配置（端口、DB 单例）
   src/middlewares/  中间件（错误、CORS、日志、JWT 认证、租户守卫）
-  src/routes/      路由（auth、health）
-  src/services/    业务服务层（预留）
+  src/routes/      路由（auth、health、dictionaries、...）
+  src/services/    业务服务层（DictionaryService、...）
 packages/        ← 引擎层（纯逻辑，无框架依赖）
 tenants/         ← 租户数据（Schema + SQLite，每租户独立目录）
-data/            ← 系统级数据（_system.db）
+data/            ← 系统级数据
+  _system.db       平台管理员、套餐配置
+  dictionaries/    全局字典（JSON 文件）
 docs/            ← 项目文档
 TODO.md          ← 技术难点与工作计划
 ```
@@ -208,8 +210,8 @@ TODO.md          ← 技术难点与工作计划
 | 应用层 | `frontend/` | React UI，调用 API，路由，认证 |
 | 服务层 | `server/` | Koa API，组装引擎，中间件，路由 |
 | 引擎层 | `packages/*` | 纯逻辑：渲染/运算/数据/权限/自动渲染 |
-| 租户数据 | `tenants/{id}/` | 每租户的 apps/（Schema）+ data/（SQLite） |
-| 系统数据 | `data/` | _system.db（平台管理员、套餐配置） |
+| 租户数据 | `tenants/{id}/` | apps/（Schema + 运行时 JSON）+ log/（运行时日志：automation/、audit/）+ dictionaries/（租户字典）+ data/（SQLite：组织/权限/密钥/消息/业务数据） |
+| 系统数据 | `data/` | _system.db（平台管理员、套餐）+ dictionaries/（全局字典 JSON） |
 
 ### 路由规范
 

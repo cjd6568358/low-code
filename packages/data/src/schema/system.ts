@@ -1,14 +1,15 @@
 /**
  * _system.db Schema — System-level tables
  *
- * Stores platform admins, global dictionaries, subscription plans.
+ * Stores platform admins and subscription plans.
+ * Global dictionaries are stored as JSON files in data/dictionaries/.
  * Tenant data is in tenants/{id}/tenant.json (file system as data source).
  */
 
 import type { MigrationEntry, SqliteDb } from '../types';
 
 /** System database schema version */
-export const SYSTEM_DB_VERSION = 2;
+export const SYSTEM_DB_VERSION = 3;
 
 /** System database initial schema SQL */
 export const SYSTEM_SCHEMA_SQL = `
@@ -22,37 +23,6 @@ CREATE TABLE IF NOT EXISTS platform_admins (
   created_at  TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
-
--- 全局字典表（平台级只读字典）
-CREATE TABLE IF NOT EXISTS global_dictionaries (
-  dict_id     TEXT PRIMARY KEY,
-  code        TEXT NOT NULL UNIQUE,
-  name        TEXT NOT NULL,
-  description TEXT,
-  status      TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
-  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE INDEX IF NOT EXISTS idx_global_dicts_code ON global_dictionaries(code);
-
--- 全局字典项表
-CREATE TABLE IF NOT EXISTS global_dict_items (
-  item_id     TEXT PRIMARY KEY,
-  dict_id     TEXT NOT NULL REFERENCES global_dictionaries(dict_id),
-  label       TEXT NOT NULL,
-  value       TEXT NOT NULL,
-  color       TEXT,
-  icon        TEXT,
-  parent_id   TEXT,
-  sort        INTEGER NOT NULL DEFAULT 0,
-  disabled    INTEGER NOT NULL DEFAULT 0,
-  extra       TEXT,
-  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE INDEX IF NOT EXISTS idx_global_dict_items_dict ON global_dict_items(dict_id);
-CREATE INDEX IF NOT EXISTS idx_global_dict_items_parent ON global_dict_items(parent_id);
 
 -- 套餐表
 CREATE TABLE IF NOT EXISTS plans (
@@ -86,6 +56,17 @@ export const SYSTEM_MIGRATIONS: MigrationEntry[] = [
     up: (db: SqliteDb) => {
       db.exec('DROP TABLE IF EXISTS tenants');
       db.exec('DROP INDEX IF EXISTS idx_tenants_status');
+    },
+  },
+  {
+    version: 3,
+    description: 'Drop global dictionaries (moved to JSON files)',
+    up: (db: SqliteDb) => {
+      db.exec('DROP TABLE IF EXISTS global_dict_items');
+      db.exec('DROP TABLE IF EXISTS global_dictionaries');
+      db.exec('DROP INDEX IF EXISTS idx_global_dicts_code');
+      db.exec('DROP INDEX IF EXISTS idx_global_dict_items_dict');
+      db.exec('DROP INDEX IF EXISTS idx_global_dict_items_parent');
     },
   },
 ];

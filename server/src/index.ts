@@ -18,6 +18,9 @@ import { timeoutMiddleware } from './middlewares/timeout.js';
 import { registerRoutes } from './routes/index.js';
 import { CronScheduler } from './services/CronScheduler.js';
 import { AutomationEngine, type WorkflowExecutor } from './services/AutomationEngine.js';
+import { AutomationLogService } from './services/AutomationLogService.js';
+import { AuditLogService } from './services/AuditLogService.js';
+import { createAuditMiddleware } from './middlewares/audit.js';
 import { createExpressionEngine } from '@low-code/shared';
 
 /** 全局 Cron 调度器实例 */
@@ -76,11 +79,14 @@ async function initializeAutomation(): Promise<void> {
     }
 
     if (tenantId) {
+      const logService = new AutomationLogService(TENANTS_DIR);
+
       automationEngine = new AutomationEngine({
         tenantId,
         scheduler,
         expressionEngine,
         workflowExecutor,
+        logService,
       });
 
       // 初始化引擎（加载并注册定时任务）
@@ -101,6 +107,10 @@ async function initializeAutomation(): Promise<void> {
 async function main() {
   const app = new Koa();
 
+  // ─── 日志服务 ─────────────────────────────────
+  const { TENANTS_DIR } = await import('./config/index.js');
+  const auditService = new AuditLogService(TENANTS_DIR);
+
   // ─── 中间件(顺序 matters) ────────────────────
   app.use(errorMiddleware);
   app.use(corsMiddleware);
@@ -113,9 +123,10 @@ async function main() {
   }));
   app.use(bodyParser({ jsonLimit: '2mb' }));
   app.use(authMiddleware);
+  app.use(createAuditMiddleware(auditService));
 
   // ─── 路由 ──────────────────────────────────────
-  registerRoutes(app);
+  registerRoutes(app, auditService);
 
   // 404 兜底
   app.use(async (ctx) => {

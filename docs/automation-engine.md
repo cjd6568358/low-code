@@ -408,28 +408,75 @@ CREATE TABLE automation_rules (
 
 CREATE INDEX idx_automation_tenant_app ON automation_rules (tenant_id, app_id);
 CREATE INDEX idx_automation_status ON automation_rules (tenant_id, status);
-
--- 执行日志表
-CREATE TABLE automation_execution_logs (
-  id              TEXT NOT NULL PRIMARY KEY,
-  tenant_id       TEXT NOT NULL,
-  rule_id         TEXT NOT NULL,
-  rule_name       TEXT NOT NULL,
-  event_type      TEXT NOT NULL,
-  event_source    TEXT NOT NULL,
-  event_data      TEXT NOT NULL,              -- JSON
-  condition_result TEXT NOT NULL,             -- JSON
-  action_results  TEXT NOT NULL,              -- JSON
-  status          TEXT NOT NULL
-                    CHECK (status IN ('success', 'partial_success', 'failed')),
-  total_duration_ms INTEGER NOT NULL,
-  created_at      TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE INDEX idx_exec_log_rule ON automation_execution_logs (tenant_id, rule_id, created_at);
-CREATE INDEX idx_exec_log_status ON automation_execution_logs (tenant_id, status, created_at);
-CREATE INDEX idx_exec_log_event ON automation_execution_logs (tenant_id, event_type, created_at);
 ```
+
+## 存储架构
+
+### 规则存储
+
+自动化规则以 JSON 文件存储在应用目录下：
+
+```
+tenants/{tenantId}/apps/app_{appId}/automations/
+  ├── automation_{ruleId}.json
+  └── ...
+```
+
+每个规则文件包含完整的规则定义（触发器、条件、动作、限流配置等）。
+
+### 执行日志存储
+
+执行日志以 JSON 文件存储在统一的日志目录下：
+
+```
+tenants/{tenantId}/log/automation/
+  ├── {executionId}.json
+  └── ...
+```
+
+日志文件结构：
+```json
+{
+  "executionId": "exec_abc123",
+  "ruleId": "automation_xyz",
+  "ruleName": "大额订单自动审批",
+  "eventType": "data_change",
+  "eventSource": "app_80e88653",
+  "eventData": { "tableId": "order", "recordId": "123" },
+  "conditionResult": { "matched": true, "details": [] },
+  "actionResults": [
+    {
+      "actionType": "trigger_workflow",
+      "actionName": "触发审批流程",
+      "status": "success",
+      "startedAt": "2026-07-22T10:00:00Z",
+      "finishedAt": "2026-07-22T10:00:01Z",
+      "durationMs": 1000
+    }
+  ],
+  "status": "success",
+  "totalDurationMs": 1200,
+  "createdAt": "2026-07-22T10:00:01Z"
+}
+```
+
+### 设计决策
+
+| 对比项 | SQLite | JSON 文件 |
+|--------|--------|-----------|
+| 查询性能 | ✅ 索引优化 | ⚠️ 内存过滤 |
+| 存储隔离 | ❌ 共享数据库 | ✅ 应用级隔离 |
+| 版本控制 | ❌ 二进制 | ✅ Git 可追踪 |
+| 部署迁移 | 需要脚本 | 直接复制文件 |
+| 与项目理念一致 | ❌ | ✅ 文件即数据源 |
+
+### API 接口
+
+| 接口 | 说明 |
+|------|------|
+| `GET /api/apps/:appId/automations/:ruleId/logs` | 获取规则执行日志 |
+| `GET /api/automations/:id/logs` | 获取规则执行日志 |
+| `GET /api/automations/logs/:logId` | 获取日志详情 |
 
 ## 管理界面
 

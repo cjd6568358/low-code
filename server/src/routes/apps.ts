@@ -12,6 +12,7 @@ import { TENANTS_DIR } from '../config/index.js';
 import { existsAsync, resolveAppDir, stripPrefix, readFile, writeFile, readdir, mkdir, unlink, rm } from '../utils/fs-utils.js';
 import type { DatabaseManager } from '@low-code/data';
 import { TableService } from '../services/TableService.js';
+import { AutomationLogService } from '../services/AutomationLogService.js';
 import { generateHexId, RESOURCE_TYPES } from '@low-code/shared';
 import { createComputationsRouter } from './computations.js';
 
@@ -166,6 +167,7 @@ function collectReferences(
 export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
   const router = new KoaRouter({ prefix: '/api/apps' });
   const tableService = manager ? new TableService(manager) : null;
+  const logService = new AutomationLogService(TENANTS_DIR);
 
   /**
    * GET /api/apps
@@ -617,32 +619,15 @@ export function createAppsRouter(manager?: DatabaseManager): KoaRouter {
       return;
     }
 
-    if (!manager) {
-      ctx.status = 500;
-      ctx.body = { error: '数据库未初始化' };
-      return;
-    }
-
     const limit = parseInt(ctx.query.limit as string) || 20;
     const offset = parseInt(ctx.query.offset as string) || 0;
 
     try {
-      const db = manager.getTenantDb(tenantId);
-
-      const logs = db.prepare(
-        `SELECT * FROM automation_execution_logs
-         WHERE rule_id = ?
-         ORDER BY created_at DESC
-         LIMIT ? OFFSET ?`,
-      ).all(ruleId, limit, offset);
-
-      const total = db.prepare(
-        'SELECT COUNT(*) as count FROM automation_execution_logs WHERE rule_id = ?',
-      ).get(ruleId);
+      const result = await logService.getLogs(tenantId, ruleId, limit, offset);
 
       ctx.body = {
-        data: logs,
-        total: (total as Record<string, unknown>)?.count || 0,
+        data: result.logs,
+        total: result.total,
         limit,
         offset,
       };

@@ -150,19 +150,11 @@ async function main() {
   tenantDb.prepare('UPDATE departments SET manager_id = ? WHERE code = ?').run(adminUserId, 'TECH');
   console.log('  ✅ 部门负责人设置完成\n');
 
-  // 6. Create demo app (8-char hex, prefix added for DB/directory)
-  const appUuid = generateUniqueId(tenantDb, 'applications', 'app_id');
+  // 6. Create demo app (8-char hex, prefix added for directory only)
+  const appUuid = generateHexId();
   const APP_ID = withPrefix(appUuid, 'app'); // app_xxxxxxxx
   console.log(`📱 创建演示应用 (${APP_ID})...`);
-  tenantDb.prepare(
-    `INSERT INTO applications (app_id, name, description, icon, status, version, component_library, visibility, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).run(
-    APP_ID, '山水 OA',
-    '办公自动化系统，包含审批流程、任务管理、日程安排等功能',
-    '📋', 'draft', '0.1.0', 'antd', 'internal', adminUserId,
-  );
-  console.log('  ✅ 演示应用"山水 OA"已创建\n');
+  console.log('  ✅ 演示应用"山水 OA"已创建（文件系统存储）\n');
 
   // 7. 创建租户 Schema 目录
   console.log('📁 创建应用 Schema 目录...');

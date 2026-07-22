@@ -1,0 +1,13 @@
+{
+  "code": "resource_type",
+  "name": "资源类型",
+  "description": "低代码平台资源类型",
+  "status": "active",
+  "items": [
+    { "label": "页面", "value": "pages", "sort": 0, "icon": "📄" },
+    { "label": "数据表", "value": "tables", "sort": 1, "icon": "📊" },
+    { "label": "流程", "value": "workflows", "sort": 2, "icon": "🔄" },
+    { "label": "自动化", "value": "automations", "sort": 3, "icon": "⚡" },
+    { "label": "运算规则", "value": "computations", "sort": 4, "icon": "🧮" }
+  ]
+}

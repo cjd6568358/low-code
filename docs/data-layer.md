@@ -11,30 +11,46 @@
 
 ```
 data/
-  └── _system.db                    ← 系统级数据库
-        ├── platform_admins         ← 平台管理员
-        ├── global_dictionaries     ← 全局只读字典
-        └── plans                   ← 套餐定价
+  ├── _system.db                    ← 系统级数据库
+  │     ├── platform_admins         ← 平台管理员
+  │     └── plans                   ← 套餐定价
+  │
+  └── dictionaries/                 ← 全局字典（JSON 文件）
+        └── global/
+              ├── status.json
+              ├── gender.json
+              └── ...
 
 tenants/
   └── tenant_{uuid}/                ← 租户目录（文件系统即数据源）
         ├── tenant.json             ← 租户元数据（名称、套餐、状态）
-        ├── apps/                   ← 应用 Schema
+        ├── dictionaries/           ← 租户字典（JSON 文件，覆盖全局同名字典）
+        │     ├── status.json
+        │     └── ...
+        ├── apps/                   ← 应用 Schema + 运行时数据
         │   └── app_{uuid}/
-        │       ├── app.json
-        │       ├── pages/
-        │       ├── tables/
-        │       └── ...
+        │       ├── app.json        ← 应用元信息
+        │       ├── pages/          ← 页面 Schema
+        │       ├── tables/         ← 数据表 Schema
+        │       ├── workflows/      ← 流程定义 + 运行时（JSON 文件）
+        │       │   ├── definitions/
+        │       │   ├── instances/
+        │       │   ├── tasks/
+        │       │   ├── snapshots/
+        │       │   └── jobs/
+        │       ├── automations/    ← 自动化规则
+        │       ├── automation_logs/ ← 自动化执行日志（JSON 文件）
+        │       └── computations/   ← 运算规则
+        ├── log/                   ← 运行时日志（按类型分子目录）
+        │   ├── automation/        ← 自动化执行日志（JSON 文件）
+        │   └── audit/             ← 审计日志（JSON 文件）
         └── data/
               └── tenant.db         ← 租户 SQLite 数据库
                     ├── users / departments / positions   ← 组织架构
                     ├── roles / permissions / user_roles  ← 权限系统
-                    ├── dictionaries / dict_items         ← 租户字典
                     ├── open_keys / open_key_permissions  ← API 密钥
-                    ├── workflow_definitions / instances / snapshots / tasks / jobs ← 流程引擎
-                    ├── automation_rules / execution_logs ← 自动化引擎
                     ├── messages                          ← 消息中心
-                    └── audit_logs                        ← 审计日志
+                    └── {tableId}                         ← 业务数据（动态建表）
 ```
 
 ## 技术选型

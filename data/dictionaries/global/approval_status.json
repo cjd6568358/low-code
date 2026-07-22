@@ -1,0 +1,13 @@
+{
+  "code": "approval_status",
+  "name": "审批状态",
+  "description": "流程审批状态",
+  "status": "active",
+  "items": [
+    { "label": "待审批", "value": "pending", "sort": 0 },
+    { "label": "审批中", "value": "reviewing", "sort": 1 },
+    { "label": "已通过", "value": "approved", "sort": 2 },
+    { "label": "已驳回", "value": "rejected", "sort": 3 },
+    { "label": "已撤回", "value": "withdrawn", "sort": 4 }
+  ]
+}
