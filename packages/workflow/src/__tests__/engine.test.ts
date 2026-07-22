@@ -64,8 +64,8 @@ function createMockSnapshotService(): SnapshotService {
       comment: params.comment,
       createdAt: new Date().toISOString(),
     })),
-    getLatest: vi.fn(async () => undefined),
-    getChain: vi.fn(async () => []),
+    getLatestSnapshot: vi.fn(async () => undefined),
+    getSnapshotChain: vi.fn(async () => []),
     diff: vi.fn(async () => ({
       changedFields: {},
       addedFields: [],

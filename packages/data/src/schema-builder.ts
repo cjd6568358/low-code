@@ -18,9 +18,7 @@ const FIELD_TYPE_MAP: Record<TableFieldType, string> = {
   string: 'TEXT',
   number: 'INTEGER',
   boolean: 'INTEGER',
-  date: 'TEXT',
-  json: 'TEXT',
-  enum: 'TEXT',
+  date: 'INTEGER', // Unix 时间戳
 };
 
 /** 获取 SQLite 列类型 */

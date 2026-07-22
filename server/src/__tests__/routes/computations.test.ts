@@ -214,7 +214,7 @@ describe('运算路由', () => {
     });
 
     it('应该支持多种字段类型', () => {
-      const fieldTypes = ['string', 'number', 'boolean', 'date', 'json', 'enum'];
+      const fieldTypes = ['string', 'number', 'boolean', 'date'];
 
       for (const fieldType of fieldTypes) {
         const input = {

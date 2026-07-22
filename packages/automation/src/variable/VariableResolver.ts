@@ -4,15 +4,15 @@
  * 支持 {{expression}} 语法引用事件数据和上下文变量。
  *
  * 变量路径：
- * - {{event.type}} — 事件类型
- * - {{event.data.entityCode}} — 实体编码
- * - {{event.data.recordId}} — 记录 ID
- * - {{event.data.record.fieldName}} — 记录字段值
- * - {{event.data.changes.fieldName}} — 字段变更值
- * - {{event.data.operatorId}} — 操作人 ID
- * - {{rule.id}} — 规则 ID
- * - {{rule.name}} — 规则名称
- * - {{now}} — 当前时间
+ * - {{$event.type}} — 事件类型
+ * - {{$event.data.entityCode}} — 实体编码
+ * - {{$event.data.recordId}} — 记录 ID
+ * - {{$event.data.record.fieldName}} — 记录字段值
+ * - {{$event.data.changes.fieldName}} — 字段变更值
+ * - {{$event.data.operatorId}} — 操作人 ID
+ * - {{$rule.id}} — 规则 ID
+ * - {{$rule.name}} — 规则名称
+ * - {{$now}} — 当前时间
  */
 
 import type { ExecutionEventInfo } from '../types/execution';
@@ -92,23 +92,25 @@ export class VariableResolver {
   /**
    * 按路径解析变量值
    *
-   * @param path - 变量路径（如 "event.data.record.amount"）
+   * @param path - 变量路径（如 "$event.data.record.amount"）
    * @param context - 变量上下文
    * @returns 变量值
    */
   private resolveVariable(path: string, context: VariableContext): unknown {
     // 特殊变量：当前时间
-    if (path === 'now') {
+    if (path === '$now' || path === 'now') {
       return new Date().toISOString();
     }
 
-    // 按路径前缀分发
+    // 按路径前缀分发（支持 $event 和 event 两种写法）
     const parts = path.split('.');
     const prefix = parts[0];
 
     switch (prefix) {
+      case '$event':
       case 'event':
         return this.resolveEventPath(parts.slice(1), context.event);
+      case '$rule':
       case 'rule':
         return this.resolveRulePath(parts.slice(1), context.rule);
       default:

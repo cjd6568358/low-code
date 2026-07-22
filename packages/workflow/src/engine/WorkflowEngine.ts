@@ -18,9 +18,6 @@ import {
   isEndEvent,
   isUserTask,
   isGateway,
-  isExclusiveGateway,
-  isParallelGateway,
-  isInclusiveGateway,
   isSubProcess,
   isBoundaryEvent,
   validateBpmnDocument,
@@ -48,7 +45,7 @@ import type {
   ProcessState,
 } from '../types/execution';
 import type { JobRecord, JobStatus } from '../types/job';
-import { StateMachine } from './StateMachine';
+import { StateMachine, type StateMachineEvent } from './StateMachine';
 import { DefinitionIndex } from './DefinitionIndex';
 import { SnapshotEngine } from '../snapshot/SnapshotEngine';
 import { RecoveryManager } from '../recovery/RecoveryManager';
@@ -168,6 +165,33 @@ export class WorkflowEngine {
   }
 
   /**
+   * 验证状态转换是否合法
+   *
+   * @param instance - 流程实例
+   * @param event - 状态机事件
+   * @throws {WorkflowError} 如果状态转换不合法
+   */
+  private validateStateTransition(instance: InstanceRecord, event: StateMachineEvent): void {
+    if (!this.stateMachine.canTrigger(instance, event)) {
+      throw new WorkflowError(
+        WorkflowErrorCode.INVALID_STATE,
+        `无效的状态转换: ${instance.status} -> ${event}`
+      );
+    }
+  }
+
+  /**
+   * 执行状态转换
+   *
+   * @param instance - 流程实例
+   * @param event - 状态机事件
+   * @returns 新状态
+   */
+  private async transitionState(instance: InstanceRecord, event: StateMachineEvent): Promise<ProcessState> {
+    return this.stateMachine.trigger(instance, event);
+  }
+
+  /**
    * 注册节点执行器
    */
   registerExecutor(nodeType: string, executor: NodeExecutor): void {
@@ -227,7 +251,7 @@ export class WorkflowEngine {
       this.abortedInstances.add(instance.id);
     });
     // 默认超时 30 分钟，可通过 config 覆盖
-    const timeoutMs = definition.schema.processes[0]?.extensionElements?.timeoutMs || 30 * 60 * 1000;
+    const timeoutMs = (definition.schema.processes[0]?.extensionElements?.timeoutMs as number) || 30 * 60 * 1000;
     this.timeoutManager.scheduleExecutionTimeout(instance.id, timeoutMs);
 
     try {
@@ -245,10 +269,11 @@ export class WorkflowEngine {
       }
 
       // 7. 注入系统变量
+      const envVars = (params.variables?.$env || {}) as Record<string, unknown>;
       const systemVariables = {
         $env: {
-          NODE_ENV: process?.env?.NODE_ENV || 'development',
-          ...(params.variables?.$env || {}),
+          NODE_ENV: (globalThis as any).process?.env?.NODE_ENV || 'development',
+          ...envVars,
         },
         $now: Date.now(),
         $initiator: {
@@ -384,6 +409,8 @@ export class WorkflowEngine {
         }
 
         if (!resumeResult.success) {
+          // 验证状态转换
+          this.validateStateTransition(instance, 'reject');
           // 审批被驳回
           await this.updateInstance(instance.id, { status: 'rejected' });
           return instance;
@@ -392,7 +419,7 @@ export class WorkflowEngine {
     }
 
     // 9. 捕获节点完成快照
-    const latestSnapshot = await this.snapshotEngine.getLatest(instance.id);
+    const latestSnapshot = await this.snapshotEngine.getLatestSnapshot(instance.id);
     await this.snapshotEngine.capture({
       instanceId: instance.id,
       nodeId: task.nodeId,
@@ -544,6 +571,9 @@ export class WorkflowEngine {
         `流程状态不允许终止: ${instance.status}`
       );
     }
+
+    // 验证状态转换
+    this.validateStateTransition(instance, 'terminate');
 
     // 中止正在运行的执行
     this.runningRegistry.abort(params.instanceId, params.reason);
@@ -1068,247 +1098,16 @@ export class WorkflowEngine {
       return this.executeNode(nextContext);
     }
 
-    // 多出口（条件网关）
-    return this.evaluateGateway(context, outgoingEdges);
-  }
-
-  /**
-   * 评估网关
-   */
-  private async evaluateGateway(
-    context: ExecutionContext,
-    edges: Edge[]
-  ): Promise<ExecutionResult> {
-    const { currentNode, variables } = context;
-
-    // 排他网关
-    if (isExclusiveGateway(currentNode)) {
-      return this.evaluateExclusiveGateway(context, edges);
-    }
-
-    // 并行网关
-    if (isParallelGateway(currentNode)) {
-      return this.evaluateParallelGateway(context, edges);
-    }
-
-    // 包含网关
-    if (isInclusiveGateway(currentNode)) {
-      return this.evaluateInclusiveGateway(context, edges);
+    // 多出口（条件网关）- 使用 GatewayExecutor 统一处理
+    const executor = this.nodeExecutors.get(currentNode.$type);
+    if (executor) {
+      return executor.execute(context);
     }
 
     throw new WorkflowError(
       WorkflowErrorCode.NODE_EXECUTION_FAILED,
-      `不支持的网关类型: ${currentNode.$type}`
+      `没有找到节点执行器: ${currentNode.$type}`
     );
-  }
-
-  /**
-   * 评估排他网关
-   */
-  private async evaluateExclusiveGateway(
-    context: ExecutionContext,
-    edges: Edge[]
-  ): Promise<ExecutionResult> {
-    const { variables, definition, definitionIndex } = context;
-
-    // 找到默认连线
-    const defaultEdge = edges.find((e: Edge) =>
-      (e as { conditionExpression?: { body?: string } }).conditionExpression?.body === 'default' ||
-      (context.currentNode as { default?: string }).default === e.id
-    );
-
-    // 评估条件
-    for (const edge of edges) {
-      if (edge === defaultEdge) continue;
-
-      const condition = (edge as { conditionExpression?: { body?: string } }).conditionExpression;
-      if (condition?.body && this.expressionEvaluator) {
-        try {
-          const result = this.expressionEvaluator.evaluateBoolean(condition.body, { variables });
-          if (result) {
-            const targetRef = (edge as { targetRef?: string }).targetRef;
-            const targetNode = definitionIndex
-              ? (targetRef ? definitionIndex.getNode(targetRef) : undefined)
-              : definition.nodes.find((n: FlowNode) => n.id === targetRef);
-            if (targetNode) {
-              return {
-                success: true,
-                nextNodes: [{ node: targetNode, edge }],
-              };
-            }
-          }
-        } catch (error) {
-          // 条件求值失败，继续尝试下一个
-        }
-      }
-    }
-
-    // 使用默认连线
-    if (defaultEdge) {
-      const targetRef = (defaultEdge as { targetRef?: string }).targetRef;
-      const targetNode = definitionIndex
-        ? (targetRef ? definitionIndex.getNode(targetRef) : undefined)
-        : definition.nodes.find((n: FlowNode) => n.id === targetRef);
-      if (targetNode) {
-        return {
-          success: true,
-          nextNodes: [{ node: targetNode, edge: defaultEdge }],
-        };
-      }
-    }
-
-    throw new WorkflowError(
-      WorkflowErrorCode.NO_EXECUTABLE_PATH,
-      '没有可执行的路径'
-    );
-  }
-
-  /**
-   * 评估并行网关
-   */
-  private async evaluateParallelGateway(
-    context: ExecutionContext,
-    edges: Edge[]
-  ): Promise<ExecutionResult> {
-    const { definition, currentNode, definitionIndex } = context;
-
-    // 检查是分支还是汇聚
-    const incomingCount = currentNode.incoming?.length || 0;
-
-    if (incomingCount <= 1) {
-      // 分支：所有出口都需要执行（使用索引 O(1) 查找目标节点）
-      const nextNodes = edges
-        .map((edge: Edge) => {
-          const targetRef = (edge as { targetRef?: string }).targetRef;
-          const targetNode = definitionIndex
-            ? (targetRef ? definitionIndex.getNode(targetRef) : undefined)
-            : definition.nodes.find((n: FlowNode) => n.id === targetRef);
-          return targetNode ? { node: targetNode, edge } : undefined;
-        })
-        .filter((item): item is { node: FlowNode; edge: Edge } => item !== undefined);
-
-      return {
-        success: true,
-        nextNodes,
-      };
-    } else {
-      // 汇聚：等待所有分支完成
-      return this.handleParallelJoin(context);
-    }
-  }
-
-  /**
-   * 处理并行网关汇聚
-   */
-  private async handleParallelJoin(context: ExecutionContext): Promise<ExecutionResult> {
-    const { instance, currentNode, definition, definitionIndex } = context;
-
-    // 检查所有入口分支是否都已完成
-    const checkpoint = instance.checkpoint as Record<string, unknown> | undefined;
-    const parallelState = checkpoint?.parallelState as { completedBranches: string[]; activeBranches: string[] } | undefined;
-
-    if (!parallelState) {
-      // 初始化并行状态
-      const _incomingEdges = definitionIndex
-        ? definitionIndex.getIncomingByNode(currentNode)
-        : definition.edges.filter((e: Edge) => currentNode.incoming?.includes(e.id));
-
-      return {
-        success: true,
-        waiting: true,
-      };
-    }
-
-    // 检查是否所有分支都完成
-    if (parallelState.completedBranches.length < parallelState.activeBranches.length) {
-      return {
-        success: true,
-        waiting: true,
-      };
-    }
-
-    // 所有分支完成，继续执行
-    const outgoingEdges = definitionIndex
-      ? definitionIndex.getOutgoingByNode(currentNode)
-      : definition.edges.filter((e: Edge) => currentNode.outgoing?.includes(e.id));
-
-    if (outgoingEdges.length === 1) {
-      const targetRef = (outgoingEdges[0] as { targetRef?: string }).targetRef;
-      const targetNode = definitionIndex
-        ? (targetRef ? definitionIndex.getNode(targetRef) : undefined)
-        : definition.nodes.find((n: FlowNode) => n.id === targetRef);
-      if (targetNode) {
-        const nextContext: ExecutionContext = {
-          ...context,
-          currentNode: targetNode,
-        };
-        return this.executeNode(nextContext);
-      }
-    }
-
-    return { success: true, completed: true };
-  }
-
-  /**
-   * 评估包含网关
-   */
-  private async evaluateInclusiveGateway(
-    context: ExecutionContext,
-    edges: Edge[]
-  ): Promise<ExecutionResult> {
-    const { variables, definition, currentNode, definitionIndex } = context;
-
-    // 检查是分支还是汇聚
-    const incomingCount = currentNode.incoming?.length || 0;
-
-    if (incomingCount <= 1) {
-      // 分支：评估每个条件，满足的都执行
-      const nextNodes: Array<{ node: FlowNode; edge: Edge }> = [];
-
-      for (const edge of edges) {
-        const condition = (edge as { conditionExpression?: { body?: string } }).conditionExpression;
-        const targetRef = (edge as { targetRef?: string }).targetRef;
-
-        if (condition?.body && this.expressionEvaluator) {
-          try {
-            const result = this.expressionEvaluator.evaluateBoolean(condition.body, { variables });
-            if (result) {
-              const targetNode = definitionIndex
-                ? (targetRef ? definitionIndex.getNode(targetRef) : undefined)
-                : definition.nodes.find((n: FlowNode) => n.id === targetRef);
-              if (targetNode) {
-                nextNodes.push({ node: targetNode, edge });
-              }
-            }
-          } catch (error) {
-            // 条件求值失败，跳过
-          }
-        } else {
-          // 没有条件，视为默认路径
-          const targetNode = definitionIndex
-            ? (targetRef ? definitionIndex.getNode(targetRef) : undefined)
-            : definition.nodes.find((n: FlowNode) => n.id === targetRef);
-          if (targetNode) {
-            nextNodes.push({ node: targetNode, edge });
-          }
-        }
-      }
-
-      if (nextNodes.length === 0) {
-        throw new WorkflowError(
-          WorkflowErrorCode.NO_EXECUTABLE_PATH,
-          '没有满足条件的路径'
-        );
-      }
-
-      return {
-        success: true,
-        nextNodes,
-      };
-    } else {
-      // 汇聚：等待所有活跃分支完成
-      return this.handleParallelJoin(context);
-    }
   }
 
   /**
@@ -1319,6 +1118,8 @@ export class WorkflowEngine {
     result: ExecutionResult
   ): Promise<void> {
     if (!result.success) {
+      // 验证状态转换
+      this.validateStateTransition(instance, 'fail');
       await this.updateInstance(instance.id, { status: 'failed' });
       return;
     }
@@ -1341,6 +1142,8 @@ export class WorkflowEngine {
     }
 
     if (result.waiting) {
+      // 验证状态转换
+      this.validateStateTransition(instance, 'wait');
       // 等待外部输入
       await this.updateInstance(instance.id, { status: 'waiting' });
       return;
@@ -1403,6 +1206,9 @@ export class WorkflowEngine {
    * 处理流程完成
    */
   private async handleCompletion(instance: InstanceRecord): Promise<void> {
+    // 验证状态转换
+    this.validateStateTransition(instance, 'complete');
+
     // 更新实例状态
     await this.updateInstance(instance.id, {
       status: 'completed',
@@ -1454,7 +1260,7 @@ export class WorkflowEngine {
       }
       case 'rejectToPrevious': {
         // 驳回到上一个节点
-        const snapshots = await this.snapshotEngine.getChain(instance.id);
+        const snapshots = await this.snapshotEngine.getSnapshotChain(instance.id);
         if (snapshots.length >= 2) {
           targetNodeId = snapshots[snapshots.length - 2].nodeId;
         }
@@ -1474,6 +1280,9 @@ export class WorkflowEngine {
     }
 
     if (targetNodeId && loaded) {
+      // 验证状态转换（从 rejected 恢复到 running）
+      this.validateStateTransition(instance, 'restart');
+
       // 更新当前节点
       await this.updateInstance(instance.id, {
         currentNodeId: targetNodeId,
@@ -1830,14 +1639,42 @@ export class WorkflowEngine {
   // ==================== 通知方法 ====================
 
   private async notifyWorkflowStarted(instance: InstanceRecord): Promise<void> {
-    if (this.notifyService) {
-      // TODO: 实现通知
+    if (!this.notifyService) return;
+
+    try {
+      await this.notifyService.send({
+        receiverIds: [instance.startedBy || ''],
+        type: 'custom',
+        title: `流程已启动: ${instance.workflowName || instance.workflowDefId}`,
+        content: `流程实例 ${instance.id} 已启动`,
+        data: {
+          instanceId: instance.id,
+          workflowDefId: instance.workflowDefId,
+          startedAt: instance.startedAt,
+        },
+      });
+    } catch (error) {
+      console.error('发送流程启动通知失败:', error);
     }
   }
 
   private async notifyWorkflowCompleted(instance: InstanceRecord): Promise<void> {
-    if (this.notifyService) {
-      // TODO: 实现通知
+    if (!this.notifyService) return;
+
+    try {
+      await this.notifyService.send({
+        receiverIds: [instance.startedBy || ''],
+        type: 'complete',
+        title: `流程已完成: ${instance.workflowName || instance.workflowDefId}`,
+        content: `流程实例 ${instance.id} 已完成`,
+        data: {
+          instanceId: instance.id,
+          workflowDefId: instance.workflowDefId,
+          completedAt: instance.completedAt,
+        },
+      });
+    } catch (error) {
+      console.error('发送流程完成通知失败:', error);
     }
   }
 
@@ -1845,8 +1682,23 @@ export class WorkflowEngine {
     instance: InstanceRecord,
     params: TerminateParams
   ): Promise<void> {
-    if (this.notifyService) {
-      // TODO: 实现通知
+    if (!this.notifyService) return;
+
+    try {
+      await this.notifyService.send({
+        receiverIds: [instance.startedBy || ''],
+        type: 'custom',
+        title: `流程已终止: ${instance.workflowName || instance.workflowDefId}`,
+        content: `流程实例 ${instance.id} 已终止，原因: ${params.reason || '无'}`,
+        data: {
+          instanceId: instance.id,
+          workflowDefId: instance.workflowDefId,
+          reason: params.reason,
+          terminatedBy: params.operatorId,
+        },
+      });
+    } catch (error) {
+      console.error('发送流程终止通知失败:', error);
     }
   }
 
@@ -1854,8 +1706,28 @@ export class WorkflowEngine {
     task: TaskRecord,
     params: CompleteParams
   ): Promise<void> {
-    if (this.notifyService) {
-      // TODO: 实现通知
+    if (!this.notifyService) return;
+
+    try {
+      // 通知流程发起人
+      const instance = await this.getInstance(task.instanceId);
+      if (instance) {
+        await this.notifyService.send({
+          receiverIds: [instance.startedBy || ''],
+          type: 'complete',
+          title: `审批已通过: ${task.nodeName}`,
+          content: `任务 ${task.nodeName} 已由 ${params.operatorName || params.operatorId} 审批通过`,
+          data: {
+            taskId: task.id,
+            instanceId: task.instanceId,
+            nodeId: task.nodeId,
+            nodeName: task.nodeName,
+            comment: params.comment,
+          },
+        });
+      }
+    } catch (error) {
+      console.error('发送任务完成通知失败:', error);
     }
   }
 
@@ -1863,8 +1735,28 @@ export class WorkflowEngine {
     task: TaskRecord,
     params: RejectParams
   ): Promise<void> {
-    if (this.notifyService) {
-      // TODO: 实现通知
+    if (!this.notifyService) return;
+
+    try {
+      // 通知流程发起人
+      const instance = await this.getInstance(task.instanceId);
+      if (instance) {
+        await this.notifyService.send({
+          receiverIds: [instance.startedBy || ''],
+          type: 'reject',
+          title: `审批已驳回: ${task.nodeName}`,
+          content: `任务 ${task.nodeName} 已被 ${params.operatorName || params.operatorId} 驳回，原因: ${params.comment || '无'}`,
+          data: {
+            taskId: task.id,
+            instanceId: task.instanceId,
+            nodeId: task.nodeId,
+            nodeName: task.nodeName,
+            comment: params.comment,
+          },
+        });
+      }
+    } catch (error) {
+      console.error('发送任务驳回通知失败:', error);
     }
   }
 }

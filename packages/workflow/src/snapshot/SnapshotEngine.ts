@@ -46,7 +46,7 @@ export class SnapshotEngine {
     let changedFields: Record<string, FieldChange> | undefined;
 
     if (params.previousSnapshotId) {
-      const previousSnapshot = await this.snapshotService.getLatest(params.instanceId);
+      const previousSnapshot = await this.snapshotService.getLatestSnapshot(params.instanceId);
       if (previousSnapshot) {
         changedFields = this.calculateChanges(previousSnapshot.data, params.data);
       }
@@ -62,15 +62,15 @@ export class SnapshotEngine {
   /**
    * 获取最新快照
    */
-  async getLatest(instanceId: string): Promise<SnapshotRecord | undefined> {
-    return this.snapshotService.getLatest(instanceId);
+  async getLatestSnapshot(instanceId: string): Promise<SnapshotRecord | undefined> {
+    return this.snapshotService.getLatestSnapshot(instanceId);
   }
 
   /**
    * 获取快照链
    */
-  async getChain(instanceId: string): Promise<SnapshotRecord[]> {
-    return this.snapshotService.getChain(instanceId);
+  async getSnapshotChain(instanceId: string): Promise<SnapshotRecord[]> {
+    return this.snapshotService.getSnapshotChain(instanceId);
   }
 
   /**
@@ -273,7 +273,7 @@ export class SnapshotEngine {
     instanceId: string,
     targetSnapshotId?: string
   ): Promise<Record<string, unknown>> {
-    const chain = await this.getChain(instanceId);
+    const chain = await this.getSnapshotChain(instanceId);
     if (chain.length === 0) {
       return {};
     }

@@ -24,7 +24,10 @@ export type StateMachineEvent =
   | 'resume'       // 恢复流程
   | 'terminate'    // 终止流程
   | 'fail'         // 执行失败
-  | 'recover';     // 恢复流程
+  | 'recover'      // 恢复流程
+  | 'wait'         // 等待外部输入
+  | 'restart'      // 重新启动
+  | 'cancel';      // 取消流程
 
 /**
  * 流程状态机

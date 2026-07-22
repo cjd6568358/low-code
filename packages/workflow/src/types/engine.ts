@@ -76,9 +76,9 @@ export interface SnapshotService {
   /** 捕获快照 */
   capture(params: CaptureSnapshotParams): Promise<SnapshotRecord>;
   /** 获取最新快照 */
-  getLatest(instanceId: string): Promise<SnapshotRecord | undefined>;
+  getLatestSnapshot(instanceId: string): Promise<SnapshotRecord | undefined>;
   /** 获取快照链 */
-  getChain(instanceId: string): Promise<SnapshotRecord[]>;
+  getSnapshotChain(instanceId: string): Promise<SnapshotRecord[]>;
   /** 对比快照 */
   diff(snapshotIdA: string, snapshotIdB: string): Promise<SnapshotDiff>;
   /** 回写业务表 */
@@ -195,6 +195,7 @@ export interface InstanceRecord {
   id: string;
   workflowDefId: string;
   workflowKey: string;
+  workflowName?: string;
   version: number;
   sourceTable?: string;
   sourceId?: string;

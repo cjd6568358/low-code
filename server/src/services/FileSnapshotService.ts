@@ -41,7 +41,7 @@ export class FileSnapshotService implements SnapshotService {
       changedFields = params.changedFields;
     } else if (params.snapshotType !== 'INITIAL') {
       // 获取上一个快照，计算变更
-      const previousSnapshot = await this.getLatest(params.instanceId);
+      const previousSnapshot = await this.getLatestSnapshot(params.instanceId);
       if (previousSnapshot) {
         changedFields = this.calculateChanges(previousSnapshot.data, params.data);
       }
@@ -76,15 +76,15 @@ export class FileSnapshotService implements SnapshotService {
   /**
    * 获取最新快照
    */
-  async getLatest(instanceId: string): Promise<SnapshotRecord | undefined> {
-    const snapshots = await this.getChain(instanceId);
+  async getLatestSnapshot(instanceId: string): Promise<SnapshotRecord | undefined> {
+    const snapshots = await this.getSnapshotChain(instanceId);
     return snapshots[snapshots.length - 1];
   }
 
   /**
    * 获取快照链
    */
-  async getChain(instanceId: string): Promise<SnapshotRecord[]> {
+  async getSnapshotChain(instanceId: string): Promise<SnapshotRecord[]> {
     const indexFilePath = this.getInstanceIndexPath(instanceId);
     if (!await existsAsync(indexFilePath)) {
       return [];
@@ -174,7 +174,7 @@ export class FileSnapshotService implements SnapshotService {
    */
   async commitToSourceTable(instanceId: string): Promise<void> {
     // 获取终态快照
-    const snapshots = await this.getChain(instanceId);
+    const snapshots = await this.getSnapshotChain(instanceId);
     const finalSnapshot = snapshots.find(s => s.snapshotType === 'FINAL') || snapshots[snapshots.length - 1];
 
     if (!finalSnapshot) {

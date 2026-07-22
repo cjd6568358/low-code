@@ -250,6 +250,8 @@ interface ExpressionEngine {
   analyzeDependencies(expression: string): string[];
   /** 安全求值（带超时） */
   safeEvaluate(expression: string, context: Record<string, unknown>, timeout?: number): Promise<unknown>;
+  /** 同步安全求值（用于渲染路径等同步上下文） */
+  safeEvaluateSync(expression: string, context: Record<string, unknown>): unknown;
   /** 异步求值（接受字符串或 ExpressionBinding） */
   evaluateAsync(expression: string | ExpressionBinding, context: Record<string, unknown>, timeout?: number): Promise<unknown>;
   /** 解析模板字符串中的 {{path}} 变量 */
@@ -257,6 +259,19 @@ interface ExpressionEngine {
   /** 递归解析模板参数对象中的 {{path}} 变量 */
   resolveTemplateParams(params: Record<string, unknown>, context: Record<string, unknown>): Record<string, unknown>;
 }
+```
+
+**导出工具函数**：
+
+```typescript
+/** 提取表达式中的变量路径 */
+function extractVariablePaths(expression: string): string[];
+
+/** 校验表达式是否有效 */
+function isValidExpression(expression: string): boolean;
+
+/** 解析模板字符串中的变量（异步） */
+async function interpolateTemplate(template: string, context: Record<string, unknown>): Promise<string>;
 ```
 
 全局单例：
@@ -269,7 +284,12 @@ import { expressionEngine } from '@low-code/shared';
 
 ```typescript
 import { createExpressionEngine } from '@low-code/shared';
-const engine = createExpressionEngine({ defaultTimeout: 3000, strictMode: true });
+const engine = createExpressionEngine({
+  allowedGlobals: ['myGlobal'],     // 自定义全局变量白名单（默认只允许 $ 开头的变量）
+  defaultTimeout: 3000,             // 默认超时时间（毫秒，默认 5000）
+  strictMode: true,                 // 是否启用严格模式（禁止访问 Function/eval）
+  maxRecursionDepth: 10,            // 递归深度上限（默认 10）
+});
 ```
 
 ---

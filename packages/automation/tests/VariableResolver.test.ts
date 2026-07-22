@@ -77,6 +77,21 @@ describe('VariableResolver', () => {
       expect(result).toBe('');
     });
 
+    it('should resolve $event prefix', () => {
+      const result = resolver.resolve('事件类型: {{$event.type}}', context);
+      expect(result).toBe('事件类型: entity.updated');
+    });
+
+    it('should resolve $rule prefix', () => {
+      const result = resolver.resolve('规则: {{$rule.name}}', context);
+      expect(result).toBe('规则: 大额订单自动审批');
+    });
+
+    it('should resolve $now prefix', () => {
+      const result = resolver.resolve('时间: {{$now}}', context);
+      expect(result).toMatch(/^时间: \d{4}-\d{2}-\d{2}T/);
+    });
+
     it('should handle multiple variables', () => {
       const result = resolver.resolve(
         '{{event.type}} - {{event.data.entityCode}} - {{event.data.recordId}}',

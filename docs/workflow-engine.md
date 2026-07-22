@@ -523,7 +523,7 @@ CREATE TABLE workflow_instances (
   source_id           TEXT,
   current_snapshot_id INTEGER,
   current_node_id     TEXT,                  -- 当前执行节点ID
-  status              TEXT CHECK (status IN ('running', 'waiting', 'pending', 'completed', 'rejected', 'cancelled', 'failed', 'terminated')),
+  status              TEXT CHECK (status IN ('created', 'running', 'waiting', 'suspended', 'completed', 'rejected', 'cancelled', 'terminated', 'failed')),
   variables           TEXT,                  -- 流程变量（JSON）
   checkpoint          TEXT,                  -- 检查点（JSON，延时节点等场景）
   started_by          TEXT,
@@ -544,7 +544,7 @@ CREATE TABLE workflow_tasks (
   assignee_id   TEXT,                        -- 审批人ID
   assignee_name TEXT,
   status        TEXT NOT NULL DEFAULT 'pending'
-                  CHECK (status IN ('pending', 'completed', 'rejected', 'cancelled')),
+                  CHECK (status IN ('pending', 'resolved', 'rejected', 'claimed', 'transferred', 'cancelled')),
   form_data     TEXT,                        -- 审批表单数据（JSON）
   comment       TEXT,                        -- 审批意见
   due_date      TEXT,
@@ -574,6 +574,25 @@ CREATE TABLE workflow_jobs (
   updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 ```
+
+### 用户任务统计（user_task_stats）
+
+用于统计每个用户的待办/已办任务数量，支持管理后台展示。
+
+```sql
+CREATE TABLE user_task_stats (
+  user_id       TEXT PRIMARY KEY,
+  pending       INTEGER NOT NULL DEFAULT 0,    -- 待办数
+  completed     INTEGER NOT NULL DEFAULT 0,    -- 已办数（resolved + rejected）
+  total         INTEGER NOT NULL DEFAULT 0,    -- 总数
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+```
+
+**更新时机**：
+- 任务创建时：`pending += 1, total += 1`
+- 任务完成时：`pending -= 1, completed += 1`
+- 任务驳回时：`pending -= 1, completed += 1`
 
 ---
 
@@ -685,6 +704,7 @@ const diff = await snapshotService.diff(snapshotId1, snapshotId2);
 | **任务认领** | `@low-code/workflow` | ✅ 完成 | WorkflowEngine.claimTask()，竞签模式专用 |
 | **流程实例列表** | `frontend` | ✅ 完成 | WorkflowCenterPage，按应用/状态筛选，对接真实 API |
 | **实例详情/快照查看** | `frontend` | ✅ 完成 | WorkflowInstanceDetailPage，FlowChart + 执行时间线 + 快照详情 |
+| **恢复管理器** | `@low-code/workflow` | ✅ 完成 | RecoveryManager，异常中断流程的恢复（retry/skip/rollback/manual） |
 
 ### API 端点
 
@@ -1155,3 +1175,51 @@ API 路由（租户级）：
 3. `Map<userId, depts[]>` 在内存中按 userId 分组，映射回用户列表
 
 **效果**：100 用户从 101 次查询降为 2 次，数据量越大优化越明显。
+
+---
+
+## 恢复管理器（RecoveryManager）
+
+负责异常中断流程的恢复，支持服务器重启后自动恢复中断的流程。
+
+### 功能
+
+| 方法 | 说明 |
+|------|------|
+| `recover(instanceId)` | 恢复单个流程实例 |
+| `recoverAll()` | 批量恢复所有中断的流程 |
+
+### 恢复策略
+
+| 策略 | 说明 |
+|------|------|
+| `retry` | 重试当前节点（默认） |
+| `skip` | 跳过当前节点，继续执行 |
+| `rollback` | 回滚到上一个检查点 |
+| `manual` | 标记为人工干预 |
+
+### 使用场景
+
+- 服务器重启后，恢复中断的流程
+- 流程执行失败后，从检查点重试
+- 管理后台手动触发恢复
+
+### 示例
+
+```typescript
+import { RecoveryManager } from '@low-code/workflow';
+
+const recoveryManager = new RecoveryManager(db, engine, {
+  maxRetries: 3,
+  retryInterval: 5000,
+  defaultStrategy: 'retry',
+  timeout: 300000, // 5 分钟
+});
+
+// 恢复单个实例
+const instance = await recoveryManager.recover('inst_001');
+
+// 恢复所有中断的流程
+const count = await recoveryManager.recoverAll();
+console.log(`恢复了 ${count} 个流程`);
+```

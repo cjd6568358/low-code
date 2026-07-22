@@ -15,8 +15,8 @@ describe('SnapshotEngine', () => {
   beforeEach(() => {
     mockService = {
       capture: vi.fn().mockResolvedValue({ id: 'snap1' }),
-      getLatest: vi.fn().mockResolvedValue(null),
-      getChain: vi.fn().mockResolvedValue([]),
+      getLatestSnapshot: vi.fn().mockResolvedValue(null),
+      getSnapshotChain: vi.fn().mockResolvedValue([]),
       diff: vi.fn().mockResolvedValue({ changedFields: {} }),
       commitToSourceTable: vi.fn().mockResolvedValue(undefined),
     };
@@ -89,7 +89,7 @@ describe('SnapshotEngine', () => {
     });
   });
 
-  describe('getChain', () => {
+  describe('getSnapshotChain', () => {
     it('应该返回完整快照链', async () => {
       const chain = [
         { id: 'snap1', snapshotType: 'INITIAL', createdAt: '2024-01-01T00:00:00Z' },
@@ -97,9 +97,9 @@ describe('SnapshotEngine', () => {
         { id: 'snap3', snapshotType: 'FINAL', createdAt: '2024-01-01T02:00:00Z' },
       ];
 
-      mockService.getChain = vi.fn().mockResolvedValue(chain);
+      mockService.getSnapshotChain = vi.fn().mockResolvedValue(chain);
 
-      const result = await engine.getChain('inst1');
+      const result = await engine.getSnapshotChain('inst1');
 
       expect(result).toHaveLength(3);
       expect(result[0].snapshotType).toBe('INITIAL');
@@ -107,20 +107,20 @@ describe('SnapshotEngine', () => {
     });
   });
 
-  describe('getLatest', () => {
+  describe('getLatestSnapshot', () => {
     it('应该返回最新快照', async () => {
       const latest = { id: 'snap3', snapshotType: 'NODE_COMPLETE' };
-      mockService.getLatest = vi.fn().mockResolvedValue(latest);
+      mockService.getLatestSnapshot = vi.fn().mockResolvedValue(latest);
 
-      const result = await engine.getLatest('inst1');
+      const result = await engine.getLatestSnapshot('inst1');
 
       expect(result).toEqual(latest);
     });
 
     it('应该返回 undefined 当无快照', async () => {
-      mockService.getLatest = vi.fn().mockResolvedValue(undefined);
+      mockService.getLatestSnapshot = vi.fn().mockResolvedValue(undefined);
 
-      const result = await engine.getLatest('inst1');
+      const result = await engine.getLatestSnapshot('inst1');
 
       expect(result).toBeUndefined();
     });

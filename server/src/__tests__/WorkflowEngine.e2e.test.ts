@@ -207,7 +207,7 @@ describe('WorkflowEngine 端到端测试', () => {
       expect(completedInstance.status).toBe('completed');
 
       // 6. 验证快照已创建
-      const snapshots = await snapshotService.getChain(instance.id);
+      const snapshots = await snapshotService.getSnapshotChain(instance.id);
       expect(snapshots.length).toBeGreaterThanOrEqual(2); // INITIAL + FINAL
     });
 
@@ -239,7 +239,7 @@ describe('WorkflowEngine 端到端测试', () => {
       });
 
       // 验证驳回快照
-      const snapshots = await snapshotService.getChain(instance.id);
+      const snapshots = await snapshotService.getSnapshotChain(instance.id);
       const rejectSnapshot = snapshots.find(s => s.snapshotType === 'NODE_REJECT');
       expect(rejectSnapshot).toBeDefined();
       expect(rejectSnapshot?.comment).toBe('金额不合理');
@@ -313,7 +313,7 @@ describe('WorkflowEngine 端到端测试', () => {
       });
 
       // 验证初始快照
-      const snapshots = await snapshotService.getChain(instance.id);
+      const snapshots = await snapshotService.getSnapshotChain(instance.id);
       expect(snapshots.length).toBeGreaterThanOrEqual(1);
 
       const initialSnapshot = snapshots.find(s => s.snapshotType === 'INITIAL');
@@ -346,7 +346,7 @@ describe('WorkflowEngine 端到端测试', () => {
       });
 
       // 验证变更追踪
-      const snapshots = await snapshotService.getChain(instance.id);
+      const snapshots = await snapshotService.getSnapshotChain(instance.id);
       const completeSnapshot = snapshots.find(s => s.snapshotType === 'NODE_COMPLETE');
       expect(completeSnapshot).toBeDefined();
       expect(completeSnapshot?.changedFields).toBeDefined();

@@ -701,6 +701,25 @@ console.log(status);
 └──────────────────┘
 ```
 
+## 模块位置
+
+自动化引擎的组件分布在两个包中：
+
+| 组件 | 位置 | 说明 |
+|------|------|------|
+| **AutomationEngine** | `server/src/services/AutomationEngine.ts` | 引擎主类，统一编排触发、条件、动作 |
+| **CronScheduler** | `server/src/services/CronScheduler.ts` | 定时调度器 |
+| **TriggerMatcher** | `packages/automation/src/engine/TriggerMatcher.ts` | 触发器匹配 |
+| **ConditionEvaluator** | `packages/automation/src/engine/ConditionEvaluator.ts` | 条件求值 |
+| **Throttler** | `packages/automation/src/engine/Throttler.ts` | 限流控制 |
+| **EffectiveTimeChecker** | `packages/automation/src/engine/EffectiveTimeChecker.ts` | 生效时间检查 |
+| **VariableResolver** | `packages/automation/src/variable/VariableResolver.ts` | 变量插值 |
+| **ExecutionLogger** | `packages/automation/src/logger/ExecutionLogger.ts` | 执行日志 |
+
+**设计思路**：
+- `packages/automation` — 纯逻辑组件，无框架依赖，可独立测试
+- `server/src/services` — 服务端编排层，组装组件并调用流程引擎、数据引擎等
+
 ## 与现有模块的关系
 
 | 模块 | 关系 | 状态 |

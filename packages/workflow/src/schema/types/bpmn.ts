@@ -2,7 +2,7 @@
  * BPMN 2.0 顶层类型定义
  */
 
-import type { Definitions, Process, Collaboration } from '../schema/process';
+import type { Definitions, Process, Collaboration } from '../process';
 import type { FlowNode, Edge } from './nodes';
 
 /** BPMN 文档（简化版，用于 JSON 交换） */
@@ -35,6 +35,8 @@ export interface ProcessDefinition {
   edges: Edge[];
   /** 泳道列表 */
   lanes?: LaneDefinition[];
+  /** 扩展元素 */
+  extensionElements?: Record<string, unknown>;
 }
 
 /** 协作定义 */
@@ -129,7 +131,9 @@ export interface ProcessInstance {
 export type TaskStatus =
   | 'pending'      // 待处理
   | 'completed'    // 已完成
+  | 'resolved'     // 已解决
   | 'rejected'     // 已驳回
+  | 'claimed'      // 已认领
   | 'transferred'  // 已转办
   | 'cancelled'    // 已取消
   | 'timeout';     // 已超时

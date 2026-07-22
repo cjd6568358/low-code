@@ -6,7 +6,7 @@
  */
 
 /** 表字段类型 */
-export type TableFieldType = 'string' | 'number' | 'boolean' | 'date' | 'json' | 'enum';
+export type TableFieldType = 'string' | 'number' | 'boolean' | 'date';
 
 /** 字段来源映射 — 记录该字段由哪个页面组件属性创建 */
 export interface FieldSourceMapping {
@@ -183,7 +183,7 @@ export const COMPONENT_TYPE_TO_FIELD_TYPE: Record<string, TableFieldType> = {
   slider: 'number',
   switch: 'boolean',
   checkbox: 'boolean',
-  upload: 'json',
+  upload: 'string', // 文件URL存储为字符串
 };
 
 /** 数据录入类组件类型集合 — 用于过滤可映射的组件 */

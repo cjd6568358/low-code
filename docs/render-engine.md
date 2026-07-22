@@ -2062,7 +2062,15 @@ const { resolvedProps, loading, errors } = useBindings(
 - 表单预求值时写入，useBindings 读取时命中直接复用
 - 依赖变更时缓存失效，重新求值
 
-**FormPreEvaluator** — 表单预求值器
+**preEvaluateForm** — 表单预求值函数
+
+```typescript
+import { preEvaluateForm } from '@low-code/renderer';
+
+const result = await preEvaluateForm(formId, componentMap, context, expressionEngine);
+// result.fieldValues: Record<string, any> — 预求值结果
+```
+
 - 扫描表单内所有子组件的 expression bindings
 - 按依赖拓扑排序（无 $component 依赖的先求值）
 - 批量求值（同步 safeEvaluate，异步 await evaluateAsync）
@@ -2267,6 +2275,43 @@ interface ActionContext {
 }
 ```
 
+#### ModalStack API
+
+弹框栈管理器，支持多层弹框嵌套，每层弹框关闭时返回结果给调用方。
+
+```typescript
+import { ModalStack } from '@low-code/renderer';
+
+const stack = new ModalStack(onChange);
+```
+
+| 方法/属性 | 说明 |
+|----------|------|
+| `open(resourceType, resourceId, data?)` | 打开弹框，返回 Promise（弹框关闭时 resolve） |
+| `resolve(result?)` | 关闭栈顶弹框并返回结果 |
+| `closeAll()` | 关闭所有弹框（所有 Promise resolve 为 undefined） |
+| `depth` | 获取栈深度（getter） |
+| `topModal` | 获取栈顶信息（getter） |
+| `has(resourceId)` | 检查指定资源是否在栈中 |
+| `clear()` | 清空栈 |
+
+**使用示例**：
+
+```typescript
+// 打开弹框
+const result = await stack.open('page', 'modal_page_001', { orderId: 'order001' });
+console.log(result); // { confirmed: true, data: {...} }
+
+// 弹框内部关闭时返回结果
+stack.resolve({ confirmed: true, data: { amount: 1000 } });
+
+// 多层嵌套
+const result1 = await stack.open('page', 'page_a');  // 第1层
+const result2 = await stack.open('page', 'page_b');  // 第2层
+stack.resolve({ from: 'page_b' });  // 关闭第2层，返回给第2层调用方
+stack.resolve({ from: 'page_a' });  // 关闭第1层，返回给第1层调用方
+```
+
 #### setValues 批量设值
 
 `setValues` 动作支持设置表单字段值和组件属性值：
@@ -2310,6 +2355,28 @@ formRegistry.unregister(formId);  // 同时清理 antd 实例
 ```
 
 **Form.Item name 统一使用组件 ID**：Renderer 渲染时将 `node.id` 注入为 `name` prop（而非 `node.name`），确保 Form.Item 的字段名、form store key、`setValues` 的 component ID 三者一致。
+
+#### FormRegistry API
+
+表单实例注册表，管理页面内所有 Form 组件实例，支持嵌套表单（栈结构）。
+
+| 方法 | 说明 |
+|------|------|
+| `register(formId, manager)` | 注册表单数据管理器 |
+| `registerAntdForm(formId, formInstance)` | 注册 antd Form 实例（用于 setFieldsValue） |
+| `registerResetHandler(formId, handler)` | 注册表单重置处理器 |
+| `unregister(formId)` | 注销表单实例 |
+| `get(formId)` | 获取指定表单的数据管理器 |
+| `getActiveFormId()` | 获取当前活跃表单 ID（栈顶） |
+| `getActiveForm()` | 获取当前活跃表单的数据管理器 |
+| `getFormData(formId?)` | 获取表单数据（扁平值对象） |
+| `getAllForms()` | 获取所有已注册表单 |
+| `hasForms()` | 是否有已注册的表单 |
+| `setFieldValue(fieldName, value, formId?)` | 设置指定表单的字段值 |
+| `resetForm(formId, values)` | 重置表单 |
+| `validateForm(formId?, fields?)` | 校验表单，返回 `{ valid, errors }` |
+| `clearValidate(formId?, fields?)` | 清除校验状态 |
+| `clear()` | 清除所有表单 |
 
 #### invokeMethod 组件方法调用
 
@@ -2382,6 +2449,9 @@ class ComponentMethodRegistry {
 
   /** 获取所有已注册方法（设计时/调试用） */
   listAll(): RegisteredMethod[];
+
+  /** 获取指定组件的方法列表 */
+  listByComponent(componentId: string): RegisteredMethod[];
 
   /** 检查组件是否已注册 */
   hasComponent(componentId: string): boolean;
@@ -2507,6 +2577,45 @@ interface EventActionChainEditorProps {
         │
         ▼
 绑定到组件: <Component onClick={compiledHandler} />
+```
+
+#### EventCompiler API
+
+事件编译器，将 ActionChain JSON 编译为可执行的异步函数。
+
+```typescript
+import { EventCompiler } from '@low-code/renderer';
+
+const compiler = new EventCompiler(actionRegistry, expressionEngine);
+```
+
+| 方法 | 说明 |
+|------|------|
+| `compileEvents(events, baseContext)` | 编译整个事件映射，返回 `Record<string, CompiledEventHandler>` |
+| `compileChains(chains, baseContext)` | 编译多条动作链（同一事件的多条链按顺序执行） |
+| `compileChain(chain, baseContext)` | 编译单条动作链 |
+
+**返回类型**：
+
+```typescript
+type CompiledEventHandler = (event: any, context?: Partial<ActionContext>) => Promise<any>;
+```
+
+**使用示例**：
+
+```typescript
+// 编译单条动作链
+const handler = compiler.compileChain(actionChain, baseContext);
+await handler(event, overrideContext);
+
+// 编译整个事件映射
+const handlers = compiler.compileEvents({
+  onClick: [actionChain1, actionChain2],
+  onChange: [actionChain3],
+}, baseContext);
+
+// 绑定到组件
+<Button onClick={handlers.onClick} />
 ```
 
 #### 条件分支运行时执行
@@ -2870,6 +2979,63 @@ await actionContext.refreshWithDependencyOrder(['dept_select', 'user_select']);
     "propNames": ["options"]
   }
 }
+```
+
+### LinkageEngine API
+
+联动执行引擎，支持六种联动类型：value/options/visible/disabled/required/attribute。
+
+```typescript
+import { LinkageEngine } from '@low-code/renderer';
+
+const engine = new LinkageEngine(expressionEngine);
+```
+
+#### 方法
+
+| 方法 | 说明 |
+|------|------|
+| `init(rules: LinkageRule[])` | 初始化联动规则，构建触发索引和依赖索引 |
+| `setUpdateCallback(callback)` | 设置更新回调（联动结果通过回调通知 UI） |
+| `setApiRequest(fn)` | 设置 API 请求函数（用于 query 联动） |
+| `onFieldChange(fieldName, value, values, options?)` | 字段值变更时触发联动（同步） |
+| `onFieldChangeAsync(fieldName, value, values)` | 字段值变更时触发联动（含异步 query） |
+| `initLinkage(values)` | 初始化联动（页面加载时执行所有规则） |
+| `getAffectedFields(field)` | 获取受某个字段影响的所有字段 |
+
+#### LinkageResult
+
+```typescript
+interface LinkageResult {
+  /** 字段值变更 */
+  valueUpdates: Record<string, any>;
+  /** 字段状态变更（visible/disabled/required） */
+  stateUpdates: Record<string, {
+    visible?: boolean;
+    disabled?: boolean;
+    required?: boolean;
+  }>;
+  /** 字段选项变更 */
+  optionsUpdates: Record<string, Array<{ label: string; value: any }>>;
+  /** 字段属性变更 */
+  attributeUpdates: Record<string, Record<string, any>>;
+}
+```
+
+#### 使用示例
+
+```typescript
+// 初始化
+engine.init(rules);
+engine.setApiRequest(apiClient);
+
+// 字段变更时触发联动
+const result = engine.onFieldChange('province', 'guangdong', formValues);
+console.log(result.valueUpdates);   // { city: ['guangzhou', 'shenzhen'] }
+console.log(result.stateUpdates);   // { company: { visible: true } }
+
+// 页面加载时初始化联动
+const initResult = engine.initLinkage(initialValues);
 ```
 
 ### 统一依赖图

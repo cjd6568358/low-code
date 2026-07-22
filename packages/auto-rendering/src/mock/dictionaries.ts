@@ -41,7 +41,6 @@ const mockDictionaries: Record<string, DictItem[]> = {
     { label: '数字', value: 'number' },
     { label: '布尔', value: 'boolean' },
     { label: '日期', value: 'date' },
-    { label: '枚举', value: 'enum' },
   ],
 };
 
