@@ -24,7 +24,7 @@ import {
 } from '@low-code/shared';
 import { VariableTree } from '@low-code/renderer';
 import type { VariableTreeNode } from '@low-code/renderer';
-import { apiFetch } from '../../../utils/apiClient.js';
+import { apiFetch } from '../../utils/apiClient.js';
 
 const { Text } = Typography;
 

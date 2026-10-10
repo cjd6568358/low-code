@@ -1,9 +1,16 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "outDir": "./dist",
-    "rootDir": "./src"
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "outDir": "dist",
+    "rootDir": "src",
+    "paths": {
+      "@low-code/shared": ["../shared/src"],
+      "@low-code/computation": ["../computation/src"]
+    }
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "tests"]
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
 }

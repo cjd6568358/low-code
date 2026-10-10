@@ -8,6 +8,16 @@ import { describe, it, expect } from 'vitest';
 
 // ─── 内联实现（避免从路由文件导出） ──────────────────────────
 
+/**
+ * 从记录中按字段名读取值
+ *
+ * 聚合函数（SUM/COUNT_DISTINCT）的入参为 `unknown[]`，需要收窄后才能按字段取值。
+ */
+function readField(record: unknown, field: string): unknown {
+  if (typeof record !== 'object' || record === null) return undefined;
+  return (record as Record<string, unknown>)[field];
+}
+
 /** 沙箱执行表达式 */
 function evaluateExpression(
   expression: string,
@@ -33,9 +43,12 @@ function evaluateExpression(
       SUM: (arr: unknown[], field?: string) => {
         if (!Array.isArray(arr)) return 0;
         if (field) {
-          return arr.reduce((sum, item) => sum + (Number(item[field]) || 0), 0);
+          return arr.reduce<number>(
+            (sum, item) => sum + (Number(readField(item, field)) || 0),
+            0,
+          );
         }
-        return arr.reduce((sum, item) => sum + (Number(item) || 0), 0);
+        return arr.reduce<number>((sum, item) => sum + (Number(item) || 0), 0);
       },
       AVG: (arr: unknown[], field?: string) => {
         if (!Array.isArray(arr) || arr.length === 0) return 0;
@@ -61,7 +74,7 @@ function evaluateExpression(
       },
       COUNT_DISTINCT: (arr: unknown[], field?: string) => {
         if (!Array.isArray(arr)) return 0;
-        const values = field ? arr.map((item) => item[field]) : arr;
+        const values = field ? arr.map((item) => readField(item, field)) : arr;
         return new Set(values).size;
       },
 

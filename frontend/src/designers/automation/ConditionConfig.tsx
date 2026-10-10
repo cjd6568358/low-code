@@ -29,12 +29,13 @@ import {
   QuestionCircleOutlined,
   FolderAddOutlined,
 } from '@ant-design/icons';
+import type { AutomationCondition, ConditionOperator, ConditionRule } from '@low-code/automation';
 
 const { Text } = Typography;
 const { Option } = Select;
 
 /** 条件运算符选项 */
-const OPERATORS = [
+const OPERATORS: Array<{ value: ConditionOperator; label: string; requiresValue: boolean }> = [
   { value: 'eq', label: '等于', requiresValue: true },
   { value: 'ne', label: '不等于', requiresValue: true },
   { value: 'gt', label: '大于', requiresValue: true },
@@ -52,27 +53,12 @@ const OPERATORS = [
   { value: 'changed_from', label: '从...变更', requiresValue: true },
 ];
 
-/** 条件规则接口 */
-interface ConditionRule {
-  field: string;
-  operator: string;
-  value?: unknown;
-  valueType?: string;
-}
-
-/** 条件组接口 */
-interface ConditionGroup {
-  logic: 'and' | 'or';
-  rules: ConditionRule[];
-  groups?: ConditionGroup[];
-}
-
 /** 组件属性 */
 export interface ConditionConfigProps {
   /** 条件配置值 */
-  value?: ConditionGroup;
+  value?: AutomationCondition;
   /** 值变更回调 */
-  onChange?: (value: ConditionGroup | undefined) => void;
+  onChange?: (value: AutomationCondition | undefined) => void;
   /** 可选的字段列表 */
   fields?: Array<{ code: string; name: string; type?: string }>;
   /** 是否显示标题 */
@@ -92,11 +78,11 @@ export const ConditionConfig: React.FC<ConditionConfigProps> = ({
   level = 0,
 }) => {
   /** 当前条件组 */
-  const group: ConditionGroup = value || { logic: 'and', rules: [], groups: [] };
+  const group: AutomationCondition = value || { logic: 'and', rules: [], groups: [] };
 
   /** 通知值变更 */
   const handleChange = useCallback(
-    (newGroup: ConditionGroup) => {
+    (newGroup: AutomationCondition) => {
       onChange?.(newGroup);
     },
     [onChange]
@@ -140,7 +126,7 @@ export const ConditionConfig: React.FC<ConditionConfigProps> = ({
 
   /** 添加嵌套条件组 */
   const handleAddGroup = useCallback(() => {
-    const newGroup: ConditionGroup = { logic: 'and', rules: [], groups: [] };
+    const newGroup: AutomationCondition = { logic: 'and', rules: [], groups: [] };
     handleChange({
       ...group,
       groups: [...(group.groups || []), newGroup],
@@ -149,7 +135,7 @@ export const ConditionConfig: React.FC<ConditionConfigProps> = ({
 
   /** 更新嵌套条件组 */
   const handleGroupChange = useCallback(
-    (index: number, newGroup: ConditionGroup | undefined) => {
+    (index: number, newGroup: AutomationCondition | undefined) => {
       const newGroups = [...(group.groups || [])];
       if (newGroup) {
         newGroups[index] = newGroup;
@@ -243,7 +229,7 @@ export const ConditionConfig: React.FC<ConditionConfigProps> = ({
   };
 
   /** 渲染嵌套条件组 */
-  const renderGroup = (nestedGroup: ConditionGroup, index: number) => {
+  const renderGroup = (nestedGroup: AutomationCondition, index: number) => {
     return (
       <Card
         key={index}

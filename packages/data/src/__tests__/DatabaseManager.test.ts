@@ -26,8 +26,10 @@ describe('DatabaseManager', () => {
   afterEach(async () => {
     // 关闭所有连接
     try {
-      manager.close();
-    } catch {}
+      manager.closeAll();
+    } catch {
+      // 忽略关闭异常（连接可能已被上一个用例释放）
+    }
 
     // 等待文件释放
     await new Promise(resolve => setTimeout(resolve, 200));
@@ -74,9 +76,13 @@ describe('DatabaseManager', () => {
         "SELECT name FROM sqlite_master WHERE type='table'"
       ).all();
 
-      const tableNames = tables.map((t: any) => t.name);
+      const tableNames = tables.map((t) => (t as { name: string }).name);
       expect(tableNames).toContain('platform_admins');
-      expect(tableNames).toContain('global_dictionaries');
+      expect(tableNames).toContain('plans');
+      // 全局字典已迁移为 JSON 文件（data/dictionaries/），系统库不再有对应表
+      expect(tableNames).not.toContain('global_dictionaries');
+      // 租户数据源已迁移至文件系统，系统库不再有 tenants 表
+      expect(tableNames).not.toContain('tenants');
     });
   });
 

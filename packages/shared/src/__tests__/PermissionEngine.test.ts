@@ -25,7 +25,7 @@ class MockRoleRegistry implements RoleRegistry {
     return [...this.roles.values()];
   }
 
-  getRolesByLevel(level: string): Role[] {
+  getRolesByLevel(level: Role['level']): Role[] {
     return this.getAllRoles().filter(r => r.level === level);
   }
 
@@ -42,6 +42,12 @@ class MockRoleRegistry implements RoleRegistry {
 
   unregisterRole(roleId: string): boolean {
     return this.roles.delete(roleId);
+  }
+
+  registerRoles(roles: Role[]): void {
+    for (const role of roles) {
+      this.registerRole(role);
+    }
   }
 }
 
@@ -94,10 +100,10 @@ describe('PermissionEngine', () => {
       baseRoleIds: ['viewer'],
       permissions: [
         {
-          permissionId: 'perm_report_write',
+          permissionId: 'perm_report_update',
           resourceType: 'menu',
           resourceId: 'report',
-          actions: ['read', 'write'],
+          actions: ['read', 'update'],
         },
         {
           permissionId: 'perm_delete_btn',
@@ -129,7 +135,7 @@ describe('PermissionEngine', () => {
       const reportPerm = perms.find(p => p.resourceId === 'report');
       expect(reportPerm).toBeDefined();
       expect(reportPerm!.actions).toContain('read');
-      expect(reportPerm!.actions).toContain('write');
+      expect(reportPerm!.actions).toContain('update');
     });
 
     it('应该继承 department_default 权限', () => {
@@ -147,7 +153,7 @@ describe('PermissionEngine', () => {
       const reportPerm = perms.find(p => p.resourceId === 'report');
       expect(reportPerm).toBeDefined();
       expect(reportPerm!.sourceRoleId).toBe('editor');
-      expect(reportPerm!.actions).toContain('write');
+      expect(reportPerm!.actions).toContain('update');
     });
 
     it('应该防止循环继承', () => {
@@ -183,7 +189,7 @@ describe('PermissionEngine', () => {
       const reportPerm = perms.find(p => p.resourceId === 'report');
       expect(reportPerm).toBeDefined();
       expect(reportPerm!.actions).toContain('read');
-      expect(reportPerm!.actions).toContain('write');
+      expect(reportPerm!.actions).toContain('update');
     });
 
     it('应该自动包含 department_default 角色', () => {
@@ -210,7 +216,7 @@ describe('PermissionEngine', () => {
 
     it('应该返回 false 当无权限时', () => {
       const perms = engine.resolveUserPermissions(['viewer']);
-      const hasPerm = engine.hasPermission(perms, 'menu', 'report', 'write');
+      const hasPerm = engine.hasPermission(perms, 'menu', 'report', 'update');
       expect(hasPerm).toBe(false);
     });
 
@@ -225,7 +231,7 @@ describe('PermissionEngine', () => {
             permissionId: 'perm_all_menu',
             resourceType: 'menu',
             resourceId: '*',
-            actions: ['read', 'write', 'delete'],
+            actions: ['read', 'update', 'delete'],
           },
         ],
         isBuiltin: false,
@@ -348,7 +354,7 @@ describe('PermissionEngine', () => {
       const context = engine.buildPermissionContext(perms);
 
       expect(context.has('menu', 'report', 'read')).toBe(true);
-      expect(context.has('menu', 'report', 'write')).toBe(true);
+      expect(context.has('menu', 'report', 'update')).toBe(true);
       expect(context.has('button', 'deleteBtn', 'delete')).toBe(true);
     });
 
@@ -372,7 +378,7 @@ describe('PermissionEngine', () => {
       const context = engine.buildPermissionContext(perms);
 
       expect(context.hasAny('menu', 'report', ['read', 'delete'])).toBe(true);
-      expect(context.hasAny('menu', 'report', ['delete', 'update'])).toBe(false);
+      expect(context.hasAny('menu', 'report', ['delete', 'publish'])).toBe(false);
     });
 
     it('getResourceIds 应该返回指定类型的所有资源 ID', () => {

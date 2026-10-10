@@ -33,7 +33,7 @@ import {
   ClockCircleOutlined,
   RightOutlined,
 } from '@ant-design/icons';
-import { apiFetch } from '../../../utils/apiClient.js';
+import { apiFetch } from '../../utils/apiClient.js';
 
 const { Text, Paragraph } = Typography;
 const { Option } = Select;
@@ -392,7 +392,7 @@ export const AutomationLogViewer: React.FC<AutomationLogViewerProps> = ({
                         <Text type="danger">{result.error}</Text>
                       </div>
                     )}
-                    {result.result && (
+                    {result.result !== undefined && result.result !== null && (
                       <div style={{ marginTop: 4 }}>
                         <Text code style={{ fontSize: 12 }}>
                           {JSON.stringify(result.result)}

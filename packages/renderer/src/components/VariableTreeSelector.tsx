@@ -36,21 +36,19 @@ interface MismatchState {
   message: string;
 }
 
-/** 组件变量树选择器属性 */
-export interface VariableTreeSelectorProps {
+/** 单条变量绑定结果 */
+export interface VariableBindingResult {
+  type: 'variable';
+  value: string;
+}
+
+/** 变量树选择器公共属性 */
+interface VariableTreeSelectorBaseProps {
   visible: boolean;
   /** 选中值（单选时为变量路径字符串） */
   value?: string;
-  /** 单选/多选模式 */
-  multiSelect?: boolean;
   /** 多选初始值（变量路径数组） */
   initialSelectedKeys?: string[];
-  /** 确认回调。单选返回 { type: 'variable', value }，多选返回数组 */
-  onChange: (
-    value:
-      | { type: 'variable'; value: string }
-      | Array<{ type: 'variable'; value: string }>,
-  ) => void;
   onClear: () => void;
   onClose: () => void;
   /** 页面 ID（用于获取组件定义注入 $component，与 pageComponents 二选一） */
@@ -68,6 +66,31 @@ export interface VariableTreeSelectorProps {
   /** 仅叶子节点可选（默认 false） */
   leafOnly?: boolean;
 }
+
+/**
+ * 单选模式属性
+ *
+ * onChange 只接收单个变量绑定，调用方无需再判断数组分支。
+ */
+export interface SingleVariableTreeSelectorProps extends VariableTreeSelectorBaseProps {
+  /** 单选模式（默认） */
+  multiSelect?: false;
+  /** 确认回调，返回单个变量绑定 */
+  onChange: (value: VariableBindingResult) => void;
+}
+
+/** 多选模式属性：onChange 接收变量绑定数组 */
+export interface MultiVariableTreeSelectorProps extends VariableTreeSelectorBaseProps {
+  /** 多选模式 */
+  multiSelect: true;
+  /** 确认回调，返回变量绑定数组 */
+  onChange: (value: VariableBindingResult[]) => void;
+}
+
+/** 组件变量树选择器属性 */
+export type VariableTreeSelectorProps =
+  | SingleVariableTreeSelectorProps
+  | MultiVariableTreeSelectorProps;
 
 // ─── 样式常量 ──────────────────────────────────────────
 
@@ -244,7 +267,6 @@ export function VariableTreeSelector(props: VariableTreeSelectorProps) {
     value = '',
     multiSelect = false,
     initialSelectedKeys = [],
-    onChange,
     onClear,
     onClose,
     pageId,
@@ -257,6 +279,16 @@ export function VariableTreeSelector(props: VariableTreeSelectorProps) {
   } = props;
 
   // ─── 状态 ─────────────────────────────────────────────
+
+  /**
+   * 确认回调
+   *
+   * 组件内部需要同时支持单选/多选两种签名，而对外 Props 用判别联合收紧，
+   * 因此在此处统一为可接收两种结果的函数类型。
+   */
+  const emitChange = props.onChange as (
+    result: VariableBindingResult | VariableBindingResult[],
+  ) => void;
 
   const [inputValue, setInputValue] = useState(() => {
     if (typeof value === 'string') return value;
@@ -365,22 +397,22 @@ export function VariableTreeSelector(props: VariableTreeSelectorProps) {
         type: 'variable' as const,
         value: key,
       }));
-      onChange(result);
+      emitChange(result);
       onClose();
       return;
     }
 
     if (!validateType(inputValue)) return;
 
-    onChange({ type: 'variable', value: inputValue });
+    emitChange({ type: 'variable', value: inputValue });
     onClose();
-  }, [multiSelect, selectedKeys, inputValue, validateType, onChange, onClose]);
+  }, [multiSelect, selectedKeys, inputValue, validateType, emitChange, onClose]);
 
   const handleMismatchContinue = useCallback(() => {
     setMismatchInfo(null);
-    onChange({ type: 'variable', value: inputValue });
+    emitChange({ type: 'variable', value: inputValue });
     onClose();
-  }, [inputValue, onChange, onClose]);
+  }, [inputValue, emitChange, onClose]);
 
   const handleMismatchCancel = useCallback(() => setMismatchInfo(null), []);
 

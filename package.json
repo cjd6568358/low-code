@@ -11,12 +11,15 @@
     "server": "yarn workspace @low-code/server dev",
     "start:all": "node scripts/start-dev.mjs",
     "start": "node scripts/start-dev.mjs",
-    "build": "yarn workspaces foreach -A run build",
-    "test": "yarn workspaces foreach -A run test",
+    "build": "yarn workspaces foreach -A --exclude . run build",
+    "test": "yarn workspaces foreach -A --exclude . run test",
+    "typecheck": "tsc --noEmit -p server/tsconfig.json && tsc --noEmit -p frontend/tsconfig.json && tsc --noEmit -p packages/data/tsconfig.json",
     "lint": "yarn workspaces foreach -A run lint"
   },
   "devDependencies": {
     "concurrently": "^8.2.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
     "typescript": "^5.4.0",
     "typescript-json-schema": "^0.67.4",
     "vitest": "^2.0.0"

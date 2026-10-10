@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import type { BpmnDocument, FlowNode, Edge } from '@low-code/workflow';
+import type { BpmnDocument, FlowNode, Edge, UserTask } from '@low-code/workflow';
 import type { INode } from 'react-flow-builder';
 
 /**
@@ -358,7 +358,7 @@ describe('useBpmnConverter', () => {
               id: 'approval1',
               $type: 'bpmn:UserTask',
               name: '审批1',
-              assignee: 'user1',
+              assignee: { type: 'user', userIds: ['user1'] },
               candidateUsers: ['user2', 'user3'],
             },
             { id: 'end', $type: 'bpmn:EndEvent', name: '结束' },
@@ -374,7 +374,7 @@ describe('useBpmnConverter', () => {
       const approvalNode = result[0].children![0];
 
       expect(approvalNode.data).toBeDefined();
-      expect(approvalNode.data!.assignee).toBe('user1');
+      expect(approvalNode.data!.assignee).toEqual({ type: 'user', userIds: ['user1'] });
       expect(approvalNode.data!.candidateUsers).toEqual(['user2', 'user3']);
     });
   });
@@ -497,7 +497,7 @@ describe('useBpmnConverter', () => {
               name: '审批1',
               type: 'approval',
               data: {
-                assignee: 'user1',
+                assignee: { type: 'user', userIds: ['user1'] },
                 candidateUsers: ['user2', 'user3'],
               },
             },
@@ -509,8 +509,8 @@ describe('useBpmnConverter', () => {
       const approvalNode = result.processes[0].nodes.find(n => n.id === 'approval1');
 
       expect(approvalNode).toBeDefined();
-      expect((approvalNode as any).assignee).toBe('user1');
-      expect((approvalNode as any).candidateUsers).toEqual(['user2', 'user3']);
+      expect((approvalNode as UserTask).assignee).toEqual({ type: 'user', userIds: ['user1'] });
+      expect((approvalNode as UserTask).candidateUsers).toEqual(['user2', 'user3']);
     });
   });
 

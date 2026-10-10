@@ -2,7 +2,8 @@
  * 节点执行器基类
  */
 
-import type { FlowNode, Edge } from '../schema';
+import type { FlowNode, Edge, SequenceFlow } from '../schema';
+import { isSequenceFlow } from '../schema';
 import type {
   NodeExecutor,
   ExecutionContext,
@@ -52,13 +53,14 @@ export abstract class NodeExecutorBase implements NodeExecutor {
     );
 
     return outgoingEdges
-      .map((edge: Edge) => {
+      .filter(isSequenceFlow)
+      .map((edge: SequenceFlow) => {
         const targetNode = definition.nodes.find((n: FlowNode) => n.id === edge.targetRef);
         if (!targetNode) return null;
         const info: NextNodeInfo = {
           node: targetNode,
           edge,
-          conditionExpression: (edge as any).conditionExpression?.body as string | undefined,
+          conditionExpression: edge.conditionExpression?.body,
         };
         return info;
       })

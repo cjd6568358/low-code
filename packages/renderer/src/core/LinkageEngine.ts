@@ -258,7 +258,7 @@ export class LinkageEngine {
         // 依赖型选项：根据触发字段值过滤/生成选项
         if (rule.staticOptions) {
           result.optionsUpdates[targetField] = rule.staticOptions.filter(
-            (opt: any) => opt.dependsOn === undefined || opt.dependsOn === triggerValue,
+            opt => opt.dependsOn === undefined || opt.dependsOn === triggerValue,
           );
         }
         break;

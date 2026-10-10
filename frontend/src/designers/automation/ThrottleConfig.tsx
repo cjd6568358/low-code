@@ -29,6 +29,7 @@ import {
   ClockCircleOutlined,
 } from '@ant-design/icons';
 import type { Dayjs } from 'dayjs';
+import type { EffectiveTimeConfig, ThrottleConfig as ThrottleConfigData, TimeRange } from '@low-code/automation';
 
 const { Text } = Typography;
 const { Option } = Select;
@@ -44,26 +45,6 @@ const DAYS_OF_WEEK = [
   { value: 6, label: '周六' },
 ];
 
-/** 时段配置接口 */
-interface TimeRange {
-  daysOfWeek: number[];
-  startTime: string;
-  endTime: string;
-}
-
-/** 限流配置接口 */
-interface ThrottleConfigData {
-  cooldownSeconds: number;
-  maxDailyTriggers?: number;
-}
-
-/** 生效时间配置接口 */
-interface EffectiveTimeConfigData {
-  start?: string;
-  end?: string;
-  timeRanges?: TimeRange[];
-}
-
 /** 组件属性 */
 export interface ThrottleConfigProps {
   /** 限流配置 */
@@ -71,9 +52,9 @@ export interface ThrottleConfigProps {
   /** 限流配置变更回调 */
   onThrottleChange?: (config: ThrottleConfigData | undefined) => void;
   /** 生效时间配置 */
-  effectiveTime?: EffectiveTimeConfigData;
+  effectiveTime?: EffectiveTimeConfig;
   /** 生效时间配置变更回调 */
-  onEffectiveTimeChange?: (config: EffectiveTimeConfigData | undefined) => void;
+  onEffectiveTimeChange?: (config: EffectiveTimeConfig | undefined) => void;
 }
 
 /**

@@ -97,7 +97,7 @@ function createTestProcessDefinition(): BpmnDocument {
           id: 'task1',
           $type: 'bpmn:UserTask',
           name: '审批',
-          assignee: 'user1',
+          assignee: { type: 'user', userIds: ['user1'] },
           incoming: ['flow1'],
           outgoing: ['flow2'],
         },
@@ -143,7 +143,7 @@ function createConditionalProcessDefinition(): BpmnDocument {
           id: 'task_a',
           $type: 'bpmn:UserTask',
           name: '审批A',
-          assignee: 'userA',
+          assignee: { type: 'user', userIds: ['userA'] },
           incoming: ['flow2'],
           outgoing: ['flow4'],
         },
@@ -151,7 +151,7 @@ function createConditionalProcessDefinition(): BpmnDocument {
           id: 'task_b',
           $type: 'bpmn:UserTask',
           name: '审批B',
-          assignee: 'userB',
+          assignee: { type: 'user', userIds: ['userB'] },
           incoming: ['flow3'],
           outgoing: ['flow5'],
         },
@@ -522,7 +522,7 @@ describe('UserTaskExecutor', () => {
         id: 'task1',
         $type: 'bpmn:UserTask',
         name: '审批',
-        assignee: 'user1',
+        assignee: { type: 'user', userIds: ['user1'] },
       };
 
       const config = executor.getNodeConfig(node as any);

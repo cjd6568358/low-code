@@ -5,8 +5,18 @@
  * 支持空白创建和从页面组件快速创建，保留组件映射关系用于后续同步。
  */
 
-/** 表字段类型 */
-export type TableFieldType = 'string' | 'number' | 'boolean' | 'date';
+/**
+ * 表字段类型
+ *
+ * 映射到 SQLite 存储类型：
+ * - `string`  → TEXT
+ * - `number`  → INTEGER
+ * - `boolean` → INTEGER（0/1）
+ * - `date`    → TEXT（ISO8601 字符串，与数据层规范一致）
+ * - `enum`    → TEXT + CHECK 约束
+ * - `json`    → TEXT（应用层 parse/stringify）
+ */
+export type TableFieldType = 'string' | 'number' | 'boolean' | 'date' | 'enum' | 'json';
 
 /** 字段来源映射 — 记录该字段由哪个页面组件属性创建 */
 export interface FieldSourceMapping {
@@ -54,6 +64,19 @@ export interface DateFieldConstraints {
 export interface EnumFieldConstraints {
   /** 枚举值列表 */
   values: Array<{ label: string; value: string }>;
+  /**
+   * 是否在数据库层生成 CHECK 约束
+   *
+   * 默认 true —— 枚举值集合稳定时由 SQLite 兜底校验；
+   * 若枚举选项会频繁调整（改约束需重建表），可设为 false 仅做应用层校验。
+   */
+  enforceInDb?: boolean;
+}
+
+/** JSON 字段约束 */
+export interface JsonFieldConstraints {
+  /** JSON 根类型（默认 any） */
+  rootType?: 'object' | 'array' | 'any';
 }
 
 /** 字段约束 — 按 fieldType 区分 */
@@ -61,7 +84,8 @@ export type FieldConstraints =
   | StringFieldConstraints
   | NumberFieldConstraints
   | DateFieldConstraints
-  | EnumFieldConstraints;
+  | EnumFieldConstraints
+  | JsonFieldConstraints;
 
 /** 字段校验规则 */
 export interface ValidationRule {
@@ -170,7 +194,7 @@ export const COMPONENT_TYPE_TO_FIELD_TYPE: Record<string, TableFieldType> = {
   textarea: 'string',
   text: 'string',
   radio: 'string',
-  datepicker: 'string',
+  datepicker: 'date',
   timepicker: 'string',
   colorpicker: 'string',
   autocomplete: 'string',
@@ -186,8 +210,6 @@ export const COMPONENT_TYPE_TO_FIELD_TYPE: Record<string, TableFieldType> = {
   upload: 'string', // 文件URL存储为字符串
 };
 
-/** 数据录入类组件类型集合 — 用于过滤可映射的组件 */
-
 /** 默认系统字段 — 主键 id（自增 INTEGER） */
 export const SYSTEM_ID_COLUMN: TableColumn = {
   id: 'sys_id',
@@ -197,6 +219,8 @@ export const SYSTEM_ID_COLUMN: TableColumn = {
   description: '主键（自增）',
   system: true,
 };
+
+/** 数据录入类组件类型集合 — 用于过滤可映射的组件 */
 export const DATA_ENTRY_COMPONENT_TYPES = new Set([
   'input', 'textarea', 'number', 'select', 'radio',
   'checkbox', 'switch', 'datepicker', 'timepicker',

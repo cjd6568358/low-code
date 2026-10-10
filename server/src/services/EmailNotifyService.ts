@@ -5,6 +5,7 @@
  */
 
 import type { NotifyService, NotifyParams } from '@low-code/workflow';
+import type { Transporter } from 'nodemailer';
 
 /** 邮件配置 */
 export interface EmailConfig {
@@ -38,7 +39,8 @@ export interface UserEmailResolver {
 export class EmailNotifyService implements NotifyService {
   private config: EmailConfig;
   private emailResolver: UserEmailResolver;
-  private transporter: any; // nodemailer Transporter
+  /** 邮件传输器（nodemailer 未安装时保持 undefined，自动降级为控制台输出） */
+  private transporter?: Transporter;
 
   constructor(config: EmailConfig, emailResolver: UserEmailResolver) {
     this.config = config;

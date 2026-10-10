@@ -23,12 +23,27 @@ export interface ExpressionEngine {
   analyzeDependencies(expression: string): string[];
   /** 安全求值（带超时） */
   safeEvaluate(expression: string, context: Record<string, unknown>, timeout?: number): Promise<unknown>;
+  /**
+   * 同步安全求值（不带超时控制）
+   *
+   * 供渲染路径、联动、跨字段校验等**同步**上下文使用。
+   *
+   * 注意：同步执行无法中断，禁止用于不可信表达式的沙箱场景 ——
+   * 需要超时/硬杀保护时使用 `safeEvaluate`。
+   */
+  safeEvaluateSync(expression: string, context: Record<string, unknown>): unknown;
   /** 异步求值（接受字符串或 ExpressionBinding） */
   evaluateAsync(expression: string | ExpressionBinding, context: Record<string, unknown>, timeout?: number): Promise<unknown>;
   /** 解析模板字符串中的 {{path}} 变量 */
   resolveTemplate(template: string, context: Record<string, unknown>): string;
   /** 递归解析模板参数对象中的 {{path}} 变量 */
   resolveTemplateParams(params: Record<string, unknown>, context: Record<string, unknown>): Record<string, unknown>;
+  /**
+   * 释放引擎占用的资源（销毁沙箱 worker 池）
+   *
+   * 可选实现：服务端退出、测试收尾时调用，避免 worker 线程阻止进程退出。
+   */
+  dispose?(): Promise<void>;
 }
 
 /** 表达式校验错误 */
@@ -174,9 +189,10 @@ export class DefaultExpressionEngine implements ExpressionEngine {
 
     // 两端共用同一 worker 文件，运行时自动适配
     const workerUrl = new URL('./expression-worker.ts', import.meta.url);
-    this.pool = pool(workerUrl.href, { workerType: 'thread' });
+    const created = pool(workerUrl.href, { workerType: 'thread' });
+    this.pool = created;
 
-    return this.pool!;
+    return created;
   }
 
   /**
@@ -272,8 +288,13 @@ export class DefaultExpressionEngine implements ExpressionEngine {
   /**
    * 安全求值（带超时控制）
    *
-   * 通过 workerpool 在独立线程执行表达式，超时时 pool.terminate() 硬杀。
+   * 通过 workerpool 在独立线程执行表达式，超时后 `pool.terminate(true)` 硬杀线程。
    * Node.js 和浏览器统一使用相同 API，无环境分支。
+   *
+   * 重要：不使用 workerpool 的 `exec` 自带超时选项，而是显式 `Promise.race`。
+   * 原因有两点：
+   * 1. workerpool v10 已移除 `ExecOptions.timeout`，v9 才支持，依赖版本漂移会静默失效；
+   * 2. 只有 `terminate(true)` 才能真正杀死 `while(true){}` 这类同步死循环。
    *
    * @param expression 表达式内容
    * @param context 上下文变量
@@ -285,25 +306,64 @@ export class DefaultExpressionEngine implements ExpressionEngine {
     const timeoutMs = timeout ?? this.options.defaultTimeout;
     const poolInstance = await this.getPool();
 
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
     try {
-      return await poolInstance.exec('evaluate', [
+      const execution = poolInstance.exec('evaluate', [
         expression,
         Object.keys(context),
         Object.values(context),
-      ], { timeout: timeoutMs });
+      ]) as Promise<unknown>;
+
+      // 超时分支：任务本身不会被中断，因此这里必须吞掉它的失败，
+      // 避免 terminate 之后产生 unhandled rejection。
+      execution.catch(() => undefined);
+
+      const timeoutPromise = new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => {
+          reject(this.createError('timeout', `表达式求值超时（${timeoutMs}ms）`));
+        }, timeoutMs);
+      });
+
+      return await Promise.race([execution, timeoutPromise]);
     } catch (err) {
-      const message = (err as Error).message;
-      if (message.includes('Timeout') || message.includes('timeout')) {
-        // 超时后 worker 已被杀死，销毁 pool 以便下次重建
-        await poolInstance.terminate(true);
-        this.pool = null;
-        throw this.createError('timeout', `表达式求值超时（${timeoutMs}ms）`);
+      if ((err as ExpressionError).type === 'timeout') {
+        // 同步死循环只能靠销毁线程终止，销毁后下次调用重建 pool
+        await this.disposePool();
+        throw err;
       }
       if ((err as ExpressionError).type) throw err;
+      const message = (err as Error).message;
       throw this.createError('runtime', message);
     } finally {
+      if (timer !== undefined) clearTimeout(timer);
       this.exitDepth();
     }
+  }
+
+  /**
+   * 销毁 worker 池
+   *
+   * 超时硬杀或显式释放时调用，销毁后下一次 `safeEvaluate` 会重建池。
+   */
+  private async disposePool(): Promise<void> {
+    const poolInstance = this.pool;
+    if (!poolInstance) return;
+    this.pool = null;
+    try {
+      await poolInstance.terminate(true);
+    } catch {
+      // 线程可能已被超时机制销毁，忽略重复终止错误
+    }
+  }
+
+  /**
+   * 释放表达式引擎占用的资源（销毁 worker 池）
+   *
+   * 服务端进程退出、测试收尾时调用，避免 worker 线程阻止进程退出。
+   */
+  async dispose(): Promise<void> {
+    await this.disposePool();
   }
 
   /**

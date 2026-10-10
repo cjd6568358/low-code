@@ -74,8 +74,12 @@ export interface RoleInfo {
 export interface UserSelectorProps {
   /** 当前值（用户ID 或 ID数组） */
   value?: string | string[];
-  /** 值变更回调 */
-  onChange?: (value: string | string[]) => void;
+  /**
+   * 值变更回调
+   *
+   * 单选模式下清空选择时回调 `undefined`，与 antd 受控组件的清空语义一致。
+   */
+  onChange?: (value: string | string[] | undefined) => void;
   /** 选择模式 */
   mode?: 'single' | 'multiple';
   /** 筛选条件 */

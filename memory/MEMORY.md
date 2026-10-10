@@ -5,6 +5,7 @@
 - [表单运行时架构](form-runtime-architecture.md) — FormDataContext/LinkageEngine/EventBridge/ModalStack
 - [流程引擎快照设计](workflow-node-snapshot.md) — 节点流出快照、数据归属、变更追踪
 - [2026-06-13 门户应用](session-2026-06-13-portal.md) — 登录页、认证系统、设计器合并、山水集团种子数据、server 分层
+- [2026-10-09 类型系统与契约修复](session-2026-10-09-hardening.md) — 构建链修复、跨层数据契约纠错、草稿暂存闭环
 - [需求同步文档](sync-requirements-to-docs.md) — 所有会话需求必须同步到对应文档，不能遗漏
 - [遇事不决先问](ask-before-deciding.md) — 没有明确指示的方案不要自行决定，先问用户
 - [禁止 any 类型](no-any-strict-types.md) — 类型系统是核心机制，遇到类型问题必须询问，不能私自用 any

@@ -21,9 +21,31 @@ import type {
 } from '@low-code/workflow';
 import { FileDatabaseAdapter } from './FileDatabaseAdapter.js';
 import { FileSnapshotService } from './FileSnapshotService.js';
+import { TenantDataSourceResolver } from './WorkflowDataSource.js';
 import { TENANTS_DIR } from '../config/index.js';
 import { getDbManager } from '../config/db.js';
 import path from 'path';
+
+/**
+ * 将 SQLite 查询结果行收窄为用户解析结果
+ *
+ * 查询语句显式选取 `user_id AS id, name`，行结构由 SQL 保证；
+ * 这里做一次类型收窄，避免对查询结果做不安全断言。
+ *
+ * @param rows 查询结果行
+ * @returns 用户解析结果列表
+ */
+function rowsToResolvedUsers(rows: Array<Record<string, unknown>>): ResolvedUser[] {
+  const users: ResolvedUser[] = [];
+  for (const row of rows) {
+    const id = row.id;
+    const name = row.name;
+    if (typeof id === 'string' && typeof name === 'string') {
+      users.push({ id, name });
+    }
+  }
+  return users;
+}
 
 /**
  * 租户用户解析器
@@ -48,9 +70,9 @@ class TenantUserResolver implements UserResolver {
       FROM users u
       JOIN user_roles ur ON ur.user_id = u.user_id
       WHERE ur.role_id IN (${placeholders}) AND u.status = 'active'
-    `).all(...roleIds) as ResolvedUser[];
+    `).all(...roleIds);
 
-    return rows;
+    return rowsToResolvedUsers(rows);
   }
 
   async findByDepartments(deptIds: string[]): Promise<ResolvedUser[]> {
@@ -63,9 +85,9 @@ class TenantUserResolver implements UserResolver {
       FROM users u
       JOIN user_departments ud ON ud.user_id = u.user_id
       WHERE ud.dept_id IN (${placeholders}) AND u.status = 'active'
-    `).all(...deptIds) as ResolvedUser[];
+    `).all(...deptIds);
 
-    return rows;
+    return rowsToResolvedUsers(rows);
   }
 
   async findByPositions(positionIds: string[]): Promise<ResolvedUser[]> {
@@ -78,9 +100,9 @@ class TenantUserResolver implements UserResolver {
       FROM users u
       JOIN user_departments ud ON ud.user_id = u.user_id
       WHERE ud.position_id IN (${placeholders}) AND u.status = 'active'
-    `).all(...positionIds) as ResolvedUser[];
+    `).all(...positionIds);
 
-    return rows;
+    return rowsToResolvedUsers(rows);
   }
 
   async findByIds(userIds: string[]): Promise<ResolvedUser[]> {
@@ -92,9 +114,9 @@ class TenantUserResolver implements UserResolver {
       SELECT user_id AS id, name
       FROM users
       WHERE user_id IN (${placeholders}) AND status = 'active'
-    `).all(...userIds) as ResolvedUser[];
+    `).all(...userIds);
 
-    return rows;
+    return rowsToResolvedUsers(rows);
   }
 }
 
@@ -122,10 +144,17 @@ export class WorkflowService {
       const dirName = tenantId.startsWith('tenant_') ? tenantId : `tenant_${tenantId}`;
       const userResolver = new TenantUserResolver(dirName);
 
+      // 创建业务数据源解析器 — 数据操作节点通过它访问租户动态表
+      const dataSourceResolver = new TenantDataSourceResolver(
+        getDbManager().getTenantDb(dirName),
+        dirName,
+      );
+
       const engine = new WorkflowEngine({
         db,
         snapshotService,
         userResolver,
+        dataSourceResolver,
       });
 
       this.instances.set(key, engine);
@@ -216,71 +245,22 @@ export class WorkflowService {
 
   /**
    * 转办任务
+   *
+   * 委托给引擎的 transfer()：取消原任务并为目标人创建新任务。
    */
   static async transfer(tenantId: string, appId: string, params: TransferParams): Promise<TaskRecord> {
     const engine = await this.getEngine(tenantId, appId);
-
-    // 获取任务
-    const task = await engine.getTask(params.taskId);
-    if (!task) {
-      throw new WorkflowError('TASK_NOT_FOUND', `任务不存在: ${params.taskId}`);
-    }
-
-    // 更新任务的审批人
-    const db = (engine as any).db;
-    await db.run(
-      'UPDATE workflow_tasks SET assignee_id = ?, assignee_name = ? WHERE id = ?',
-      [params.targetUserId, params.targetUserName || '', params.taskId]
-    );
-
-    // 返回更新后的任务
-    return {
-      ...task,
-      assigneeId: params.targetUserId,
-      assigneeName: params.targetUserName,
-    };
+    return await engine.transfer(params);
   }
 
   /**
    * 加签
+   *
+   * 委托给引擎的 addSign()，支持 before/after/parallel 三种加签类型。
    */
   static async addSign(tenantId: string, appId: string, params: AddSignParams): Promise<TaskRecord[]> {
     const engine = await this.getEngine(tenantId, appId);
-
-    // 获取原任务
-    const task = await engine.getTask(params.taskId);
-    if (!task) {
-      throw new WorkflowError('TASK_NOT_FOUND', `任务不存在: ${params.taskId}`);
-    }
-
-    // 为每个加签人创建新任务
-    const newTasks: TaskRecord[] = [];
-    const db = (engine as any).db;
-
-    for (let i = 0; i < params.assigneeIds.length; i++) {
-      const assigneeId = params.assigneeIds[i];
-      const assigneeName = params.assigneeNames?.[i] || '';
-
-      const newTask = {
-        id: `task_${Date.now()}_${i}`,
-        instanceId: task.instanceId,
-        nodeId: task.nodeId,
-        nodeName: task.nodeName,
-        assigneeId,
-        assigneeName,
-        status: 'pending',
-        createdAt: new Date().toISOString(),
-      };
-
-      await db.run(
-        'INSERT INTO workflow_tasks (id, instance_id, node_id, node_name, assignee_id, assignee_name, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [newTask.id, newTask.instanceId, newTask.nodeId, newTask.nodeName, newTask.assigneeId, newTask.assigneeName, newTask.status, newTask.createdAt]
-      );
-
-      newTasks.push(newTask as TaskRecord);
-    }
-
-    return newTasks;
+    return await engine.addSign(params);
   }
 
   /**

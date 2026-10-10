@@ -66,7 +66,7 @@ describe('EnvironmentRegistry', () => {
       const def = registry.getDefinition('$user');
       expect(def).toBeDefined();
       expect(def!.name).toBe('$user');
-      expect(def!.properties.length).toBeGreaterThan(0);
+      expect(def!.properties?.length ?? 0).toBeGreaterThan(0);
     });
 
     it('应该包含 $platform 内建变量', () => {
@@ -136,8 +136,8 @@ describe('EnvironmentRegistry', () => {
       const def = registry.getDefinition('$component');
       expect(def).toBeDefined();
 
-      const inputProp = def!.properties.find(p => p.name === 'input1');
-      const tableProp = def!.properties.find(p => p.name === 'table1');
+      const inputProp = (def!.properties ?? []).find(p => p.name === 'input1');
+      const tableProp = (def!.properties ?? []).find(p => p.name === 'table1');
       expect(inputProp).toBeDefined();
       expect(tableProp).toBeDefined();
     });
@@ -153,8 +153,8 @@ describe('EnvironmentRegistry', () => {
       const def = registry.getDefinition('$data');
       expect(def).toBeDefined();
 
-      const ds1Prop = def!.properties.find(p => p.name === 'ds1');
-      const ds2Prop = def!.properties.find(p => p.name === 'ds2');
+      const ds1Prop = (def!.properties ?? []).find(p => p.name === 'ds1');
+      const ds2Prop = (def!.properties ?? []).find(p => p.name === 'ds2');
       expect(ds1Prop).toBeDefined();
       expect(ds2Prop).toBeDefined();
     });
@@ -170,8 +170,8 @@ describe('EnvironmentRegistry', () => {
       const def = registry.getDefinition('$table');
       expect(def).toBeDefined();
 
-      const ordersProp = def!.properties.find(p => p.name === 'orders');
-      const usersProp = def!.properties.find(p => p.name === 'users');
+      const ordersProp = (def!.properties ?? []).find(p => p.name === 'orders');
+      const usersProp = (def!.properties ?? []).find(p => p.name === 'users');
       expect(ordersProp).toBeDefined();
       expect(usersProp).toBeDefined();
     });

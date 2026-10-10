@@ -26,7 +26,8 @@ export type StateMachineEvent =
   | 'fail'         // 执行失败
   | 'recover'      // 恢复流程
   | 'wait'         // 等待外部输入
-  | 'restart'      // 重新启动
+  | 'restart'      // 驳回到上游节点后重新执行
+  | 'timeout'      // 节点超时唤醒
   | 'cancel';      // 取消流程
 
 /**

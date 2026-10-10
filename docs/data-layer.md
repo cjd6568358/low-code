@@ -194,12 +194,20 @@ CREATE TABLE orders (
 
 每个字段可通过 `constraints` 属性配置类型相关的约束：
 
-| 字段类型 | 约束属性 | 说明 |
-|---------|---------|------|
-| `string` | `maxLength`、`minLength`、`pattern`、`format` | format 支持 email/url/phone/idcard |
-| `number` | `min`、`max`、`precision`、`integer` | precision=0 表示整数 |
-| `date` | `format`、`min`、`max` | format 支持 date/datetime |
-| `enum` | `values: Array<{label, value}>` | 枚举值列表 |
+| 字段类型 | SQLite 存储 | 约束属性 | 说明 |
+|---------|------------|---------|------|
+| `string` | TEXT | `maxLength`、`minLength`、`pattern`、`format` | format 支持 email/url/phone/idcard |
+| `number` | INTEGER | `min`、`max`、`precision`、`integer` | precision=0 表示整数 |
+| `boolean` | INTEGER | — | 存 0/1 |
+| `date` | TEXT | `format`、`min`、`max` | ISO8601 字符串；format 支持 date/datetime |
+| `enum` | TEXT + CHECK | `values: Array<{label, value}>`、`enforceInDb` | 枚举值列表，默认生成 CHECK 约束 |
+| `json` | TEXT | `rootType` | 应用层 `JSON.stringify`/`parse` |
+
+> **注意**：`date` 类型统一映射为 `TEXT`（ISO8601 字符串），与「时间字段用 TEXT 存 ISO8601」的
+> 数据层规范一致；系统字段 `_created_at` / `_updated_at` 同样为 TEXT + `datetime('now')` 默认值。
+
+**系统保留字段名**：`id`、`_deleted`、`_created_at`、`_updated_at`。
+用户字段若与保留字段重名，`executeTableSchema` 会直接抛错（避免生成重复列）。
 
 ### 字段校验规则
 
@@ -228,7 +236,7 @@ interface TableIndex {
 
 **表结构变更**：采用「重建表」策略（SQLite 限制不支持 DROP COLUMN）：
 1. 创建临时表（新结构）
-2. 复制数据（匹配的列）
+2. 复制数据（共同列 + 全部系统列 `id`/`_deleted`/`_created_at`/`_updated_at`）
 3. 删除旧表
 4. 重命名临时表
 
@@ -284,6 +292,39 @@ POST /api/apps/:appId/query
 - 支持 SELECT 投影、WHERE 过滤、ORDER BY 排序、LIMIT/OFFSET 分页、聚合函数
 - 列名白名单校验（防止 SQL 注入）
 - 内存过滤降级（复杂 JS 函数 → SQL 查全表 + JS 过滤，上限 10000 条）
+
+**完整导出清单**（`packages/data/src/index.ts`）：
+
+| 函数 | 用途 |
+|------|------|
+| `generateCreateTableSQL` / `generateAlterTableSQL` | Schema → DDL |
+| `executeTableSchema` | 建表 / 增量重建（含保留字段校验） |
+| `queryRecords` / `queryRecordsAdvanced` | 单条件查询 / 高级查询 |
+| `insertRecord` | 插入记录，返回自增主键 |
+| `updateRecord` | 按主键更新 |
+| `softDeleteRecord` / `restoreRecord` | 按主键软删除 / 恢复 |
+| `updateRecordsWhere` | **按条件批量更新**（流程数据操作节点使用，空条件抛错） |
+| `softDeleteRecordsWhere` | **按条件批量软删除**（空条件抛错） |
+
+### 类型安全约定
+
+`packages/data/src/types.ts` 不使用 `any`：
+
+```typescript
+/** SQLite 可绑定的参数值类型 */
+type SqliteValue = string | number | bigint | boolean | Uint8Array | null | undefined;
+
+/** 数据库行（字段名 → 值），形态由 SQL 决定，调用方按契约收窄 */
+type SqliteRow = Record<string, unknown>;
+
+interface SqliteStatement {
+  bind(...params: SqliteValue[]): SqliteStatement;
+  all(...params: SqliteValue[]): SqliteRow[];
+  get(...params: SqliteValue[]): SqliteRow | undefined;
+  run(...params: SqliteValue[]): { changes: number; lastInsertRowid: bigint };
+  finalize(): void;
+}
+```
 
 ## 未来扩展路径
 

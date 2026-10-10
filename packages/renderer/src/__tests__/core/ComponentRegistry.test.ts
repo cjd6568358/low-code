@@ -5,8 +5,30 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
+import type { ComponentCategory, ComponentRegistration } from '@low-code/shared';
 import { ComponentRegistryImpl } from '../../core/ComponentRegistry.js';
-import type { ComponentRegistration } from '../../core/ComponentRegistry.js';
+
+/**
+ * 构造测试用组件注册项
+ *
+ * @param type 组件类型标识
+ * @param name 组件显示名
+ * @param category 组件分类（默认 basic）
+ * @returns 组件注册项
+ */
+function createRegistration(
+  type: string,
+  name: string,
+  category: ComponentCategory = 'basic',
+): ComponentRegistration {
+  return {
+    type,
+    name,
+    category,
+    component: type,
+    propsSchema: { type: 'object', properties: {} },
+  };
+}
 
 describe('ComponentRegistry', () => {
   let registry: ComponentRegistryImpl;
@@ -17,22 +39,16 @@ describe('ComponentRegistry', () => {
 
   describe('register', () => {
     it('应该成功注册组件', () => {
-      const entry: ComponentRegistration = {
-        type: 'Button',
-        name: '按钮',
-        category: 'basic',
-        propsSchema: { type: 'object', properties: {} },
-      };
+      registry.register(createRegistration('Button', '按钮'));
 
-      registry.register(entry);
       const resolved = registry.resolve('Button');
       expect(resolved).toBeDefined();
       expect(resolved!.name).toBe('按钮');
     });
 
     it('应该覆盖已存在的同类型组件', () => {
-      registry.register({ type: 'Button', name: '按钮', category: 'basic', propsSchema: {} });
-      registry.register({ type: 'Button', name: '按钮组件', category: 'basic', propsSchema: {} });
+      registry.register(createRegistration('Button', '按钮'));
+      registry.register(createRegistration('Button', '按钮组件'));
 
       const resolved = registry.resolve('Button');
       expect(resolved!.name).toBe('按钮组件');
@@ -42,8 +58,8 @@ describe('ComponentRegistry', () => {
   describe('registerAll', () => {
     it('应该批量注册组件', () => {
       registry.registerAll([
-        { type: 'Button', name: '按钮', category: 'basic', propsSchema: {} },
-        { type: 'Input', name: '输入框', category: 'basic', propsSchema: {} },
+        createRegistration('Button', '按钮'),
+        createRegistration('Input', '输入框'),
       ]);
 
       expect(registry.resolve('Button')).toBeDefined();
@@ -53,7 +69,7 @@ describe('ComponentRegistry', () => {
 
   describe('resolve', () => {
     it('应该返回存在的组件', () => {
-      registry.register({ type: 'Button', name: '按钮', category: 'basic', propsSchema: {} });
+      registry.register(createRegistration('Button', '按钮'));
 
       const resolved = registry.resolve('Button');
       expect(resolved).toBeDefined();
@@ -75,8 +91,8 @@ describe('ComponentRegistry', () => {
 
   describe('list', () => {
     it('应该返回所有注册的组件', () => {
-      registry.register({ type: 'Button', name: '按钮', category: 'basic', propsSchema: {} });
-      registry.register({ type: 'Input', name: '输入框', category: 'basic', propsSchema: {} });
+      registry.register(createRegistration('Button', '按钮'));
+      registry.register(createRegistration('Input', '输入框'));
 
       const list = registry.list();
       expect(list).toHaveLength(2);
@@ -87,8 +103,8 @@ describe('ComponentRegistry', () => {
 
   describe('listByCategory', () => {
     it('应该按分类过滤组件', () => {
-      registry.register({ type: 'Button', name: '按钮', category: 'basic', propsSchema: {} });
-      registry.register({ type: 'Table', name: '表格', category: 'advanced', propsSchema: {} });
+      registry.register(createRegistration('Button', '按钮', 'basic'));
+      registry.register(createRegistration('Table', '表格', 'advanced'));
 
       const basicComponents = registry.listByCategory('basic');
       expect(basicComponents).toHaveLength(1);
@@ -113,7 +129,7 @@ describe('ComponentRegistry', () => {
 
   describe('export / import', () => {
     it('应该导出并导入组件', () => {
-      registry.register({ type: 'Button', name: '按钮', category: 'basic', propsSchema: {} });
+      registry.register(createRegistration('Button', '按钮'));
 
       const exported = registry.export();
       expect(exported).toHaveLength(1);

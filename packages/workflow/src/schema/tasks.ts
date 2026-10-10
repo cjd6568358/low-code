@@ -62,6 +62,15 @@ export interface UserTask extends Task {
   $type: 'bpmn:UserTask';
   /** 审批人指派策略（设计时存储策略，运行时动态解析为具体用户） */
   assignee?: AssigneeStrategy;
+  /**
+   * 候选用户 ID 列表
+   *
+   * 与 `assignee` 的区别：`assignee` 直接决定任务归属，
+   * `candidateUsers` 是「候选池」，任务创建后需通过 claimTask 认领（竞签场景）。
+   */
+  candidateUsers?: string[];
+  /** 候选用户组（角色/部门 ID），与 candidateUsers 同语义 */
+  candidateGroups?: string[];
   /** 实现 */
   implementation?: string;
   /** 渲染 */

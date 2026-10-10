@@ -15,6 +15,7 @@
  */
 import React, { useEffect, useRef } from 'react';
 import { Form } from 'antd';
+import type { WrappedPlatformComponent } from '@low-code/shared';
 import { useFormContext } from './FormContext';
 import type {
   PlatformComponentProps,
@@ -23,6 +24,12 @@ import type {
   CompiledEventHandlers,
   LinkageEngine,
 } from './types';
+
+/** 平台组件标记 — 设计器据此判断是否注入设计态 props */
+interface WithPlatformMarker {
+  /** 恒为 true，标识该组件由 withPlatform 包装 */
+  __withPlatform: true;
+}
 
 /** 设计态专用 props 的 key 列表，用于从 rest 中剔除 */
 const DESIGN_KEYS = new Set([
@@ -36,7 +43,7 @@ const PLATFORM_KEYS = new Set([
   'node', 'field', 'events', 'linkage', 'designMode',
   'visible',  // 平台级控制，不透传给底层组件（避免原生 DOM 警告）
   'refreshComponent', 'refreshWithDependencyOrder',  // 刷新能力
-  '_formRegistry', '_formId', '_componentMap', '_context',  // Form 组件注册 + 预求值
+  '_formRegistry', '_formId', '_componentMap', '_context', '_adapter',  // Form 组件注册 + 预求值 + 服务端校验
 ]);
 
 /**
@@ -115,10 +122,16 @@ function enhanceValueOnChange(
  * 注册时执行一次，返回带平台能力的组件。
  * 设计态通过 className 唯一标记 lc-did-{id} 定位 DOM 元素（antd 组件通过 ...rest 传播）。
  * 在 Form 内时，自动包装 Form.Item。
+ *
+ * `WrappedComponent` 的 Props 泛型用 `any` 是**有意为之的例外**（memory/no-any-strict-types
+ * 规范中的同类豁免）：React 组件类型参数处于逆变位置，`ComponentType<Record<string, unknown>>`
+ * 无法接收 `ButtonProps`、`QRCodeProps`（含必填 `value`）等具体 Props 类型，会造成
+ * 65 个注册点全部报错。此处的 `any` 不产生类型漏洞——返回值已被 `WrappedPlatformComponent`
+ * 收紧为开放对象契约，组件内部仍使用精确的 P 类型。
  */
-export function withPlatform<P extends Record<string, any>>(
-  WrappedComponent: React.ComponentType<P>,
-): React.FC<P & PlatformComponentProps> {
+export function withPlatform<P extends Record<string, unknown>>(
+  WrappedComponent: React.ComponentType<any>,
+): WrappedPlatformComponent {
   const PlatformComponent: React.FC<P & PlatformComponentProps> = (props) => {
     // 检测是否在 Form 内
     const formContext = useFormContext();
@@ -319,7 +332,10 @@ export function withPlatform<P extends Record<string, any>>(
   })`;
 
   // 标记为平台组件，DesignCanvas 用于判断是否注入设计态 props
-  (PlatformComponent as any).__withPlatform = true;
+  const tagged: WrappedPlatformComponent & WithPlatformMarker = Object.assign(
+    PlatformComponent as WrappedPlatformComponent,
+    { __withPlatform: true as const },
+  );
 
-  return PlatformComponent;
+  return tagged;
 }

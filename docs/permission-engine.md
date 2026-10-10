@@ -312,9 +312,26 @@ interface Permission {
   resourceId: string;               // 资源标识（页面ID/按钮ID/表名/字段名/接口路径）
   actions: ActionType[];            // 'read' | 'create' | 'update' | 'delete' | 'publish'
   scope?: DataScopeConfig;          // 数据权限范围（resourceType=data 时）
-  conditions?: Record<string, any>; // 附加条件
+  conditions?: Record<string, unknown>; // 附加条件
 }
 ```
+
+> **动作类型约定**：`ActionType` 只有 `read`/`create`/`update`/`delete`/`publish` 五种。
+> 不存在 `write` 这类粗粒度动作——不要为「可写」单独定义取值，直接用 `create`/`update`/`delete`。
+
+### 菜单/按钮权限配置可省略自身 ID
+
+`MenuPermissionConfig.menuId` 与 `ButtonPermissionConfig.buttonId` 均为**可选**：
+
+- **内嵌于 Schema**（`PageSchema` / `ComponentNode`）时省略——宿主节点已携带 ID
+- **独立存储**（如权限表记录）时填写
+
+这样 `{ allowedRoles: ['viewer'] }` 这类精简配置可以直接写在菜单节点上，无需重复 ID。
+
+### 角色时间字段可选
+
+`Role.createdAt` / `Role.updatedAt` 为可选：内存态构建的角色（如 `BUILTIN_ROLES`、
+测试夹具）无需伪造时间戳，仅持久化到数据库时填写。
 
 ## 与其他模块的关系
 

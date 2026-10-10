@@ -45,6 +45,14 @@ import {
   QuestionCircleOutlined,
 } from '@ant-design/icons';
 import { ExpressionEditor } from '@low-code/renderer';
+import type {
+  ActionType,
+  AutomationAction,
+  NotificationChannel,
+  NotificationPriority,
+  DataOperationType,
+  RecipientType,
+} from '@low-code/automation';
 
 const { Text, Paragraph } = Typography;
 const { Option } = Select;
@@ -52,7 +60,7 @@ const { TextArea } = Input;
 const { Panel } = Collapse;
 
 /** 动作类型选项 */
-const ACTION_TYPES = [
+const ACTION_TYPES: Array<{ value: ActionType; label: string; icon: React.ReactNode; description: string }> = [
   { value: 'trigger_workflow', label: '触发流程', icon: <PlayCircleOutlined />, description: '启动指定流程引擎实例' },
   { value: 'execute_expression', label: '执行表达式', icon: <CodeOutlined />, description: '使用公共表达式引擎执行自定义表达式' },
   { value: 'send_notification', label: '发送通知', icon: <SendOutlined />, description: '通过消息中心发送多渠道通知' },
@@ -60,7 +68,7 @@ const ACTION_TYPES = [
 ];
 
 /** 通知渠道选项 */
-const NOTIFICATION_CHANNELS = [
+const NOTIFICATION_CHANNELS: Array<{ value: NotificationChannel; label: string }> = [
   { value: 'site', label: '站内消息' },
   { value: 'email', label: '邮件' },
   { value: 'sms', label: '短信' },
@@ -70,7 +78,7 @@ const NOTIFICATION_CHANNELS = [
 ];
 
 /** 通知优先级选项 */
-const NOTIFICATION_PRIORITIES = [
+const NOTIFICATION_PRIORITIES: Array<{ value: NotificationPriority; label: string; color: string }> = [
   { value: 'low', label: '低', color: 'default' },
   { value: 'normal', label: '普通', color: 'blue' },
   { value: 'high', label: '高', color: 'orange' },
@@ -78,54 +86,18 @@ const NOTIFICATION_PRIORITIES = [
 ];
 
 /** 数据操作类型选项 */
-const DATA_OPERATIONS = [
+const DATA_OPERATIONS: Array<{ value: DataOperationType; label: string }> = [
   { value: 'create', label: '创建记录' },
   { value: 'update', label: '更新记录' },
   { value: 'delete', label: '删除记录' },
 ];
 
-/** 动作配置接口 */
-interface ActionConfig {
-  type: string;
-  name: string;
-  async?: boolean;
-  retryPolicy?: {
-    maxRetries: number;
-    backoffMs: number[];
-  };
-  condition?: Record<string, unknown>;
-  triggerWorkflow?: {
-    workflowId: string;
-    variables?: Record<string, unknown>;
-    initiator?: string;
-  };
-  executeExpression?: {
-    script: string;
-    context?: Record<string, unknown>;
-  };
-  sendNotification?: {
-    templateId?: string;
-    channels: string[];
-    recipients: Array<{ type: string; value: string }>;
-    title?: string;
-    content?: string;
-    priority?: string;
-    variables?: Record<string, unknown>;
-  };
-  dataOperation?: {
-    entityCode: string;
-    operation: string;
-    data?: Record<string, unknown>;
-    filter?: Record<string, unknown>;
-  };
-}
-
 /** 组件属性 */
 export interface ActionConfigProps {
   /** 动作列表 */
-  value?: ActionConfig[];
+  value?: AutomationAction[];
   /** 值变更回调 */
-  onChange?: (value: ActionConfig[]) => void;
+  onChange?: (value: AutomationAction[]) => void;
   /** 可选的流程列表 */
   workflows?: Array<{ id: string; name: string }>;
   /** 可选的实体列表 */
@@ -143,7 +115,7 @@ export const ActionConfig: React.FC<ActionConfigProps> = ({
 }) => {
   /** 通知值变更 */
   const handleChange = useCallback(
-    (newActions: ActionConfig[]) => {
+    (newActions: AutomationAction[]) => {
       onChange?.(newActions);
     },
     [onChange]
@@ -151,7 +123,7 @@ export const ActionConfig: React.FC<ActionConfigProps> = ({
 
   /** 添加动作 */
   const handleAddAction = useCallback(() => {
-    const newAction: ActionConfig = {
+    const newAction: AutomationAction = {
       type: 'trigger_workflow',
       name: `动作 ${value.length + 1}`,
     };
@@ -202,7 +174,7 @@ export const ActionConfig: React.FC<ActionConfigProps> = ({
   );
 
   /** 渲染触发流程配置 */
-  const renderTriggerWorkflowConfig = (action: ActionConfig, index: number) => {
+  const renderTriggerWorkflowConfig = (action: AutomationAction, index: number) => {
     const config = action.triggerWorkflow || { workflowId: '' };
 
     return (
@@ -250,7 +222,7 @@ export const ActionConfig: React.FC<ActionConfigProps> = ({
   };
 
   /** 渲染执行表达式配置 */
-  const renderExecuteExpressionConfig = (action: ActionConfig, index: number) => {
+  const renderExecuteExpressionConfig = (action: AutomationAction, index: number) => {
     const config = action.executeExpression || { script: '' };
     const [editorVisible, setEditorVisible] = useState(false);
 
@@ -340,7 +312,7 @@ export const ActionConfig: React.FC<ActionConfigProps> = ({
   };
 
   /** 渲染发送通知配置 */
-  const renderSendNotificationConfig = (action: ActionConfig, index: number) => {
+  const renderSendNotificationConfig = (action: AutomationAction, index: number) => {
     const config = action.sendNotification || {
       channels: [],
       recipients: [],
@@ -398,7 +370,7 @@ export const ActionConfig: React.FC<ActionConfigProps> = ({
   };
 
   /** 渲染数据操作配置 */
-  const renderDataOperationConfig = (action: ActionConfig, index: number) => {
+  const renderDataOperationConfig = (action: AutomationAction, index: number) => {
     const config = action.dataOperation || { entityCode: '', operation: 'create' };
 
     return (
@@ -452,7 +424,7 @@ export const ActionConfig: React.FC<ActionConfigProps> = ({
   };
 
   /** 渲染动作特定配置 */
-  const renderActionSpecificConfig = (action: ActionConfig, index: number) => {
+  const renderActionSpecificConfig = (action: AutomationAction, index: number) => {
     switch (action.type) {
       case 'trigger_workflow':
         return renderTriggerWorkflowConfig(action, index);
@@ -474,7 +446,7 @@ export const ActionConfig: React.FC<ActionConfigProps> = ({
   };
 
   /** 渲染单个动作卡片 */
-  const renderActionCard = (action: ActionConfig, index: number) => {
+  const renderActionCard = (action: AutomationAction, index: number) => {
     const actionType = ACTION_TYPES.find(at => at.value === action.type);
 
     return (

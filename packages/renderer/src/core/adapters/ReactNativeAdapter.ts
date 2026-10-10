@@ -15,6 +15,7 @@ import type {
   UploadResult,
 } from '@low-code/shared';
 import { BaseAdapter } from './BaseAdapter';
+import { buildUrl } from './http-utils';
 
 /**
  * React Native 导航接口
@@ -145,8 +146,7 @@ export class ReactNativeAdapter extends BaseAdapter {
 
       let requestUrl = this.apiBaseUrl ? `${this.apiBaseUrl}${url}` : url;
       if (params) {
-        const searchParams = new URLSearchParams(params);
-        requestUrl += `?${searchParams.toString()}`;
+        requestUrl = buildUrl(requestUrl, params);
       }
 
       const response = await fetch(requestUrl, {

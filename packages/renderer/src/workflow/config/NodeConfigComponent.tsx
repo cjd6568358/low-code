@@ -7,6 +7,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import type { IConfigComponent } from 'react-flow-builder';
 import { UserSelector } from '../../components/UserSelector';
+import { AssigneeSelector } from '../../components/AssigneeSelector';
 import { ExpressionEditor } from '../../components/ExpressionEditor';
 import { VariableTreeSelector } from '../../components/VariableTreeSelector';
 import { ComputationSelector } from '../../components/ComputationSelector';
@@ -418,10 +419,15 @@ const NodeConfigComponent = React.forwardRef<any, IConfigComponent>(
         </div>
         <div style={fieldStyle}>
           <label style={labelStyle}>审批人</label>
-          <UserSelector
+          {/*
+            必须使用 AssigneeSelector：审批人指派在引擎侧为 AssigneeStrategy 策略对象
+            （{ type: 'user' | 'role' | 'department' | 'position', ... }），
+            运行时由 UserResolver 解析为具体用户。UserSelector 只产出裸 ID 字符串，
+            与引擎 / ApprovalNodeDisplay 的数据契约不一致。
+          */}
+          <AssigneeSelector
             value={config.assignee}
             onChange={(value) => updateConfig('assignee', value)}
-            mode="single"
             tenantId={tenantId}
             placeholder="选择审批人"
           />

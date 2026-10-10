@@ -24,6 +24,8 @@ import { generateHexId } from '@low-code/shared';
 import { insertRecord, updateRecord, softDeleteRecord } from '@low-code/data';
 import {
   ConditionEvaluator,
+  EffectiveTimeChecker,
+  Throttler,
   type AutomationCondition,
   type PlatformEvent,
   type ConditionEvaluationResult,
@@ -35,6 +37,8 @@ import type {
   NotificationChannel,
   NotificationPriority,
   DataOperationType,
+  ThrottleConfig,
+  EffectiveTimeConfig,
 } from '@low-code/automation';
 import { existsAsync, readFile, readdir } from '../utils/fs-utils.js';
 import { AutomationLogService, type ExecutionLog } from './AutomationLogService.js';
@@ -52,14 +56,16 @@ interface AutomationRule {
   trigger: TriggerConfig;
   condition?: ConditionStorage;
   actions: ActionConfig[];
-  throttle?: ThrottleConfig;
-  effectiveTime?: EffectiveTimeConfig;
+  throttle?: AutomationThrottleConfig;
+  effectiveTime?: AutomationEffectiveTimeConfig;
   schemaVersion?: number;
   version?: number;
   createdBy?: string;
   createdAt?: string;
   updatedBy?: string;
   updatedAt?: string;
+  /** 软删除标记（删除接口写入，扫描时过滤） */
+  _deleted?: boolean;
 }
 
 /** 触发器配置 */
@@ -152,19 +158,11 @@ interface ActionConfig {
   };
 }
 
-/** 限流配置 */
-interface ThrottleConfig {
-  enabled: boolean;
-  maxExecutions: number;
-  timeWindowMs: number;
-}
+/** 限流配置（沿用 @low-code/automation 的规范字段：cooldownSeconds / maxDailyTriggers） */
+type AutomationThrottleConfig = ThrottleConfig;
 
-/** 生效时间配置 */
-interface EffectiveTimeConfig {
-  startTime?: string;
-  endTime?: string;
-  timezone?: string;
-}
+/** 生效时间配置（沿用 @low-code/automation 的规范字段：start / end / timeRanges） */
+type AutomationEffectiveTimeConfig = EffectiveTimeConfig;
 
 /** 执行上下文 */
 interface ExecutionContext {
@@ -209,7 +207,7 @@ interface ExecutionResult {
     retryCount: number;
   }>;
   /** 执行状态 */
-  status: 'success' | 'partial_success' | 'failed';
+  status: 'success' | 'partial_success' | 'failed' | 'skipped';
   /** 总耗时（毫秒） */
   totalDurationMs: number;
   /** 执行时间 */
@@ -388,9 +386,31 @@ export class AutomationEngine {
   private executionLogs: Map<string, ExecutionResult[]> = new Map(); // ruleId -> logs
   private cache: RuleCache | null = null;
   private readonly conditionEvaluator = new ConditionEvaluator();
+  /** 生效时间检查器（复用 @low-code/automation 的规范实现） */
+  private readonly effectiveTimeChecker = new EffectiveTimeChecker();
+  /** 限流器（懒初始化，依赖日志服务与租户 ID） */
+  private throttler: Throttler | null = null;
 
   constructor(config: AutomationEngineConfig) {
     this.config = config;
+  }
+
+  /**
+   * 获取限流器（首次调用时按租户 ID 绑定日志存储）
+   *
+   * 日志服务未注入时返回 null，表示不做限流（仅记录日志）。
+   */
+  private getThrottler(): Throttler | null {
+    if (this.throttler) return this.throttler;
+
+    const { logService, tenantId } = this.config;
+    if (!logService) return null;
+
+    this.throttler = new Throttler({
+      getLastExecutionTime: (ruleId) => logService.getLastExecutionTime(tenantId, ruleId),
+      getTodayExecutionCount: (ruleId) => logService.getTodayExecutionCount(tenantId, ruleId),
+    });
+    return this.throttler;
   }
 
   /**
@@ -549,7 +569,21 @@ export class AutomationEngine {
     };
 
     try {
-      // 1. 检查条件（复用 @low-code/automation 的 ConditionEvaluator）
+      // 0. 生效时间检查（不生效则不执行，也不写执行日志）
+      if (!this.isRuleEffective(rule)) {
+        result.status = 'skipped';
+        result.totalDurationMs = Date.now() - startTime;
+        return result;
+      }
+
+      // 1. 限流检查（冷却时间 / 每日上限）
+      if (!await this.checkThrottle(rule)) {
+        result.status = 'skipped';
+        result.totalDurationMs = Date.now() - startTime;
+        return result;
+      }
+
+      // 2. 检查条件（复用 @low-code/automation 的 ConditionEvaluator）
       if (rule.condition) {
         const condition = convertCondition(rule.condition);
         const event = this.buildPlatformEvent(context);
@@ -565,7 +599,7 @@ export class AutomationEngine {
         }
       }
 
-      // 2. 执行动作
+      // 3. 执行动作
       for (const action of rule.actions) {
         const actionResult = await this.executeAction(action, context);
         result.actionResults.push(actionResult);
@@ -576,6 +610,9 @@ export class AutomationEngine {
             : 'failed';
         }
       }
+
+      // 4. 记录触发时间，供后续冷却时间判定
+      this.getThrottler()?.recordTrigger(rule.id);
     } catch (error) {
       result.status = 'failed';
       console.error(`[AutomationEngine] 规则执行失败:`, error);
@@ -750,25 +787,26 @@ export class AutomationEngine {
       throw new Error('通知配置缺失');
     }
 
-    // 处理模板插值
+    // 处理模板插值（interpolateTemplate 为异步函数，需 await）
     const title = config.title
-      ? interpolateTemplate(config.title, context.eventData || {})
+      ? await interpolateTemplate(config.title, context.eventData || {})
       : '自动化通知';
     const content = config.content
-      ? interpolateTemplate(config.content, context.eventData || {})
+      ? await interpolateTemplate(config.content, context.eventData || {})
       : '';
-    const priority = config.priority || 'normal';
     const messageIds: string[] = [];
 
     const manager = getDbManager();
     const db = manager.getTenantDb(context.tenantId);
 
     // 每个 recipient × channel 组合生成一条消息
+    // 注意：messages 表无 priority 字段，优先级语义通过 content_type 之外的表结构承载，
+    // 这里按实际 schema（packages/data/src/schema/tenant.ts）写入。
     for (const recipient of config.recipients) {
       for (const channel of config.channels) {
         const result = db.prepare(
-          `INSERT INTO messages (recipient_id, category, title, content, channel, status, priority, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+          `INSERT INTO messages (recipient_id, category, title, content, channel, status, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`
         ).run(
           recipient.value,
           'automation',
@@ -776,7 +814,6 @@ export class AutomationEngine {
           content,
           channel,
           'sent',
-          priority,
           new Date().toISOString(),
         );
         messageIds.push(String(result.lastInsertRowid));
@@ -884,24 +921,35 @@ export class AutomationEngine {
 
   /**
    * 检查规则是否在生效时间内
+   *
+   * 复用 @low-code/automation 的 EffectiveTimeChecker（支持日期范围 + 星期/时段过滤）。
+   * 修复历史问题：原实现读取 `startTime`/`endTime`，与设计器保存的
+   * `start`/`end`/`timeRanges` 字段不一致，导致生效时间配置永远不生效。
    */
   private isRuleEffective(rule: AutomationRule): boolean {
-    const effectiveTime = rule.effectiveTime;
-    if (!effectiveTime) return true;
-
-    const now = new Date();
-
-    if (effectiveTime.startTime) {
-      const startTime = new Date(effectiveTime.startTime);
-      if (now < startTime) return false;
+    const result = this.effectiveTimeChecker.check(rule);
+    if (!result.effective) {
+      console.log(`[AutomationEngine] 规则 ${rule.id} 不在生效时间内: ${result.reason ?? ''}`);
     }
+    return result.effective;
+  }
 
-    if (effectiveTime.endTime) {
-      const endTime = new Date(effectiveTime.endTime);
-      if (now > endTime) return false;
+  /**
+   * 检查规则是否被限流
+   *
+   * 冷却时间与每日上限均以执行日志为依据，未注入日志服务时不做限流。
+   */
+  private async checkThrottle(rule: AutomationRule): Promise<boolean> {
+    if (!rule.throttle) return true;
+
+    const throttler = this.getThrottler();
+    if (!throttler) return true;
+
+    const result = await throttler.check(rule);
+    if (!result.allowed) {
+      console.log(`[AutomationEngine] 规则 ${rule.id} 被限流: ${result.reason ?? ''}`);
     }
-
-    return true;
+    return result.allowed;
   }
 
   /**

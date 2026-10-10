@@ -8,18 +8,39 @@
  * - 软删除标记
  */
 
-import type { SqliteDb } from './types';
-import type { TableSchema, TableColumn, TableFieldType, TableIndex } from '@low-code/shared';
+import type { SqliteDb, SqliteValue } from './types';
+import type {
+  TableSchema,
+  TableColumn,
+  TableFieldType,
+  TableIndex,
+  EnumFieldConstraints,
+} from '@low-code/shared';
 
 // ─── 字段类型映射 ──────────────────────────────────────
 
-/** TableFieldType → SQLite 类型 */
+/**
+ * TableFieldType → SQLite 类型
+ *
+ * 与数据层规范保持一致（docs/data-layer.md）：
+ * 时间字段统一 TEXT 存 ISO8601，JSON 字段 TEXT 存序列化结果。
+ */
 const FIELD_TYPE_MAP: Record<TableFieldType, string> = {
   string: 'TEXT',
   number: 'INTEGER',
   boolean: 'INTEGER',
-  date: 'INTEGER', // Unix 时间戳
+  date: 'TEXT', // ISO8601 字符串
+  enum: 'TEXT', // 受 CHECK 约束的枚举值
+  json: 'TEXT', // 应用层 parse/stringify
 };
+
+/** 系统字段名（由 schema-builder 自动注入，用户不可覆盖） */
+const SYSTEM_FIELD_NAMES = new Set(['id', '_deleted', '_created_at', '_updated_at']);
+
+/** 判断字段名是否与系统保留字段冲突 */
+function isSystemFieldName(fieldName: string): boolean {
+  return SYSTEM_FIELD_NAMES.has(fieldName.trim().toLowerCase());
+}
 
 /** 获取 SQLite 列类型 */
 function getColumnSqlType(column: TableColumn): string {
@@ -28,6 +49,22 @@ function getColumnSqlType(column: TableColumn): string {
     return 'INTEGER';
   }
   return FIELD_TYPE_MAP[column.fieldType] || 'TEXT';
+}
+
+/**
+ * 读取枚举字段的合法值列表
+ *
+ * @param column 表字段
+ * @returns 枚举值列表（可能为空）
+ */
+function getEnumValues(column: TableColumn): string[] {
+  const constraints = column.constraints as EnumFieldConstraints | undefined;
+  if (!constraints || !Array.isArray(constraints.values)) {
+    return [];
+  }
+  return constraints.values
+    .map(item => item?.value)
+    .filter((value): value is string => typeof value === 'string' && value.length > 0);
 }
 
 // ─── 列定义生成 ────────────────────────────────────────
@@ -64,6 +101,17 @@ function generateColumnDef(column: TableColumn): string {
     } else {
       // 字符串默认值加引号
       parts.push(`DEFAULT '${defaultVal.replace(/'/g, "''")}'`);
+    }
+  }
+
+  // 枚举值约束（数据库层兜底校验，可在约束中关闭）
+  if (column.fieldType === 'enum') {
+    const enumValues = getEnumValues(column);
+    const constraints = column.constraints as EnumFieldConstraints | undefined;
+    const enforce = constraints?.enforceInDb !== false;
+    if (enforce && enumValues.length > 0) {
+      const quoted = enumValues.map(v => `'${v.replace(/'/g, "''")}'`).join(', ');
+      parts.push(`CHECK (${column.fieldName} IN (${quoted}))`);
     }
   }
 
@@ -203,11 +251,12 @@ export function generateAlterTableSQL(
   // 1. 创建临时表
   sqls.push(generateCreateTableSQL(tempTableId, newSchema));
 
-  // 2. 复制数据（只复制共同列）
-  const selectCols = ['id', ...commonColNames, '_deleted', '_created_at'].join(', ');
-  const insertCols = ['id', ...commonColNames, '_deleted', '_created_at'].join(', ');
+  // 2. 复制数据（只复制共同列，系统列始终保留）
+  const systemCols = ['id', '_deleted', '_created_at', '_updated_at'];
+  const copyCols = [...systemCols, ...commonColNames];
+  const colList = copyCols.join(', ');
   sqls.push(
-    `INSERT INTO ${quotedTempTableId} (${insertCols}) SELECT ${selectCols} FROM ${quotedTableId};`,
+    `INSERT INTO ${quotedTempTableId} (${colList}) SELECT ${colList} FROM ${quotedTableId};`,
   );
 
   // 3. 删除旧表
@@ -235,6 +284,16 @@ export function executeTableSchema(
   schema: TableSchema,
   oldSchema?: TableSchema,
 ): void {
+  // 用户字段不得与系统保留字段冲突（否则 CREATE TABLE 会产生重复列）
+  const conflicts = schema.columns
+    .map(column => column.fieldName)
+    .filter(name => isSystemFieldName(name) && name.toLowerCase() !== 'id');
+  if (conflicts.length > 0) {
+    throw new Error(
+      `字段名与系统保留字段冲突: ${conflicts.join(', ')}（保留字段：${[...SYSTEM_FIELD_NAMES].join(', ')}）`,
+    );
+  }
+
   // 检查表是否存在
   const tableExists = db.prepare(
     "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
@@ -340,6 +399,94 @@ export function restoreRecord(db: SqliteDb, tableId: string, recordId: string | 
   db.prepare(
     `UPDATE [${tableId}] SET _deleted = 0, _updated_at = datetime('now') WHERE id = ?`,
   ).run(recordId);
+}
+
+/**
+ * 按条件批量更新记录（软删除记录默认排除）
+ *
+ * 供流程数据操作节点使用 —— 条件由设计器配置的 ConditionItem[] 转换而来。
+ *
+ * @param db 数据库实例
+ * @param tableId 物理表名
+ * @param filter 过滤条件（MongoDB 风格，见 buildWhereClause）
+ * @param data 待更新字段
+ * @param options 可选配置（allowedColumns 列白名单、includeDeleted 是否包含已删除）
+ * @returns 影响行数
+ * @throws 过滤条件为空时抛出异常，避免误更新全表
+ */
+export function updateRecordsWhere(
+  db: SqliteDb,
+  tableId: string,
+  filter: Record<string, unknown>,
+  data: Record<string, unknown>,
+  options: { allowedColumns?: string[]; includeDeleted?: boolean } = {},
+): number {
+  const fields = Object.keys(data);
+  if (fields.length === 0) {
+    throw new Error('更新字段为空');
+  }
+  if (!filter || Object.keys(filter).length === 0) {
+    throw new Error('过滤条件为空，为安全起见禁止更新全表');
+  }
+
+  const { allowedColumns, includeDeleted = false } = options;
+  const clause = buildWhereClause(filter, allowedColumns);
+  if (clause.conditions.length === 0) {
+    throw new Error('过滤条件无法解析，为安全起见禁止更新全表');
+  }
+
+  const conditions = [...clause.conditions];
+  // 参数顺序必须与 SQL 中占位符顺序一致：SET 在前，WHERE 在后
+  const params: SqliteValue[] = [
+    ...(fields.map(f => data[f]) as SqliteValue[]),
+    ...(clause.params as SqliteValue[]),
+  ];
+  if (!includeDeleted) {
+    conditions.push('_deleted = 0');
+  }
+
+  const setClause = fields.map(f => `[${f}] = ?`).join(', ');
+  const sql = `UPDATE [${tableId}] SET ${setClause}, _updated_at = datetime('now') WHERE ${conditions.join(' AND ')}`;
+  const result = db.prepare(sql).run(...params);
+
+  return result.changes;
+}
+
+/**
+ * 按条件批量软删除记录（软删除记录默认排除）
+ *
+ * @param db 数据库实例
+ * @param tableId 物理表名
+ * @param filter 过滤条件（MongoDB 风格，见 buildWhereClause）
+ * @param options 可选配置（allowedColumns 列白名单、includeDeleted 是否包含已删除）
+ * @returns 影响行数
+ * @throws 过滤条件为空时抛出异常，避免误删除全表
+ */
+export function softDeleteRecordsWhere(
+  db: SqliteDb,
+  tableId: string,
+  filter: Record<string, unknown>,
+  options: { allowedColumns?: string[]; includeDeleted?: boolean } = {},
+): number {
+  if (!filter || Object.keys(filter).length === 0) {
+    throw new Error('过滤条件为空，为安全起见禁止删除全表数据');
+  }
+
+  const { allowedColumns, includeDeleted = false } = options;
+  const clause = buildWhereClause(filter, allowedColumns);
+  if (clause.conditions.length === 0) {
+    throw new Error('过滤条件无法解析，为安全起见禁止删除全表数据');
+  }
+
+  const conditions = [...clause.conditions];
+  if (!includeDeleted) {
+    conditions.push('_deleted = 0');
+  }
+
+  const sql = `UPDATE [${tableId}] SET _deleted = 1, _updated_at = datetime('now') WHERE ${conditions.join(' AND ')}`;
+  const result = db.prepare(sql).run(...(clause.params as SqliteValue[]));
+
+  return result.changes;
 }
 
 /**

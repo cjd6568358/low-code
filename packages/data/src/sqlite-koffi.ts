@@ -395,14 +395,15 @@ export class PreparedStatementWrapper {
         case SQLITE_TEXT:
           row[columns[i]] = sqlite3_column_text(this.stmt, i);
           break;
-        case SQLITE_BLOB:
+        case SQLITE_BLOB: {
           const blobPtr = sqlite3_column_blob(this.stmt, i);
           const blobSize = sqlite3_column_bytes(this.stmt, i);
-          // 从内存地址读取 blob 数据
-          const blobBuffer = Buffer.alloc(blobSize);
-          koffi.copy(blobBuffer, blobPtr, blobSize);
-          row[columns[i]] = blobBuffer;
+          // 从 SQLite 内存地址读取 blob 数据（koffi.decode 支持按指针 + 长度解码为 Buffer）
+          row[columns[i]] = blobSize > 0
+            ? koffi.decode(blobPtr, 'uint8_t', blobSize)
+            : Buffer.alloc(0);
           break;
+        }
         case SQLITE_NULL:
         default:
           row[columns[i]] = null;

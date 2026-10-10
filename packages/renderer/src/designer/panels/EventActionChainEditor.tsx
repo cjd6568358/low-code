@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import type { ActionChain, ActionStep, ComponentMethod } from '@low-code/shared';
+import { isExpressionBinding } from '@low-code/shared';
 import { PropValueField, detectValueMode, extractDisplayValue } from '@low-code/auto-rendering';
 import type { ValueMode } from '@low-code/auto-rendering';
 import { VariableTreeSelector } from '../../components/VariableTreeSelector';
@@ -1279,9 +1280,9 @@ function DataFieldPicker({
               {multiSelectDisplay || extractDisplayValue(value) || '点击选择...'}
             </span>
           )}
-          {mode === 'expression' && value && typeof value === 'object' && 'value' in value && (
+          {mode === 'expression' && isExpressionBinding(value) && (
             <span style={{ fontSize: '13px', color: '#333', fontFamily: 'monospace' }}>
-              {((value as any).value as string || '').substring(0, 50)}
+              {value.value.substring(0, 50)}
             </span>
           )}
         </div>

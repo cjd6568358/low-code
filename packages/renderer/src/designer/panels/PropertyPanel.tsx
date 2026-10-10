@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import { useDesigner } from '../core/DesignerContext';
-import { isInContainer } from '../utils';
-import type { WatermarkConfig, ComponentNode } from '@low-code/shared';
+import { isInContainer, collectDescendants } from '../utils';
+import type { WatermarkConfig, ComponentNode, CrossFieldRule } from '@low-code/shared';
 
 import { AutoFormRenderer, controlRegistry, registerAntdControls } from '@low-code/auto-rendering';
 import { dictionaryService } from '@low-code/auto-rendering';
@@ -11,6 +11,7 @@ import { ExpressionEditor } from '../../components/ExpressionEditor';
 import { StyleEditor } from './StyleEditor';
 import { DataSourcePanel } from './DataSourcePanel';
 import { ValidationRulesEditor } from './ValidationRulesEditor';
+import { CrossFieldRulesEditor } from './CrossFieldRulesEditor';
 import { FORM_FIELD_SCHEMA_PROPERTIES } from '../../libraries/antd/form/form-field-schema';
 import type { JSONSchema7 } from '@low-code/shared';
 
@@ -99,6 +100,23 @@ export function PropertyPanel({ registry }: { registry: any }) {
     }
     return components;
   }, [schema.components, registry]);
+
+  /**
+   * 表单内可参与跨字段校验的字段列表
+   *
+   * 仅当选中节点是 Form 容器时收集其后代（录入型组件才有意义）。
+   */
+  const formFieldOptions = useMemo(() => {
+    if (!selectedNode || selectedNode.type !== 'form') return [];
+    return collectDescendants(selectedNode, schema.components)
+      .filter(child => child.type !== 'form') // 嵌套表单字段不参与外层跨字段校验
+      .map(child => ({
+        value: child.id,
+        label: String(
+          child.props?.label || child.props?.title || child.name || child.id,
+        ),
+      }));
+  }, [selectedNode, schema.components]);
 
   // 收集可被 invokeMethod 调用的方法（设计时）
   // 从 ComponentRegistration.methods 读取，统一处理内置组件和自定义卡片
@@ -443,6 +461,17 @@ export function PropertyPanel({ registry }: { registry: any }) {
                   onChange={(rules) => handlePropsChange({ rules })}
                 />
               </Section>
+
+              {/* 跨字段校验（仅 Form 容器，需要知道内部字段） */}
+              {selectedNode.type === 'form' && (
+                <Section title="跨字段校验">
+                  <CrossFieldRulesEditor
+                    value={(selectedNode.props.crossFieldRules as CrossFieldRule[]) || []}
+                    onChange={(rules) => handlePropsChange({ crossFieldRules: rules })}
+                    fields={formFieldOptions}
+                  />
+                </Section>
+              )}
 
               {/* 变量/表达式选择弹窗 */}
               {bindingTarget && bindingMode === 'variable' && (

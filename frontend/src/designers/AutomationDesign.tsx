@@ -41,6 +41,13 @@ import { ConditionConfig } from './automation/ConditionConfig';
 import { ActionConfig } from './automation/ActionConfig';
 import { ThrottleConfig } from './automation/ThrottleConfig';
 import { AutomationLogViewer } from './automation/AutomationLogViewer';
+import type {
+  AutomationAction,
+  AutomationCondition,
+  EffectiveTimeConfig,
+  // 与下方 ThrottleConfig 组件同名，按类型别名引入避免命名冲突
+  ThrottleConfig as ThrottleConfigData,
+} from '@low-code/automation';
 import { apiFetch } from '../utils/apiClient.js';
 
 const { Text, Title } = Typography;
@@ -58,10 +65,10 @@ interface AutomationRuleData {
   description?: string;
   status: RuleStatus;
   trigger: Record<string, unknown>;
-  condition?: Record<string, unknown>;
-  actions: Record<string, unknown>[];
-  throttle?: Record<string, unknown>;
-  effectiveTime?: Record<string, unknown>;
+  condition?: AutomationCondition;
+  actions: AutomationAction[];
+  throttle?: ThrottleConfigData;
+  effectiveTime?: EffectiveTimeConfig;
   createdBy?: string;
   createdAt?: string;
   updatedBy?: string;
@@ -209,7 +216,7 @@ export const AutomationDesign: React.FC<AutomationDesignProps> = ({
 
   /** 更新条件配置 */
   const handleConditionChange = useCallback(
-    (condition: Record<string, unknown> | undefined) => {
+    (condition: AutomationCondition | undefined) => {
       setRule(prev => ({ ...prev, condition }));
     },
     []
@@ -217,7 +224,7 @@ export const AutomationDesign: React.FC<AutomationDesignProps> = ({
 
   /** 更新动作配置 */
   const handleActionsChange = useCallback(
-    (actions: Record<string, unknown>[]) => {
+    (actions: AutomationAction[]) => {
       setRule(prev => ({ ...prev, actions }));
     },
     []
@@ -225,7 +232,7 @@ export const AutomationDesign: React.FC<AutomationDesignProps> = ({
 
   /** 更新限流配置 */
   const handleThrottleChange = useCallback(
-    (throttle: Record<string, unknown> | undefined) => {
+    (throttle: ThrottleConfigData | undefined) => {
       setRule(prev => ({ ...prev, throttle }));
     },
     []
@@ -233,7 +240,7 @@ export const AutomationDesign: React.FC<AutomationDesignProps> = ({
 
   /** 更新生效时间配置 */
   const handleEffectiveTimeChange = useCallback(
-    (effectiveTime: Record<string, unknown> | undefined) => {
+    (effectiveTime: EffectiveTimeConfig | undefined) => {
       setRule(prev => ({ ...prev, effectiveTime }));
     },
     []
@@ -299,7 +306,7 @@ export const AutomationDesign: React.FC<AutomationDesignProps> = ({
       style={{ marginBottom: 16 }}
     >
       <ConditionConfig
-        value={rule.condition as any}
+        value={rule.condition}
         onChange={handleConditionChange}
       />
     </Card>
@@ -317,7 +324,7 @@ export const AutomationDesign: React.FC<AutomationDesignProps> = ({
       style={{ marginBottom: 16 }}
     >
       <ActionConfig
-        value={rule.actions as any[]}
+        value={rule.actions}
         onChange={handleActionsChange}
       />
     </Card>
@@ -326,9 +333,9 @@ export const AutomationDesign: React.FC<AutomationDesignProps> = ({
   /** 渲染高级设置 */
   const renderAdvancedSection = () => (
     <ThrottleConfig
-      throttle={rule.throttle as any}
+      throttle={rule.throttle}
       onThrottleChange={handleThrottleChange}
-      effectiveTime={rule.effectiveTime as any}
+      effectiveTime={rule.effectiveTime}
       onEffectiveTimeChange={handleEffectiveTimeChange}
     />
   );

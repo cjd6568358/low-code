@@ -44,8 +44,6 @@ export class MemoryRoleRegistry implements RoleRegistry {
           builtin.roleId === 'department_default'
             ? DEPARTMENT_DEFAULT_PERMISSIONS
             : [],
-        createdAt: '',
-        updatedAt: '',
       };
       this.roles.set(role.roleId, role);
     }

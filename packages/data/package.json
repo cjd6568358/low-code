@@ -9,6 +9,11 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@low-code/shared": "workspace:*",
     "koffi": "^2.8.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vitest": "^2.0.0"
   }
 }

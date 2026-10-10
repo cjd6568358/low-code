@@ -5,9 +5,9 @@
  * - 组件注册表（componentMap）与组件解析
  * - 抽象方法声明，强制子类实现平台特定逻辑
  */
-import type React from 'react';
 import type {
   PlatformAdapter,
+  PlatformComponent,
   ThemeConfig,
   ApiRequestConfig,
   ApiResponse,
@@ -25,7 +25,7 @@ export abstract class BaseAdapter implements PlatformAdapter {
   abstract readonly platform: 'web' | 'mobile' | 'miniapp';
 
   /** 组件映射表：key 为 `${library}:${type}` 或 `type` */
-  protected componentMap = new Map<string, React.ComponentType>();
+  protected componentMap = new Map<string, PlatformComponent>();
 
   /**
    * 解析组件
@@ -33,7 +33,7 @@ export abstract class BaseAdapter implements PlatformAdapter {
    * @param library - 组件库标识
    * @returns 匹配的组件类型，未找到返回 null
    */
-  resolveComponent(type: string, library: string): React.ComponentType | null {
+  resolveComponent(type: string, library: string): PlatformComponent | null {
     const key = `${library}:${type}`;
     return this.componentMap.get(key) || this.componentMap.get(type) || null;
   }
@@ -44,7 +44,7 @@ export abstract class BaseAdapter implements PlatformAdapter {
    * @param component - React 组件
    * @param library - 组件库标识（可选）
    */
-  registerComponent(type: string, component: React.ComponentType, library?: string): void {
+  registerComponent(type: string, component: PlatformComponent, library?: string): void {
     const key = library ? `${library}:${type}` : type;
     this.componentMap.set(key, component);
   }

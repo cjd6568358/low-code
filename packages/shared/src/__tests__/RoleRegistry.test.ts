@@ -54,10 +54,10 @@ describe('RoleRegistry', () => {
       baseRoleIds: ['viewer'],
       permissions: [
         {
-          permissionId: 'perm_report_write',
+          permissionId: 'perm_report_update',
           resourceType: 'menu',
           resourceId: 'report',
-          actions: ['read', 'write'],
+          actions: ['read', 'update'],
         },
       ],
       isBuiltin: false,
@@ -203,7 +203,7 @@ describe('RoleRegistry', () => {
             permissionId: 'perm_admin',
             resourceType: 'menu',
             resourceId: 'admin',
-            actions: ['read', 'write', 'delete'],
+            actions: ['read', 'update', 'delete'],
           },
         ],
         isBuiltin: false,

@@ -136,4 +136,64 @@ export interface FormProps extends BaseProps {
    * @no-binding
    */
   preserve?: boolean;
+
+  // === 数据暂存 ===
+
+  /**
+   * 启用草稿自动暂存
+   * @group 数据暂存
+   * @priority 50
+   * @no-binding
+   * @default false
+   */
+  draftEnabled?: boolean;
+
+  /**
+   * 暂存防抖间隔（毫秒）
+   * @group 数据暂存
+   * @priority 51
+   * @no-binding
+   * @default 2000
+   */
+  draftDebounceMs?: number;
+
+  /**
+   * 初始化时恢复未提交的本地草稿
+   *
+   * 仅在表单没有业务数据/流程快照数据时生效，
+   * 避免草稿覆盖真实业务数据。
+   *
+   * @group 数据暂存
+   * @priority 52
+   * @no-binding
+   * @default false
+   */
+  draftRestoreOnInit?: boolean;
+
+  // === 校验 ===
+
+  /**
+   * 跨字段校验规则
+   *
+   * 由专用编辑器配置；antd 的 Form.Item rules 只能表达单字段约束，
+   * 跨字段规则在提交时由 ValidationEngine 的 Level 3 求值，
+   * 错误挂到 targetField 上回写 antd。
+   *
+   * @group 校验配置
+   * @priority 60
+   * @no-binding
+   */
+  crossFieldRules?: object[];
+
+  /**
+   * 服务端校验接口地址
+   *
+   * 提交时 POST 当前表单值到该地址，响应中的 `data.errors` 或 `errors`
+   * 会被解析为字段级错误（Level 4 校验）。
+   *
+   * @group 校验配置
+   * @priority 61
+   * @no-binding
+   */
+  validationApi?: string;
 }

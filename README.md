@@ -339,17 +339,19 @@ low-code/
 │   └── src/
 │       ├── config/                    # 配置（端口、数据库路径、DB 单例）
 │       ├── middlewares/               # 中间件（错误处理、CORS、日志）
-│       ├── routes/                    # 路由（auth、health、workflows、workflow-instances、workflow-tasks）
-│       └── services/                  # 业务服务层（FileDatabaseAdapter、FileSnapshotService、WorkflowService）
+│       ├── routes/                    # 路由（auth、health、apps、workflows、automations、…）
+│       ├── services/                  # 业务服务层（WorkflowService、WorkflowDataSource、AutomationEngine、…）
+│       └── types/                     # 可选的第三方模块类型声明（nodemailer）
 │
 ├── packages/                          # 引擎层（纯逻辑，无框架依赖）
-│   ├── shared/                        # 公共类型、权限引擎
+│   ├── shared/                        # 公共类型、表达式引擎（workerpool 沙箱）、权限引擎
 │   ├── computation/                   # 运算引擎
+│   ├── automation/                    # 自动化引擎（ECA 模型、TriggerMatcher/ConditionEvaluator/Throttler/EffectiveTimeChecker）
 │   ├── renderer/                      # 渲染引擎 + 设计器 + 流程 UI
 │   ├── auto-rendering/                # 自动渲染引擎
 │   ├── data/                          # 数据引擎（SQLite koffi FFI）
 │   ├── build-tools/                   # 构建工具（TS → JSON Schema 编译器）
-│   └── workflow/                      # 流程引擎核心（含 BPMN Schema 定义、WorkflowEngine、StateMachine、SnapshotEngine）
+│   └── workflow/                      # 流程引擎核心（BPMN Schema、WorkflowEngine、StateMachine、SnapshotEngine）
 │
 ├── tenants/                           # 租户数据（每租户独立目录）
 │   └── tenant_{uuid}/                 # 目录名带前缀，uuid 为 8 位 hex
@@ -380,7 +382,8 @@ low-code/
 ├── docs/                              # 设计文档（20+）
 ├── scripts/                           # 构建/生成脚本
 │   └── generate-antd-schemas.ts       # antd TS → JSON Schema 自动生成
-├── TODO.md                            # 技术难点与工作计划
+├── TODO.md                            # 功能路线图（稳定，少改）
+├── PROGRESS.md                        # 工作进度台账（每完成一项立即打勾）
 └── memory/                            # 会话记忆
 ```
 
@@ -415,9 +418,31 @@ yarn frontend   # 前端门户（:5173）
 # 构建所有包
 yarn build
 
+# 类型检查（server + frontend + data）
+yarn typecheck
+
 # 运行测试
 yarn test
 ```
+
+### 验证约定
+
+| 命令 | 覆盖范围 | 说明 |
+|------|---------|------|
+| `yarn build` | 全部 9 个 workspace | 各包 `tsc`，包含测试文件的类型检查 |
+| `yarn typecheck` | server + frontend + data | 快速类型校验（无需构建） |
+| `yarn test` | 全部 9 个 workspace | Vitest 单测 + E2E |
+
+> **重要**：`vitest` 使用 esbuild 转译，**不做类型检查**。只跑测试无法发现类型错误，
+> 提交前必须至少跑一次 `yarn build` 或 `yarn typecheck`。
+
+### 包构建约定
+
+各包 `tsconfig.json` 统一策略：关闭 `composite`、`rootDir: src`、用 `paths` 直接指向依赖包源码
+（与 `server`/`frontend` 一致），因此**无需按依赖顺序构建**，也不会产生 `TS6059/TS6305/TS6306` 冲突。
+
+根 `build`/`test` 脚本带 `--exclude .`：`yarn workspaces foreach` 默认会**包含根 workspace 自身**，
+导致根脚本被再次调用、全部任务执行两遍。排除根 workspace 后每个任务只跑一次。
 
 ### 演示账号
 

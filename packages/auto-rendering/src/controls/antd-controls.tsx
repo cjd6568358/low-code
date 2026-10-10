@@ -13,10 +13,16 @@ const { TextArea } = Input;
 function extractOptions(schema: ControlProps['schema']): Array<{ label: string; value: unknown }> {
   // 优先读 oneOf（@enumLabels 生成）
   if (schema.oneOf) {
-    return schema.oneOf.map((item: { const: unknown; title?: string }) => ({
-      label: item.title || String(item.const),
-      value: item.const,
-    }));
+    const options: Array<{ label: string; value: unknown }> = [];
+    for (const item of schema.oneOf) {
+      if (typeof item !== 'object' || item === null) continue;
+      if (item.const === undefined) continue;
+      options.push({
+        label: item.title || String(item.const),
+        value: item.const,
+      });
+    }
+    return options;
   }
   // fallback: enum + optionLabels
   if (schema.enum) {

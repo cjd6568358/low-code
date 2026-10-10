@@ -14,9 +14,28 @@ describe('FormRegistry', () => {
     registry = new FormRegistry();
   });
 
-  function createMockManager(values: Record<string, any> = {}) {
+  /**
+   * 构造表单数据管理器替身
+   *
+   * `validateForm` 除了 antd 字段级校验外，还会调用管理器的跨字段/服务端校验能力，
+   * 因此替身需要提供 `getValidationConfig` 与 `validateCrossFields`。
+   */
+  function createMockManager(
+    values: Record<string, any> = {},
+    options: {
+      validationConfig?: { crossFieldRules?: unknown[]; validationApi?: string };
+      crossFieldErrors?: Record<string, string[]>;
+      serverErrors?: Record<string, string[]>;
+    } = {},
+  ) {
     return {
       getValues: vi.fn().mockReturnValue(values),
+      getValidationConfig: vi.fn().mockReturnValue(options.validationConfig ?? {}),
+      validateCrossFields: vi.fn().mockReturnValue({
+        valid: !options.crossFieldErrors,
+        errors: options.crossFieldErrors ?? {},
+      }),
+      validateOnServer: vi.fn().mockResolvedValue(options.serverErrors ?? {}),
     } as any;
   }
 
@@ -174,6 +193,60 @@ describe('FormRegistry', () => {
     it('应该返回 valid:true 当表单不存在', async () => {
       const result = await registry.validateForm('nonexistent');
       expect(result.valid).toBe(true);
+    });
+
+    it('应该合并跨字段校验错误并回写 antd', async () => {
+      const manager = createMockManager(
+        { start: '2024-01-10', end: '2024-01-01' },
+        { crossFieldErrors: { end: ['结束日期不能早于开始日期'] } },
+      );
+      const antdForm = createMockAntdForm();
+      antdForm.validateFields.mockResolvedValue({});
+
+      registry.register('form1', manager);
+      registry.registerAntdForm('form1', antdForm);
+
+      const result = await registry.validateForm('form1');
+
+      expect(result.valid).toBe(false);
+      expect(result.errors.end).toEqual(['结束日期不能早于开始日期']);
+      // 引擎产出的错误必须回写 antd，否则界面上看不到提示
+      expect(antdForm.setFields).toHaveBeenCalledWith([
+        { name: 'end', errors: ['结束日期不能早于开始日期'] },
+      ]);
+    });
+
+    it('配置了 validationApi 时应执行服务端校验', async () => {
+      const manager = createMockManager(
+        { email: 'a@b.com' },
+        {
+          validationConfig: { validationApi: '/api/validate' },
+          serverErrors: { email: ['该邮箱已被使用'] },
+        },
+      );
+      const antdForm = createMockAntdForm();
+      antdForm.validateFields.mockResolvedValue({});
+
+      registry.register('form1', manager);
+      registry.registerAntdForm('form1', antdForm);
+
+      const result = await registry.validateForm('form1');
+
+      expect(manager.validateOnServer).toHaveBeenCalled();
+      expect(result.errors.email).toEqual(['该邮箱已被使用']);
+    });
+
+    it('未配置 validationApi 时不应发起服务端校验', async () => {
+      const manager = createMockManager({}, { validationConfig: {} });
+      const antdForm = createMockAntdForm();
+      antdForm.validateFields.mockResolvedValue({});
+
+      registry.register('form1', manager);
+      registry.registerAntdForm('form1', antdForm);
+
+      await registry.validateForm('form1');
+
+      expect(manager.validateOnServer).not.toHaveBeenCalled();
     });
   });
 

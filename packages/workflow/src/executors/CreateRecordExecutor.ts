@@ -5,15 +5,17 @@
  * 设计器配置：collection（数据表）、fields（FieldMappingItem[] 字段赋值）
  */
 
-import type { ExecutionContext, ExecutionResult } from '../types/execution';
-import type { FlowNode } from '../schema';
-import { DataOperationExecutor, type DataOperationConfig, type DataOperationResult } from './DataOperationExecutor';
+import type {
+  ExecutionContext,
+  ExecutionResult,
+  FieldValues,
+} from '../types/execution';
+import { DataOperationExecutor } from './DataOperationExecutor';
 
 export class CreateRecordExecutor extends DataOperationExecutor {
   async execute(context: ExecutionContext): Promise<ExecutionResult> {
     const { currentNode, instance } = context;
     const config = this.getDataOperationConfig(currentNode);
-    const startTime = Date.now();
 
     try {
       // 1. 解析配置
@@ -52,7 +54,7 @@ export class CreateRecordExecutor extends DataOperationExecutor {
       const variableUpdates: Record<string, unknown> = {
         [`${currentNode.id}_result`]: { record, affectedCount: 1 },
       };
-      await this.engine['mergeVariables'](instance.id, variableUpdates);
+      await this.engine.mergeVariables(instance.id, variableUpdates);
 
       // 5. 获取下一个节点
       const nextNodes = this.getNextNodes(context);

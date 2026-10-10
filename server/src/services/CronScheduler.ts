@@ -162,6 +162,7 @@ export class CronScheduler {
       config,
       parsed,
       enabled: true,
+      timer: null,
       runCount: 0,
       errorCount: 0,
     };

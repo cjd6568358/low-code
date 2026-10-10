@@ -6,7 +6,8 @@ import React, { useRef, useEffect, useCallback, useImperativeHandle, forwardRef 
 import * as monaco from 'monaco-editor';
 
 // side-effect: 注册 JavaScript/TypeScript 语言特性（格式化提供器等）
-const tsContributionReady = import('monaco-editor/esm/vs/language/typescript/monaco.contribution');
+// 显式带 .js 扩展名，配合同目录的 .d.ts 让 TS 解析到类型声明
+const tsContributionReady = import('monaco-editor/esm/vs/language/typescript/monaco.contribution.js');
 
 /** 代码诊断信息 */
 export interface CodeDiagnostic {

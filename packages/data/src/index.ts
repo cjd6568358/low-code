@@ -19,6 +19,8 @@ export {
   executeTableSchema,
   softDeleteRecord,
   restoreRecord,
+  updateRecordsWhere,
+  softDeleteRecordsWhere,
   queryRecords,
   queryRecordsAdvanced,
   insertRecord,
@@ -32,6 +34,8 @@ export type {
   TenantRecord,
   SqliteDb,
   SqliteStatement,
+  SqliteValue,
+  SqliteRow,
   MigrationFn,
   MigrationEntry,
 } from './types';

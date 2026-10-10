@@ -6,8 +6,7 @@
  */
 
 import type { ExecutionContext, ExecutionResult } from '../types/execution';
-import type { FlowNode } from '../schema';
-import { DataOperationExecutor, type DataOperationConfig, type DataOperationResult } from './DataOperationExecutor';
+import { DataOperationExecutor } from './DataOperationExecutor';
 
 export class UpdateRecordExecutor extends DataOperationExecutor {
   async execute(context: ExecutionContext): Promise<ExecutionResult> {
@@ -59,7 +58,7 @@ export class UpdateRecordExecutor extends DataOperationExecutor {
       const variableUpdates: Record<string, unknown> = {
         [`${currentNode.id}_result`]: { affectedCount },
       };
-      await this.engine['mergeVariables'](instance.id, variableUpdates);
+      await this.engine.mergeVariables(instance.id, variableUpdates);
 
       // 5. 获取下一个节点
       const nextNodes = this.getNextNodes(context);

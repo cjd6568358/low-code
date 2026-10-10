@@ -13,6 +13,50 @@ import type {
 import type { InstanceRecord, TaskRecord, SnapshotRecord, CheckpointRecord } from './engine';
 import type { DefinitionIndex } from '../engine/DefinitionIndex';
 
+/** 数据表记录（字段名 → 字段值） */
+export type DataRecord = Record<string, unknown>;
+
+/** 查询筛选条件值（支持 `$ne`/`$gt`/`$in`/`$like` 等操作符包装） */
+export type FilterValue = unknown;
+
+/** 查询筛选条件（字段名 → 条件值） */
+export type FilterCondition = Record<string, FilterValue>;
+
+/** 字段赋值（字段名 → 新值） */
+export type FieldValues = Record<string, unknown>;
+
+/** 排序配置（字段名 → 方向） */
+export type SortOptions = Record<string, 'asc' | 'desc'>;
+
+/** 数据查询参数 */
+export interface DataQueryOptions {
+  /** 筛选条件 */
+  filter?: FilterCondition;
+  /** 排序 */
+  sort?: SortOptions;
+  /** 返回条数上限 */
+  limit?: number;
+  /** 偏移量 */
+  offset?: number;
+}
+
+/**
+ * 流程数据源接口
+ *
+ * 数据操作节点（创建/更新/查询/删除记录）通过该接口访问业务数据表。
+ * 由服务层（server）实现并注入到 ExecutionContext，引擎层不依赖具体存储。
+ */
+export interface WorkflowDataSource {
+  /** 创建单条记录，返回创建后的记录 */
+  create(collection: string, fields: FieldValues): Promise<DataRecord>;
+  /** 查询记录列表 */
+  find(collection: string, options?: DataQueryOptions): Promise<DataRecord[]>;
+  /** 更新匹配的记录，返回影响行数 */
+  update(collection: string, filter: FilterCondition, fields: FieldValues): Promise<number>;
+  /** 删除匹配的记录（软删除），返回影响行数 */
+  destroy(collection: string, filter: FilterCondition): Promise<number>;
+}
+
 /** 执行上下文 */
 export interface ExecutionContext {
   /** 流程实例 */
@@ -33,6 +77,12 @@ export interface ExecutionContext {
   initiator?: OperatorInfo;
   /** 节点表单数据 */
   formData?: Record<string, unknown>;
+  /**
+   * 按数据源名称获取数据源实例（数据操作节点使用）
+   *
+   * 未注入时数据操作节点返回「数据源不可用」错误，流程不中断。
+   */
+  getDatabase?: (dataSourceName: string) => WorkflowDataSource | undefined;
 }
 
 /** 操作人信息 */

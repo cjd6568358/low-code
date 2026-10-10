@@ -475,7 +475,7 @@ class EnvironmentRegistryImpl {
       key: def.name,
       label: def.name,
       description: def.description,
-      children: def.properties.map((prop) => this.propertyToTreeNode(def.name, prop)),
+      children: (def.properties ?? []).map((prop) => this.propertyToTreeNode(def.name, prop)),
       isCrossApp: def.isCrossApp,
       appName: def.appName,
     }));
@@ -515,7 +515,7 @@ class EnvironmentRegistryImpl {
       });
 
       // 子属性提示
-      for (const prop of def.properties) {
+      for (const prop of def.properties ?? []) {
         items.push(...this.propertyToCompletionItems(def, prop));
       }
     }

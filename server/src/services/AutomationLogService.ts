@@ -18,7 +18,8 @@ export interface ExecutionLog {
   eventData: Record<string, unknown>;
   conditionResult?: Record<string, unknown>;
   actionResults: Array<Record<string, unknown>>;
-  status: 'success' | 'partial_success' | 'failed';
+  /** 执行状态（skipped 表示因生效时间/限流被跳过，未实际执行动作） */
+  status: 'success' | 'partial_success' | 'failed' | 'skipped';
   totalDurationMs: number;
   createdAt: string;
 }
@@ -161,6 +162,69 @@ export class AutomationLogService {
 
     stats.avgDurationMs = stats.total > 0 ? Math.round(totalDuration / stats.total) : 0;
     return stats;
+  }
+
+  /**
+   * 获取规则的最近一次执行时间
+   *
+   * 供限流器（Throttler）判断冷却时间使用。
+   *
+   * @param tenantId 租户 ID
+   * @param ruleId 规则 ID
+   * @returns 最近一次执行时间（ISO8601），无记录时返回 undefined
+   */
+  async getLastExecutionTime(tenantId: string, ruleId: string): Promise<string | undefined> {
+    const dir = this.getLogDir(tenantId);
+    if (!await existsAsync(dir)) return undefined;
+
+    const files = (await readdir(dir)).filter((f) => f.endsWith('.json'));
+    let latest: string | undefined;
+
+    for (const file of files) {
+      try {
+        const content = JSON.parse(await readFile(path.join(dir, file), 'utf-8')) as ExecutionLog;
+        if (content.ruleId !== ruleId || !content.createdAt) continue;
+        if (!latest || new Date(content.createdAt).getTime() > new Date(latest).getTime()) {
+          latest = content.createdAt;
+        }
+      } catch {
+        // 跳过损坏的文件
+      }
+    }
+
+    return latest;
+  }
+
+  /**
+   * 获取规则今日执行次数
+   *
+   * 供限流器（Throttler）判断每日上限使用，按本地时区自然日统计。
+   *
+   * @param tenantId 租户 ID
+   * @param ruleId 规则 ID
+   * @returns 今日执行次数
+   */
+  async getTodayExecutionCount(tenantId: string, ruleId: string): Promise<number> {
+    const dir = this.getLogDir(tenantId);
+    if (!await existsAsync(dir)) return 0;
+
+    const files = (await readdir(dir)).filter((f) => f.endsWith('.json'));
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const startMs = startOfToday.getTime();
+
+    let count = 0;
+    for (const file of files) {
+      try {
+        const content = JSON.parse(await readFile(path.join(dir, file), 'utf-8')) as ExecutionLog;
+        if (content.ruleId !== ruleId || !content.createdAt) continue;
+        if (new Date(content.createdAt).getTime() >= startMs) count++;
+      } catch {
+        // 跳过损坏的文件
+      }
+    }
+
+    return count;
   }
 
   /**

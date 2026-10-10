@@ -7,7 +7,17 @@
  * 2. 时段过滤 — 按星期几和时间段过滤
  */
 
-import type { AutomationRule, EffectiveTimeConfig, TimeRange } from '../types/rule';
+import type { EffectiveTimeConfig, TimeRange } from '../types/rule';
+
+/**
+ * 生效时间检查所需的最小规则结构
+ *
+ * 只依赖 effectiveTime 字段，便于服务层用自身的规则结构直接调用，无需强制断言。
+ */
+export interface EffectiveTimeSubject {
+  /** 生效时间配置（缺省表示始终生效） */
+  effectiveTime?: EffectiveTimeConfig;
+}
 
 /**
  * 生效时间检查结果
@@ -30,11 +40,11 @@ export class EffectiveTimeChecker {
   /**
    * 检查规则是否在生效时间内
    *
-   * @param rule - 自动化规则
+   * @param rule - 自动化规则（或任意含 effectiveTime 的对象）
    * @param now - 当前时间（可选，默认为当前时间）
    * @returns 检查结果
    */
-  check(rule: AutomationRule, now?: Date): EffectiveTimeResult {
+  check(rule: EffectiveTimeSubject, now?: Date): EffectiveTimeResult {
     if (!rule.effectiveTime) {
       return { effective: true };
     }

@@ -9,6 +9,7 @@
  * - 禁止返回 Promise 的检测
  */
 
+import type { VariableProperty } from '@low-code/shared';
 import { environmentRegistry } from './EnvironmentRegistry';
 
 /** 支持的基本数据类型 */
@@ -259,7 +260,7 @@ function inferVariablePathType(path: string, warnings: AnyTypeWarning[] = []): B
   if (!def) return 'any';
 
   // 遍历属性树
-  let currentProperties = def.properties;
+  let currentProperties: VariableProperty[] = def.properties ?? [];
   let currentType: BaseType = 'any';
   let currentOriginalType = 'any';
 

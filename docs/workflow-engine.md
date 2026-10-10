@@ -819,6 +819,20 @@ const diff = await snapshotService.diff(snapshotId1, snapshotId2);
 - **运行时**：引擎调用 `UserResolver` 将策略解析为具体用户列表，人员变动不影响已发布的流程
 - **存储位置**：`UserTask.assignee` 字段（BPMN JSON）
 
+> **设计器约定（重要）**：流程节点配置面板必须使用 `AssigneeSelector`（`packages/renderer/src/components/AssigneeSelector/`），
+> 它产出 `AssigneeStrategy` 对象。`UserSelector` 只产出裸用户 ID 字符串，与引擎/节点展示的数据契约不一致，
+> **不得**用于审批人字段（可用于 `candidateUsers` 等多选场景）。
+>
+> 节点展示组件 `ApprovalNodeDisplay` 同样按 `AssigneeStrategy` 结构格式化（`指定人员（2项）`）。
+
+### 指派策略 vs 候选用户
+
+| 字段 | 类型 | 语义 |
+|------|------|------|
+| `assignee` | `AssigneeStrategy` | 直接决定任务归属，任务创建即指派给解析出的用户 |
+| `candidateUsers` | `string[]` | 候选池，任务创建后需通过 `claimTask()` 认领（竞签场景） |
+| `candidateGroups` | `string[]` | 候选用户组（角色/部门 ID），语义同 `candidateUsers` |
+
 ### UserResolver 接口
 
 ```typescript
@@ -922,19 +936,52 @@ if (mode === 'raceSign') {
 
 引擎支持运行时动态调整审批人：
 
-| 操作 | 方法 | 说明 |
-|------|------|------|
-| 转办 | `engine.transfer(params)` | 取消当前任务，创建新任务给目标人 |
-| 加签（前） | `engine.addSign({type: 'before', ...})` | 先让加签人审批，完成后恢复原任务 |
-| 加签（后） | `engine.addSign({type: 'after', ...})` | 当前任务完成后，再创建加签人任务 |
-| 加签（并行） | `engine.addSign({type: 'parallel', ...})` | 为当前节点创建额外的并行审批任务 |
-| 竞签认领 | `engine.claimTask(taskId, userId)` | 第一个认领的人获得任务，其他自动取消 |
+| 操作 | 方法 | 返回值 | 说明 |
+|------|------|--------|------|
+| 转办 | `engine.transfer(params)` | `Promise<TaskRecord>` | 取消当前任务，创建新任务给目标人，返回新任务 |
+| 加签（前） | `engine.addSign({type: 'before', ...})` | `Promise<TaskRecord[]>` | 取消当前任务，先让加签人审批 |
+| 加签（后） | `engine.addSign({type: 'after', ...})` | `Promise<TaskRecord[]>` | 当前任务保持待办，同时创建加签人任务 |
+| 加签（并行） | `engine.addSign({type: 'parallel', ...})` | `Promise<TaskRecord[]>` | 为当前节点创建额外的并行审批任务 |
+| 竞签认领 | `engine.claimTask(taskId, userId)` | `Promise<boolean>` | 第一个认领的人获得任务，其他自动取消 |
+
+`server/src/services/WorkflowService.ts` 的 `transfer()` / `addSign()` 直接委托引擎方法并透传返回值，
+不在服务层重复实现任务增删（避免绕过 `createTask` / `updateTask` 的统计与日志逻辑）。
 
 ---
 
 ## 数据操作节点
 
 支持对数据表进行 CRUD 操作，配置存储在节点的顶层字段中（设计器通过 `useBpmnConverter` 平铺到 BPMN 节点）。
+
+### 数据源解析（服务层注入）
+
+引擎层不感知具体存储，通过 `WorkflowEngineConfig.dataSourceResolver` 注入：
+
+```typescript
+/** 业务数据源解析器接口 */
+interface DataSourceResolver {
+  resolve(dataSourceName: string): WorkflowDataSource | undefined;
+}
+
+/** 流程数据源接口（引擎层契约） */
+interface WorkflowDataSource {
+  create(collection: string, fields: FieldValues): Promise<DataRecord>;
+  find(collection: string, options?: DataQueryOptions): Promise<DataRecord[]>;
+  update(collection: string, filter: FilterCondition, fields: FieldValues): Promise<number>;
+  destroy(collection: string, filter: FilterCondition): Promise<number>;
+}
+```
+
+- `WorkflowEngine` 在构建 `ExecutionContext` 时注入 `getDatabase(name)`（见 `withDataSource()`），
+  数据操作执行器通过 `context.getDatabase?.('default')` 获取数据源
+- 未注入解析器时，数据操作节点返回「数据源 X 不可用」错误，**不中断流程**
+- 服务层实现：`server/src/services/WorkflowDataSource.ts`
+  - `TenantWorkflowDataSource` — 基于租户 SQLite 动态表（表名 = 数据表 ID）
+  - `TenantDataSourceResolver` — 当前只提供 `default` 数据源，外部数据源在此扩展
+- 写入前自动转换：对象/数组 → JSON 字符串，布尔 → 0/1
+
+> **安全约束**：批量更新/删除必须携带非空筛选条件，否则 `updateRecordsWhere` /
+> `softDeleteRecordsWhere` 直接抛错，避免误操作全表。
 
 ### 数据结构
 

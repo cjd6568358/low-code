@@ -20,6 +20,7 @@ import {
   isGateway,
   isSubProcess,
   isBoundaryEvent,
+  isSequenceFlow,
   validateBpmnDocument,
   deserializeBpmnDocument,
 } from '../schema';
@@ -43,6 +44,7 @@ import type {
   ExecutionResult,
   NodeExecutor,
   ProcessState,
+  WorkflowDataSource,
 } from '../types/execution';
 import type { JobRecord, JobStatus } from '../types/job';
 import { StateMachine, type StateMachineEvent } from './StateMachine';
@@ -112,6 +114,7 @@ export class WorkflowEngine {
   private readonly notifyService?: NotifyService;
   private readonly _expressionEvaluator?: ExpressionEvaluator;
   private readonly _userResolver?: import('../types/engine').UserResolver;
+  private readonly _dataSourceResolver?: import('../types/engine').DataSourceResolver;
   private readonly nodeExecutors = new Map<string, NodeExecutor>();
   private readonly timeoutManager: TimeoutManager;
   private readonly runningRegistry: RunningRegistry;
@@ -143,6 +146,7 @@ export class WorkflowEngine {
     this.notifyService = config.notifyService;
     this._expressionEvaluator = config.expressionEvaluator;
     this._userResolver = config.userResolver;
+    this._dataSourceResolver = config.dataSourceResolver;
 
     // 初始化超时管理器
     this.timeoutManager = new TimeoutManager(
@@ -387,7 +391,7 @@ export class WorkflowEngine {
     // 8. 检查是否为会签/或签（使用新的 resume 逻辑）
     if (isUserTask(node)) {
       const executor = this.nodeExecutors.get('bpmn:UserTask');
-      if (executor && 'resume' in executor) {
+      if (executor instanceof UserTaskExecutor) {
         // 获取同节点的所有任务
         const allTasks = await this.db.all<TaskRecord>(
           `SELECT * FROM workflow_tasks WHERE instance_id = ? AND node_id = ?`,
@@ -402,7 +406,7 @@ export class WorkflowEngine {
           variables: instance.variables || {},
           initiator: { id: params.operatorId, name: params.operatorName || '' },
         };
-        const resumeResult = await (executor as any).resume(resumeContext, allTasks);
+        const resumeResult = await executor.resume(this.withDataSource(resumeContext), allTasks);
         if (resumeResult.waiting) {
           // 会签/或签未完成，等待其他审批
           return instance;
@@ -545,12 +549,16 @@ export class WorkflowEngine {
     });
 
     // 6. 处理驳回逻辑
+    // 注意：此处传入的实例对象是驳回前的快照（状态为 running/waiting），
+    // handleReject 内部会按需重新读取最新状态，避免状态机校验使用过期状态。
     await this.handleReject(instance, node, params);
 
     // 7. 发送通知
     await this.notifyTaskRejected(task, params);
 
-    return instance;
+    // 8. 返回更新后的实例（驳回可能改变状态与当前节点）
+    const updatedInstance = await this.getInstance(instance.id);
+    return updatedInstance || instance;
   }
 
   /**
@@ -613,8 +621,11 @@ export class WorkflowEngine {
   /**
    * 转办任务
    * 将任务从当前审批人转给其他人
+   *
+   * @param params 转办参数
+   * @returns 转办后为目标人创建的新任务
    */
-  async transfer(params: import('../types/engine').TransferParams): Promise<void> {
+  async transfer(params: import('../types/engine').TransferParams): Promise<TaskRecord> {
     // 1. 获取并校验任务
     const task = await this.getTask(params.taskId);
     if (!task) {
@@ -641,7 +652,7 @@ export class WorkflowEngine {
     });
 
     // 4. 创建新任务给目标人
-    await this.createTask({
+    return await this.createTask({
       instanceId: task.instanceId,
       nodeId: task.nodeId,
       nodeName: task.nodeName,
@@ -653,8 +664,11 @@ export class WorkflowEngine {
   /**
    * 加签
    * 在当前审批节点添加额外的审批人
+   *
+   * @param params 加签参数
+   * @returns 本次加签创建的任务列表
    */
-  async addSign(params: import('../types/engine').AddSignParams): Promise<void> {
+  async addSign(params: import('../types/engine').AddSignParams): Promise<TaskRecord[]> {
     // 1. 获取并校验任务
     const task = await this.getTask(params.taskId);
     if (!task) {
@@ -670,18 +684,26 @@ export class WorkflowEngine {
       );
     }
 
+    const created: TaskRecord[] = [];
+
+    /** 为单个加签人创建任务 */
+    const createFor = async (index: number): Promise<void> => {
+      const createdTask = await this.createTask({
+        instanceId: task.instanceId,
+        nodeId: task.nodeId,
+        nodeName: task.nodeName,
+        assigneeId: params.assigneeIds[index],
+        assigneeName: params.assigneeNames?.[index],
+      });
+      created.push(createdTask);
+    };
+
     // 2. 根据加签类型执行
     switch (params.type) {
       case 'parallel':
         // 并行加签：为当前节点创建额外的并行任务
         for (let i = 0; i < params.assigneeIds.length; i++) {
-          await this.createTask({
-            instanceId: task.instanceId,
-            nodeId: task.nodeId,
-            nodeName: task.nodeName,
-            assigneeId: params.assigneeIds[i],
-            assigneeName: params.assigneeNames?.[i],
-          });
+          await createFor(i);
         }
         break;
 
@@ -691,33 +713,20 @@ export class WorkflowEngine {
           status: 'cancelled',
           comment: `前加签，原因: ${params.reason || '无'}`,
         });
-        // 创建加签人的任务（附带原任务 ID 信息，便于完成后恢复）
         for (let i = 0; i < params.assigneeIds.length; i++) {
-          await this.createTask({
-            instanceId: task.instanceId,
-            nodeId: task.nodeId,
-            nodeName: task.nodeName,
-            assigneeId: params.assigneeIds[i],
-            assigneeName: params.assigneeNames?.[i],
-          });
+          await createFor(i);
         }
         break;
 
       case 'after':
-        // 后加签：当前任务完成后，再创建加签人的任务
-        // 在当前节点的所有任务完成后，检查是否有后加签标记
-        // 简化实现：直接创建加签任务（当前任务完成后再触发）
+        // 后加签：当前任务完成后再由加签人审批（当前任务保持待办）
         for (let i = 0; i < params.assigneeIds.length; i++) {
-          await this.createTask({
-            instanceId: task.instanceId,
-            nodeId: task.nodeId,
-            nodeName: task.nodeName,
-            assigneeId: params.assigneeIds[i],
-            assigneeName: params.assigneeNames?.[i],
-          });
+          await createFor(i);
         }
         break;
     }
+
+    return created;
   }
 
   /**
@@ -980,9 +989,36 @@ export class WorkflowEngine {
   // ==================== 私有方法 ====================
 
   /**
+   * 解析业务数据源
+   *
+   * 供数据操作节点（创建/更新/查询/删除记录）访问业务表。
+   * 未配置解析器时返回 undefined，节点会返回「数据源不可用」错误但不中断流程。
+   *
+   * @param dataSourceName 数据源名称（默认 'default'）
+   */
+  private resolveDataSource(dataSourceName: string): WorkflowDataSource | undefined {
+    return this._dataSourceResolver?.resolve(dataSourceName);
+  }
+
+  /**
+   * 为执行上下文注入数据源访问能力
+   *
+   * @param context 原始执行上下文
+   * @returns 补全 getDatabase 的上下文
+   */
+  private withDataSource(context: ExecutionContext): ExecutionContext {
+    if (context.getDatabase) return context;
+    return {
+      ...context,
+      getDatabase: (name: string) => this.resolveDataSource(name),
+    };
+  }
+
+  /**
    * 执行节点
    */
-  private async executeNode(context: ExecutionContext): Promise<ExecutionResult> {
+  private async executeNode(rawContext: ExecutionContext): Promise<ExecutionResult> {
+    const context = this.withDataSource(rawContext);
     const { currentNode, instance } = context;
 
     // 检查实例是否已被中止
@@ -1079,7 +1115,8 @@ export class WorkflowEngine {
 
     // 单出口
     if (outgoingEdges.length === 1) {
-      const targetRef = (outgoingEdges[0] as { targetRef?: string }).targetRef;
+      const firstEdge = outgoingEdges[0];
+      const targetRef = isSequenceFlow(firstEdge) ? firstEdge.targetRef : undefined;
       const targetNode = definitionIndex
         ? (targetRef ? definitionIndex.getNode(targetRef) : undefined)
         : definition.nodes.find((n: FlowNode) => n.id === targetRef);
@@ -1280,10 +1317,18 @@ export class WorkflowEngine {
     }
 
     if (targetNodeId && loaded) {
-      // 验证状态转换（从 rejected 恢复到 running）
-      this.validateStateTransition(instance, 'restart');
+      // 驳回到上游节点后重新执行 —— 先读取实例的最新状态再做状态机校验
+      const latest = await this.getInstance(instance.id);
+      const currentState = latest ?? instance;
 
-      // 更新当前节点
+      // 状态机校验：从当前状态出发，若不允许 restart 事件，则先回退到 rejected
+      // （审批节点阻塞时实例状态为 waiting，需要先标记驳回终态再重新运行）
+      if (!this.stateMachine.canTrigger(currentState, 'restart')) {
+        this.validateStateTransition(currentState, 'reject');
+        await this.updateInstance(instance.id, { status: 'rejected' });
+      }
+
+      // 更新当前节点并恢复运行
       await this.updateInstance(instance.id, {
         currentNodeId: targetNodeId,
         status: 'running',
@@ -1293,19 +1338,21 @@ export class WorkflowEngine {
       const { process, index } = loaded;
       const targetNode = index.getNode(targetNodeId);
       if (targetNode) {
+        // 重新读取实例，保证执行上下文携带最新状态与当前节点
+        const refreshed = await this.getInstance(instance.id);
         const context: ExecutionContext = {
-          instance,
+          instance: refreshed ?? instance,
           definition: process,
           definitionIndex: index,
           currentNode: targetNode,
-          variables: instance.variables,
+          variables: refreshed?.variables ?? instance.variables,
           operator: params.operatorId ? {
             id: params.operatorId,
             name: params.operatorName || '',
           } : undefined,
         };
         const result = await this.executeNode(context);
-        await this.handleExecutionResult(instance, result);
+        await this.handleExecutionResult(context.instance, result);
       }
     }
   }
@@ -1481,8 +1528,13 @@ export class WorkflowEngine {
 
   /**
    * 更新任务
+   *
+   * 供节点执行器（内部协作者）调用，按字段增量更新任务记录。
+   *
+   * @param taskId 任务 ID
+   * @param data 待更新的任务字段
    */
-  private async updateTask(
+  async updateTask(
     taskId: string,
     data: Partial<TaskRecord>
   ): Promise<void> {
@@ -1504,6 +1556,10 @@ export class WorkflowEngine {
     if (data.completedAt !== undefined) {
       updates.push('completed_at = ?');
       params.push(data.completedAt);
+    }
+    if (data.claimedAt !== undefined) {
+      updates.push('claimed_at = ?');
+      params.push(data.claimedAt);
     }
     if (data.assigneeId !== undefined) {
       updates.push('assignee_id = ?');
@@ -1535,9 +1591,14 @@ export class WorkflowEngine {
   }
 
   /**
-   * 合并变量
+   * 合并变量到流程实例
+   *
+   * 供节点执行器（内部协作者）调用，将节点执行产生的变量增量写回实例。
+   *
+   * @param instanceId 流程实例 ID
+   * @param newVariables 待合并的变量增量
    */
-  private async mergeVariables(
+  async mergeVariables(
     instanceId: string,
     newVariables: Record<string, unknown>
   ): Promise<void> {

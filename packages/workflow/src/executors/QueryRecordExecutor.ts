@@ -6,8 +6,7 @@
  */
 
 import type { ExecutionContext, ExecutionResult } from '../types/execution';
-import type { FlowNode } from '../schema';
-import { DataOperationExecutor, type DataOperationConfig, type DataOperationResult } from './DataOperationExecutor';
+import { DataOperationExecutor } from './DataOperationExecutor';
 
 export class QueryRecordExecutor extends DataOperationExecutor {
   async execute(context: ExecutionContext): Promise<ExecutionResult> {
@@ -28,8 +27,8 @@ export class QueryRecordExecutor extends DataOperationExecutor {
 
       // 2. 解析查询参数（支持数组和 Record 两种格式）
       const filter = this.resolveFilter(config.filter, context);
-      const sort = config.sort || {};
-      const pagination = config.pagination || {};
+      const sort = config.sort ?? {};
+      const pagination = config.pagination ?? {};
 
       // 3. 执行查询操作
       const db = context.getDatabase?.(dataSource);
@@ -55,7 +54,7 @@ export class QueryRecordExecutor extends DataOperationExecutor {
           affectedCount: records.length,
         },
       };
-      await this.engine['mergeVariables'](instance.id, variableUpdates);
+      await this.engine.mergeVariables(instance.id, variableUpdates);
 
       // 5. 获取下一个节点
       const nextNodes = this.getNextNodes(context);

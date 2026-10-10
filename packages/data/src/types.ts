@@ -47,11 +47,21 @@ export interface TenantRecord {
 // ─── 数据库实例类型 ────────────────────────────────────
 
 /**
+ * SQLite 可绑定的参数值类型
+ *
+ * 对应 koffi FFI 传给 sqlite3_bind_* 的允许类型。
+ */
+export type SqliteValue = string | number | bigint | boolean | Uint8Array | null | undefined;
+
+/** 数据库行（字段名 → 值） */
+export type SqliteRow = Record<string, unknown>;
+
+/**
  * SQLite 数据库接口（koffi FFI 实现）
  */
 export interface SqliteDb {
   exec(sql: string): void;
-  pragma(pragma: string, value?: string | number): any;
+  pragma(pragma: string, value?: string | number): unknown;
   prepare(sql: string): SqliteStatement;
   transaction<T>(fn: () => T): T;
   close(): void;
@@ -61,12 +71,14 @@ export interface SqliteDb {
 
 /**
  * 预编译语句接口
+ *
+ * 查询结果形态取决于 SQL，由调用方按已知契约收窄类型。
  */
 export interface SqliteStatement {
-  bind(...params: any[]): SqliteStatement;
-  all(...params: any[]): any[];
-  get(...params: any[]): any;
-  run(...params: any[]): { changes: number; lastInsertRowid: bigint };
+  bind(...params: SqliteValue[]): SqliteStatement;
+  all(...params: SqliteValue[]): SqliteRow[];
+  get(...params: SqliteValue[]): SqliteRow | undefined;
+  run(...params: SqliteValue[]): { changes: number; lastInsertRowid: bigint };
   finalize(): void;
 }
 

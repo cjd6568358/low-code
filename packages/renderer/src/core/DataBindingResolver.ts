@@ -9,7 +9,7 @@
  * 支持依赖收集和变更传播
  */
 
-import type { RenderContext } from '@low-code/shared';
+import type { ExpressionScope } from '@low-code/shared';
 import type { PropValue, VariableBinding, ExpressionBinding } from '@low-code/shared';
 import { dependencyGraph, extractDependencies } from './DependencyGraph';
 
@@ -36,7 +36,7 @@ export class DataBindingResolver {
    * @param context 运行时上下文
    * @returns 解析后的值（字面量和变量引用同步返回，表达式返回 undefined）
    */
-  resolveValue(value: PropValue, context: RenderContext): any {
+  resolveValue(value: PropValue, context: ExpressionScope): any {
     // 1. 字面量
     if (!this.isBinding(value)) {
       return value;
@@ -58,7 +58,7 @@ export class DataBindingResolver {
    * @param context 运行时上下文
    * @returns 解析结果（包含同步结果和需要异步解析的表达式列表）
    */
-  resolveProps(props: Record<string, PropValue>, context: RenderContext): ResolvedProps {
+  resolveProps(props: Record<string, PropValue>, context: ExpressionScope): ResolvedProps {
     const resolved: Record<string, any> = {};
     const asyncExpressions: ResolvedProps['asyncExpressions'] = [];
 
@@ -100,8 +100,8 @@ export class DataBindingResolver {
    */
   async resolvePropsAsync(
     props: Record<string, PropValue>,
-    context: RenderContext,
-    expressionExecutor?: (code: string, context: RenderContext) => Promise<any>,
+    context: ExpressionScope,
+    expressionExecutor?: (code: string, context: ExpressionScope) => Promise<any>,
   ): Promise<Record<string, any>> {
     const { props: resolved, asyncExpressions } = this.resolveProps(props, context);
 
@@ -170,7 +170,7 @@ export class DataBindingResolver {
    * @param context 运行时上下文
    * @returns 解析后的值
    */
-  private resolveVariable(path: string, context: RenderContext): any {
+  private resolveVariable(path: string, context: ExpressionScope): any {
     if (!path || typeof path !== 'string') return undefined;
 
     // 确保以 $ 开头

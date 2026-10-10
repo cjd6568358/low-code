@@ -175,7 +175,10 @@ export class FormRegistry {
   /**
    * 校验表单
    *
-   * 调用 antd Form 的 validateFields 方法，返回校验结果。
+   * 分两段执行：
+   * 1. **字段级** — 调用 antd `validateFields()`（覆盖设计器配置的 `rules`）
+   * 2. **跨字段 + 服务端** — 调用 `ValidationEngine` 的 Level 3 / Level 4，
+   *    结果通过 `setFields` 回写到对应字段（antd 自身无法表达跨字段约束）
    *
    * @param formId - 指定表单 ID，不传则使用活跃表单
    * @param fields - 指定校验的字段列表，不传则校验全部
@@ -185,23 +188,62 @@ export class FormRegistry {
     const targetFormId = formId ?? this.getActiveFormId();
     if (!targetFormId) return { valid: true, errors: {} };
 
-    const formInstance = this.antdForms.get(targetFormId);
-    if (!formInstance) return { valid: true, errors: {} };
+    const errors: Record<string, string[]> = {};
 
-    try {
-      await formInstance.validateFields(fields as any);
-      return { valid: true, errors: {} };
-    } catch (errorInfo: any) {
-      // antd validateFields reject 时返回 { errorFields: [{ name, errors }] }
-      const errors: Record<string, string[]> = {};
-      if (errorInfo?.errorFields) {
-        for (const field of errorInfo.errorFields) {
-          const fieldName = Array.isArray(field.name) ? field.name.join('.') : String(field.name);
-          errors[fieldName] = field.errors || [];
+    // 1. 字段级校验（antd）
+    const formInstance = this.antdForms.get(targetFormId);
+    if (formInstance) {
+      try {
+        await formInstance.validateFields(fields as never);
+      } catch (errorInfo) {
+        // antd validateFields reject 时返回 { errorFields: [{ name, errors }] }
+        const errorFields = (errorInfo as {
+          errorFields?: Array<{ name: unknown; errors?: string[] }>;
+        })?.errorFields;
+        if (errorFields) {
+          for (const field of errorFields) {
+            const fieldName = Array.isArray(field.name) ? field.name.join('.') : String(field.name);
+            errors[fieldName] = field.errors || [];
+          }
         }
       }
-      return { valid: false, errors };
     }
+
+    // 2. 跨字段 + 服务端校验（ValidationEngine）
+    const manager = this.forms.get(targetFormId);
+    if (manager) {
+      const config = manager.getValidationConfig();
+
+      // Level 3：跨字段（同步）
+      const crossResult = manager.validateCrossFields();
+      for (const [field, msgs] of Object.entries(crossResult.errors)) {
+        if (!errors[field]) errors[field] = [];
+        errors[field].push(...msgs);
+      }
+
+      // Level 4：服务端（异步，需配置 validationApi）
+      if (config.validationApi) {
+        const serverErrors = await manager.validateOnServer();
+        for (const [field, msgs] of Object.entries(serverErrors)) {
+          if (!errors[field]) errors[field] = [];
+          errors[field].push(...msgs);
+        }
+      }
+
+      // 把引擎产出的错误回写到 antd，保证 UI 能看到错误提示
+      if (formInstance) {
+        const engineErrors = Object.entries(errors).filter(
+          ([, msgs]) => msgs.length > 0,
+        );
+        if (engineErrors.length > 0) {
+          formInstance.setFields(
+            engineErrors.map(([name, msgs]) => ({ name, errors: msgs })),
+          );
+        }
+      }
+    }
+
+    return { valid: Object.keys(errors).length === 0, errors };
   }
 
   /**

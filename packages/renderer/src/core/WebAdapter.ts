@@ -16,6 +16,7 @@ import type {
   UploadResult,
 } from '@low-code/shared';
 import { BaseAdapter } from './adapters/BaseAdapter';
+import { buildUrl } from './adapters/http-utils';
 
 /**
  * Web 平台适配器
@@ -81,8 +82,7 @@ export class WebAdapter extends BaseAdapter {
 
       let requestUrl = url;
       if (params) {
-        const searchParams = new URLSearchParams(params);
-        requestUrl += `?${searchParams.toString()}`;
+        requestUrl = buildUrl(requestUrl, params);
       }
 
       const response = await fetch(requestUrl, {

@@ -20,13 +20,17 @@ export type DataScopeType = 'all' | 'department' | 'department-and-child' | 'sel
 
 /** 数据范围配置 */
 export interface DataScopeConfig {
+  /** 范围类型 */
   scopeType: DataScopeType;
   /** 自定义规则（scopeType='custom' 时使用） */
   customFilter?: {
+    /** 过滤字段名 */
     field: string;
+    /** 比较操作符 */
     operator: string;
-    value: any;
-    /** 引用变量：$user.id, $user.departmentId 等 */
+    /** 比较值（字面量） */
+    value: unknown;
+    /** 引用变量：$user.id, $user.departmentId 等（优先于 value） */
     valueFrom?: string;
   };
 }
@@ -35,7 +39,9 @@ export interface DataScopeConfig {
 
 /** 单条权限规则 */
 export interface Permission {
+  /** 权限条目 ID */
   permissionId: string;
+  /** 资源类型 */
   resourceType: ResourceType;
   /** 资源标识（页面ID / 按钮ID / 表名 / 字段名 / 接口路径） */
   resourceId: string;
@@ -43,8 +49,8 @@ export interface Permission {
   actions: ActionType[];
   /** 数据权限范围（仅 resourceType='data' 时生效） */
   scope?: DataScopeConfig;
-  /** 附加条件 */
-  conditions?: Record<string, any>;
+  /** 附加条件（自定义鉴权规则的参数载体） */
+  conditions?: Record<string, unknown>;
 }
 
 // ─── 角色 ──────────────────────────────────────────────
@@ -80,8 +86,10 @@ export interface Role {
   tenantId?: string;
   /** 所属应用（应用级角色必填） */
   appId?: string;
-  createdAt: string;
-  updatedAt: string;
+  /** 创建时间（ISO8601，内存态构建的角色可省略） */
+  createdAt?: string;
+  /** 更新时间（ISO8601，内存态构建的角色可省略） */
+  updatedAt?: string;
 }
 
 // ─── 角色-用户关联 ─────────────────────────────────────
@@ -105,8 +113,13 @@ export interface UserRoleAssignment {
 
 /** 菜单权限配置（嵌入 PageSchema） */
 export interface MenuPermissionConfig {
-  /** 菜单/页面 ID */
-  menuId: string;
+  /**
+   * 菜单/页面 ID
+   *
+   * 内嵌于菜单节点时可省略（宿主节点已携带 menuId）；
+   * 独立存储（如权限表）时必填。
+   */
+  menuId?: string;
   /** 允许访问的角色 ID 列表（空 = 所有人可见） */
   allowedRoles?: string[];
   /** 允许访问的部门 ID 列表 */
@@ -117,8 +130,13 @@ export interface MenuPermissionConfig {
 
 /** 按钮权限配置（嵌入 ComponentNode） */
 export interface ButtonPermissionConfig {
-  /** 按钮资源标识 */
-  buttonId: string;
+  /**
+   * 按钮资源标识
+   *
+   * 内嵌于按钮组件时可省略（宿主组件已携带 buttonId）；
+   * 独立存储（如权限表）时必填。
+   */
+  buttonId?: string;
   /** 允许操作的角色 ID 列表（空 = 所有人可见） */
   allowedRoles?: string[];
   /** 允许操作的部门 ID 列表 */

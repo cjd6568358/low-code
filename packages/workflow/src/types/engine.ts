@@ -11,6 +11,7 @@ import type {
   TaskStatus,
   SnapshotType,
 } from '../schema';
+import type { WorkflowDataSource } from './execution';
 
 /** 用户解析结果 */
 export interface ResolvedUser {
@@ -49,10 +50,32 @@ export interface WorkflowEngineConfig {
   expressionEvaluator?: ExpressionEvaluator;
   /** 用户解析器（运行时将指派策略解析为具体用户） */
   userResolver?: UserResolver;
+  /**
+   * 业务数据源解析器
+   *
+   * 数据操作节点（创建/更新/查询/删除记录）按设计器配置的数据源名称解析数据源。
+   * 未注入时数据操作节点返回「数据源不可用」错误，流程不中断。
+   */
+  dataSourceResolver?: DataSourceResolver;
   /** 最大并发实例数 */
   maxConcurrentInstances?: number;
   /** 检查点间隔（毫秒） */
   checkpointInterval?: number;
+}
+
+/**
+ * 业务数据源解析器接口
+ *
+ * 由服务层实现（如基于租户 SQLite 的动态表访问），引擎层不依赖具体存储。
+ */
+export interface DataSourceResolver {
+  /**
+   * 按名称获取数据源
+   *
+   * @param dataSourceName 数据源名称（默认 'default'）
+   * @returns 数据源实例，未配置时返回 undefined
+   */
+  resolve(dataSourceName: string): WorkflowDataSource | undefined;
 }
 
 /** 数据库适配器接口 */
@@ -237,6 +260,8 @@ export interface TaskRecord {
   formData?: Record<string, unknown>;
   comment?: string;
   dueDate?: string;
+  /** 认领时间（竞签模式下第一个认领人认领的时刻，ISO8601） */
+  claimedAt?: string;
   completedAt?: string;
   createdAt: string;
 }

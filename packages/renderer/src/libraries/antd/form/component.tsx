@@ -17,7 +17,7 @@ import { Form, Spin } from 'antd';
 import { withPlatform } from '../../../components/platform';
 import { FormContext } from '../../../components/platform/FormContext';
 import type { FormRegistry } from '../../../core/FormRegistry';
-import type { ComponentNode } from '@low-code/shared';
+import type { ComponentNode, CrossFieldRule, PlatformAdapter } from '@low-code/shared';
 import { FormDataContextManager } from '../../../core/FormDataContext';
 import { expressionEngine } from '@low-code/shared';
 import { LinkageEngine } from '../../../core/LinkageEngine';
@@ -76,10 +76,17 @@ function FormWithProvider(props: React.PropsWithChildren<any>) {
     requiredMark,
     disabled,
     size,
+    draftEnabled,
+    draftDebounceMs,
+    draftRestoreOnInit,
+    crossFieldRules,
+    validationApi,
     _formRegistry,
     _formId,
     _componentMap,
     _context,
+    // 平台适配器由 Renderer 注入（PLATFORM_KEYS 已过滤，不会透传给 antd Form）
+    _adapter,
     ...rest
   } = props;
 
@@ -134,8 +141,43 @@ function FormWithProvider(props: React.PropsWithChildren<any>) {
     const linkageEngine = new LinkageEngine(expressionEngine);
     const manager = new FormDataContextManager(expressionEngine, linkageEngine);
 
-    // 用预求值捕获的初始值初始化 manager
-    manager.init({ formId: _formId, schemaDefaults: initialValuesRef.current });
+    // 用预求值捕获的初始值初始化 manager（含草稿恢复配置）
+    void manager.init({
+      formId: _formId,
+      schemaDefaults: initialValuesRef.current,
+      draft: {
+        enabled: draftEnabled === true,
+        debounceMs: typeof draftDebounceMs === 'number' ? draftDebounceMs : undefined,
+        restoreOnInit: draftRestoreOnInit === true,
+      },
+    }).then((result) => {
+      // 草稿恢复：写入 antd Form store 与初始值快照（resetForm 恢复到草稿态）
+      if (result.source === 'draft' && Object.keys(result.values).length > 0) {
+        formInstance.setFieldsValue(result.values);
+        initialValuesRef.current = { ...initialValuesRef.current, ...result.values };
+      }
+    });
+
+    // 注入校验配置：跨字段规则 + 服务端校验接口
+    // apiRequest 走适配器，保证多端（Web/H5/小程序）行为一致
+    const platformAdapter = _adapter as PlatformAdapter | undefined;
+    manager.setValidationConfig({
+      crossFieldRules: Array.isArray(crossFieldRules)
+        ? (crossFieldRules as CrossFieldRule[])
+        : undefined,
+      validationApi: typeof validationApi === 'string' && validationApi ? validationApi : undefined,
+      apiRequest: platformAdapter
+        ? async (config) => {
+            const response = await platformAdapter.api.request({
+              url: config.url,
+              method: config.method ?? 'POST',
+              data: config.data,
+            });
+            return response.data;
+          }
+        : undefined,
+    });
+
     managerRef.current = manager;
 
     registry.register(_formId, manager);
@@ -145,9 +187,14 @@ function FormWithProvider(props: React.PropsWithChildren<any>) {
       formInstance.setFieldsValue(initialValuesRef.current);
     });
     return () => {
+      // 卸载前落盘最后一次草稿并清理定时器
+      manager.flushDraftSave();
+      manager.dispose();
       registry.unregister(_formId);
       managerRef.current = null;
     };
+    // 草稿配置在表单生命周期内视为不变（来自设计器 Schema），无需加入依赖
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [_formRegistry, _formId, formInstance, preEvalReady]);
 
   // 监听表单值变化，同步到 FormDataContextManager。

@@ -573,6 +573,71 @@ interface ValidationRule {
 }
 ```
 
+### 已实现的草稿能力（运行时）
+
+**实现位置**：`packages/renderer/src/core/FormDataContext.ts`
+
+表单组件（antd `Form`）的 Schema 暴露三个设计器可配置属性：
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `draftEnabled` | `boolean` | `false` | 是否启用自动暂存（默认关闭，避免无意义写 localStorage） |
+| `draftDebounceMs` | `number` | `2000` | 暂存防抖间隔（毫秒） |
+| `draftRestoreOnInit` | `boolean` | `false` | 初始化时是否恢复未提交的本地草稿 |
+
+**生命周期**：
+
+```
+表单挂载 → FormDataContextManager.init({ draft: {...} })
+  │
+  ├─ 仅当 draftEnabled && draftRestoreOnInit && 无 businessData/snapshotData
+  │   → 读取 localStorage['lc_draft_{formId}'].values 并合并进初始值
+  │   → 结果写入 antd Form store 与初始值快照（resetForm 恢复到草稿态）
+  │
+字段变更 → scheduleDraftSave()（防抖）
+  │
+表单卸载 → flushDraftSave() 最后落盘 + dispose() 清理定时器
+```
+
+**安全约束（重要）**：草稿**绝不覆盖**业务数据或流程快照数据。
+仅当表单既无 `businessData`（编辑态）也无 `snapshotData`（流程审批态）时才恢复草稿，
+避免"编辑真实记录时被本地草稿覆盖"的数据丢失事故。
+
+**公开 API**（`FormDataContextManager`）：
+
+| 方法 | 说明 |
+|------|------|
+| `flushDraftSave()` | 忽略防抖立即落盘（卸载/页面隐藏时调用） |
+| `dispose()` | 清理防抖定时器与监听器 |
+| `hasLocalDraft()` | 是否存在本地草稿（供"是否恢复"提示） |
+| `loadDraftFromLocal()` | 读取完整草稿对象（含 `values`/`formId`/`savedAt`） |
+| `clearLocalDraft()` | 清除本地草稿（提交成功后应调用） |
+
+**草稿存储结构**（实际实现）：
+
+```jsonc
+{
+  "formId": "form_order",
+  "values": { "customer": "cust_001", "orderDate": "2024-01-15" },
+  "savedAt": 1791556106734
+}
+```
+
+> `values` 会过滤 `undefined`（`JSON.stringify` 会丢弃 undefined，
+> 导致"草稿中未出现的字段"与"草稿中显式为空的字段"在恢复时无法区分）。
+
+**服务端草稿（`storage: server | both`）尚未实现** —— 当前仅 localStorage。
+跨设备草稿需要新增草稿接口与表，见 TODO.md。
+
+### 联动产出不再污染表单值
+
+`LinkageEngine` 的选项/状态/属性联动的产出**不再**以 `__options_{field}`、
+`__state_{field}`、`__attrs_{field}` 等伪键写入 `context.values`，
+改为存放在 `FormDataContextManager` 内部的 `linkageOutput`，通过
+`getLinkageOutput()` 读取。
+
+这样 `Object.keys(values)` 恒等于表单字段集合，草稿/提交/校验无需再过滤伪键。
+
 ### 草稿数据模型
 
 ```jsonc

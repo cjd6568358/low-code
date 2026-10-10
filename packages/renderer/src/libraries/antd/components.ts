@@ -12,6 +12,7 @@
  * - {type}.json    — 自动生成的 JSON Schema
  */
 import React from 'react';
+import type { PlatformComponent, WrappedPlatformComponent } from '@low-code/shared';
 import {
   // 通用
   Typography,
@@ -128,11 +129,13 @@ export const PlatformWatermark = withPlatform(Watermark);
 // ─── 通用（补充） ──────────────────────────────────────
 
 export const PlatformFloatButton = withPlatform(FloatButton);
-export const PlatformAffix = withPlatform(Affix) as React.ComponentType<any>;
+export const PlatformAffix = withPlatform(Affix);
 
 // ─── 组件映射表（type → 平台组件） ─────────────────────
-
-export const antdPlatformComponents: Record<string, React.ComponentType<any>> = {
+//
+// withPlatform 返回的组件类型为 WrappedPlatformComponent（Props 为开放对象），
+// 与适配器契约 PlatformComponent 结构一致，此处显式标注以固化对外契约。
+const components: Record<string, WrappedPlatformComponent> = {
   // 通用
   button: PlatformButton, text: PlatformText,
   // 布局
@@ -162,3 +165,11 @@ export const antdPlatformComponents: Record<string, React.ComponentType<any>> = 
   // 通用（补充）
   floatbutton: PlatformFloatButton, affix: PlatformAffix,
 };
+
+/**
+ * 组件映射表（type → 平台组件）
+ *
+ * WrappedPlatformComponent 与 PlatformComponent 结构一致（Props 均为开放对象），
+ * 此处显式标注以固化对适配器的对外契约。
+ */
+export const antdPlatformComponents: Record<string, PlatformComponent> = components;

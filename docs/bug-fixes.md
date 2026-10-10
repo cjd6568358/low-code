@@ -1,5 +1,180 @@
 # Bug 修复记录
 
+## 2026-10-09
+
+### 类型系统全面失真：构建链断裂导致 60+ 编译错误
+
+**现象**：`yarn build` 在 `packages/auto-rendering` 直接失败（`tsc` 找不到）；`server`/`frontend` 单独 `tsc --noEmit` 报 60+ 错误，但 `vitest` 全绿。
+
+**根因**（多个独立问题叠加）：
+
+1. **依赖缺失**：`packages/{shared,data,computation,auto-rendering,renderer}` 的 `devDependencies` 没有 `typescript`/`vitest`；
+   `packages/automation` 有 `tsconfig.json` 却**没有 `build` 脚本**；`packages/data` 有 `build` 脚本却**没有 `tsconfig.json`**；
+   `packages/build-tools` 的 `test` 脚本引用未安装的 `vitest`；根 `package.json` 缺 `react`/`react-dom`（`react-flow-builder` 的 peer）。
+2. **composite + paths 冲突**：`tsconfig.base.json` 开启 `composite: true`，而各包的 `paths` 又直接指向别的包的 `src`，
+   产生 `TS6059`（文件不在 rootDir 内）/ `TS6305`（引用项目未构建）/ `TS6306`（被引用项目非 composite）三类互相矛盾的要求。
+3. **window 之外的编译盲区**：`vitest` 用 esbuild 转译不做类型检查，所以这些错误长期不可见。
+
+**修复**：
+
+1. 各包补齐 `typescript`/`vitest`/`tsx` 依赖；`automation` 补 `build` 脚本；`data` 补 `tsconfig.json`；
+   根 `package.json` 补 `react`/`react-dom` 并新增 `typecheck` 脚本。
+2. 统一各包 tsconfig 策略：**统一关闭 `composite`**，`paths` 直接指向依赖包源码，`rootDir: src`，
+   删除全部 `references`（与已工作的 `server`/`frontend` 保持一致）。
+3. `yarn build` 现在覆盖全部 9 个 workspace 并通过。
+
+**涉及文件**：所有 `packages/*/package.json`、所有 `packages/*/tsconfig.json`、根 `package.json`、`packages/data/tsconfig.json`（新增）
+
+**教训**：`vitest` 绿灯 ≠ 类型正确。CI/日常验证必须包含 `tsc --noEmit`，否则 TypeScript 的约束形同虚设。
+
+---
+
+### 审批人字段类型与设计器不匹配，审批任务永远无法创建
+
+**现象**：流程审批节点配置审批人后，运行时报错或任务无审批人。
+
+**根因**（三处数据契约不一致）：
+
+1. `NodeConfigComponent` 的「审批人」字段使用 `UserSelector`，产出**裸用户 ID 字符串**（`'user1'`）；
+2. 引擎 `UserTaskExecutor.resolveAssignees()` 读取 `node.assignee.type`（期望 `AssigneeStrategy` 对象），字符串的 `.type` 为 `undefined` → `switch` 落到 `default` 返回空数组；
+3. 节点展示组件 `ApprovalNodeDisplay` 也按 `AssigneeStrategy` 结构格式化（`assignee.userIds.length`）。
+
+**修复**：
+1. `NodeConfigComponent` 改用专用的 `AssigneeSelector`（产出 `{ type, userIds/roleIds/deptIds/positionIds }`）
+2. `UserTask` schema 补 `candidateUsers` / `candidateGroups`（候选池语义，与 `assignee` 区分）
+3. 测试夹具同步修正（原夹具用字符串，掩盖了该 bug）
+
+**涉及文件**：
+- `packages/renderer/src/workflow/config/NodeConfigComponent.tsx`
+- `packages/workflow/src/schema/tasks.ts`
+- `packages/renderer/src/workflow/hooks/useBpmnConverter.test.ts`
+- `packages/workflow/src/__tests__/engine.test.ts`、`packages/workflow/src/schema/__tests__/schema.test.ts`
+
+---
+
+### 自动化规则「限流」与「生效时间」配置完全失效
+
+**现象**：设计器里配置了冷却时间/每日上限/生效时段，实际执行完全不生效。
+
+**根因**：服务层 `AutomationEngine` 与 `@low-code/automation` 的字段名不一致：
+
+| 配置 | 设计器 / 规范字段 | 服务层实际读取 | 结果 |
+|------|------------------|---------------|------|
+| 限流 | `cooldownSeconds`、`maxDailyTriggers` | `enabled`、`maxExecutions`、`timeWindowMs` | 全部 `undefined`，限流形同虚设 |
+| 生效时间 | `start`、`end`、`timeRanges` | `startTime`、`endTime`、`timezone` | 全部 `undefined`，任何时间都生效 |
+
+另外 `throttle` 字段**被存储但从未被任何代码读取**（限流逻辑根本没接线）。
+
+**修复**：
+1. 服务层改用规范类型 `ThrottleConfig` / `EffectiveTimeConfig`，删除自造的本地接口
+2. `isRuleEffective()` 改为委托 `EffectiveTimeChecker`（支持日期范围 + 星期/时段过滤 + 跨午夜）
+3. 新增 `checkThrottle()`，接入 `Throttler`；`AutomationLogService` 实现 `LogStore` 接口
+   （`getLastExecutionTime` / `getTodayExecutionCount`）
+4. 执行成功后调用 `recordTrigger()`，供后续冷却判定
+5. `ExecutionResult.status` 新增 `'skipped'`
+6. `Throttler.check()` / `EffectiveTimeChecker.check()` 参数放宽为最小结构（`ThrottleSubject` / `EffectiveTimeSubject`），
+   服务层可直接传自身规则对象而无需断言
+
+**涉及文件**：
+- `server/src/services/AutomationEngine.ts`
+- `server/src/services/AutomationLogService.ts`
+- `packages/automation/src/engine/Throttler.ts`、`EffectiveTimeChecker.ts`、`index.ts`
+
+---
+
+### 表达式沙箱超时在 workerpool 升级后静默失效
+
+**现象**：`safeEvaluate('while(true){}', {}, 500)` 不再超时（但测试因线程池环境被 skip 而未暴露）。
+
+**根因**：`package.json` 声明 `workerpool: ^9.2.0`（含 `ExecOptions.timeout`），但根 `package.json` 的 `^10.0.3`
+使实际 hoist 到 10.0.3（已移除 `timeout` 选项）。`pool.exec(..., { timeout })` 被类型检查报错，
+运行时也不会超时——同步死循环必须靠 `terminate(true)` 才能杀掉。
+
+**修复**：`safeEvaluate` 不再依赖 `exec` 的自带超时，改为显式 `Promise.race` + 超时后 `disposePool()` 硬杀线程；
+新增 `dispose()` 供进程退出/测试收尾释放 worker；统一 `workerpool` 版本为 `^10.0.3`。
+
+**涉及文件**：`packages/shared/src/engine/expression.ts`、`packages/shared/package.json`、`package.json`
+
+---
+
+### 流程驳回操作抛「无效的状态转换: waiting -> restart」
+
+**现象**：`WorkflowEngine.e2e.test.ts` 的「应该支持驳回操作」失败。
+
+**根因**：`reject()` 中 `handleReject(instance, ...)` 收到的是**驳回前的实例快照**（状态 `waiting`），
+但 `handleReject` 内部用该快照做状态机校验 `canTrigger(instance, 'restart')`——而 `restart` 只允许从
+`rejected` 出发。驳回后实例状态实际已是 `rejected`，对象引用却未刷新。
+
+**修复**：
+1. `handleReject` 内重新 `getInstance()` 读取最新状态再做状态机校验；若当前状态不允许 `restart`，
+   先走 `reject` 事件置为 `rejected` 再恢复运行
+2. `reject()` 结束时重新读取实例后返回（原来返回的是过期对象，`complete()` 早已修正为刷新后返回）
+
+**涉及文件**：`packages/workflow/src/engine/WorkflowEngine.ts`
+
+---
+
+### 数据表类型缺失 enum/json，date 映射为 INTEGER 与规范冲突
+
+**现象**：`TableDesign.tsx` 报 `'"json"' is not assignable to type 'TableFieldType'`，
+schema-builder 测试断言 `_created_at TEXT` 失败。
+
+**根因**：
+1. `TableFieldType` 只有 `string|number|boolean|date`，但设计器 UI 早已提供 JSON/enum 选项
+   （TODO.md 也已标记「已完成」）——类型定义未同步
+2. `FIELD_TYPE_MAP.date = 'INTEGER'`（注释「Unix 时间戳」），但系统字段默认值是 `datetime('now')`（返回字符串），
+   且数据层规范明确「时间：TEXT 存 ISO8601」
+
+**修复**：
+1. `TableFieldType` 增加 `'enum' | 'json'`，补充 `JsonFieldConstraints`、`EnumFieldConstraints.enforceInDb`
+2. `FIELD_TYPE_MAP.date = 'TEXT'`，`enum`/`json` 均为 TEXT；enum 默认生成 `CHECK (col IN (...))`
+3. `executeTableSchema` 增加系统保留字段名校验（`id`/`_deleted`/`_created_at`/`_updated_at`）
+4. 重建表时补齐 `_updated_at` 数据复制（原来丢失）
+5. 新增 `updateRecordsWhere` / `softDeleteRecordsWhere`（按条件批量操作，空条件抛错）
+
+**涉及文件**：
+- `packages/shared/src/types/table.ts`
+- `packages/data/src/schema-builder.ts`、`packages/data/src/types.ts`、`packages/data/src/index.ts`
+- `packages/data/src/__tests__/schema-builder.test.ts`、`DatabaseManager.test.ts`
+
+---
+
+### koffi.copy 不存在导致 BLOB 读取崩溃
+
+**现象**：查询含 BLOB 字段时报 `Property 'copy' does not exist`。
+
+**根因**：koffi 2.x 未导出 `copy`，读取指针内存应使用 `koffi.decode(ptr, type, len)`。
+
+**修复**：`koffi.decode(blobPtr, 'uint8_t', blobSize)`，零长度直接返回 `Buffer.alloc(0)`。
+
+**涉及文件**：`packages/data/src/sqlite-koffi.ts`
+
+---
+
+### EnvironmentContext 无法作为表达式作用域传入
+
+**现象**：renderer 中 8 处 `safeEvaluateSync(expr, context)` 报
+`Index signature for type 'string' is missing in type 'EnvironmentContext'`。
+
+**根因**：表达式引擎入参契约为 `Record<string, unknown>`，而 `EnvironmentContext` 是封闭 interface
+（只有固定 `$` 前缀字段）。同时 `EnvironmentContext` 内部大量使用 `any`（`ComponentState.value`、`$fetch` 等）。
+
+**修复**：
+1. `EnvironmentContext` 改为「已知变量映射 + `$${string}` 索引签名」的交叉类型：
+   已知变量（`$user`/`$table`…）保留精确类型，动态变量（`$now`/`$env`/自定义）返回 `unknown`
+2. 新增 `ExpressionScope = Record<string, unknown>` 作为表达式边界契约；
+   `DataBindingResolver` 的上下文参数放宽为 `ExpressionScope`（可只提供部分变量，便于测试与局部求值）
+3. 清理 `environment.ts`/`permission.ts`/`adapter.ts`/`registry.ts` 中的 `any`：
+   新增 `PlatformComponentProps`、`PlatformComponent`、`WrappedPlatformComponent`、`ApiResponse.data: unknown`、
+   `SqliteValue`、`StaticOption`、`ComponentCategory` 等具体类型
+
+**涉及文件**：
+- `packages/shared/src/types/environment.ts`、`context.ts`、`permission.ts`、`adapter.ts`、`registry.ts`、`form.ts`
+- `packages/renderer/src/core/DataBindingResolver.ts`、`ComponentRegistry.ts`、`adapters/BaseAdapter.ts`
+- `packages/renderer/src/libraries/antd/components.ts`、`components/platform/withPlatform.tsx`
+
+---
+
 ## 2026-07-15 (二)
 
 ### 运算沙箱超时对同步死循环无效

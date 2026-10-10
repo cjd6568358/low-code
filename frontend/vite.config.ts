@@ -13,6 +13,7 @@ export default defineConfig({
       '@low-code/auto-rendering': path.resolve(__dirname, '../packages/auto-rendering/src'),
       '@low-code/data': path.resolve(__dirname, '../packages/data/src'),
       '@low-code/workflow': path.resolve(__dirname, '../packages/workflow/src'),
+      '@low-code/automation': path.resolve(__dirname, '../packages/automation/src'),
     },
   },
   server: {

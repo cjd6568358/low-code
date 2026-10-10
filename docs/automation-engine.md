@@ -328,6 +328,47 @@ interface TimeRange {
 }
 ```
 
+## 执行控制落地（服务层）
+
+`server/src/services/AutomationEngine.ts` 在执行前按顺序做两道门禁，幂等且不写条件不满足的日志：
+
+```
+executeRule(rule, context)
+  │
+  ├─ 0. 生效时间检查 → EffectiveTimeChecker.check(rule)
+  │     不生效 → status = 'skipped'，直接返回（不写执行日志）
+  │
+  ├─ 1. 限流检查   → Throttler.check(rule)
+  │     冷却中 / 超每日上限 → status = 'skipped'，直接返回
+  │
+  ├─ 2. 条件求值   → ConditionEvaluator.evaluate(condition, event)
+  │     不匹配 → status = 'success'，写日志后返回
+  │
+  ├─ 3. 顺序执行动作（单个动作失败 → partial_success / failed）
+  │
+  └─ 4. Throttler.recordTrigger(rule.id) 记录触发时间（供冷却判定）
+```
+
+**实现要点**：
+
+| 组件 | 来源 | 说明 |
+|------|------|------|
+| `EffectiveTimeChecker` | `@low-code/automation` | 支持 `start`/`end` 日期范围 + `timeRanges` 星期/时段过滤（含跨午夜） |
+| `Throttler` | `@low-code/automation` | 冷却时间（内存缓存 + 日志兜底）与每日上限 |
+| `LogStore` 实现 | `AutomationLogService` | `getLastExecutionTime(tenantId, ruleId)` / `getTodayExecutionCount(tenantId, ruleId)`，按本地时区自然日统计 |
+
+> **字段契约（易错点）**：限流与生效时间的字段名以 `@low-code/automation` 的
+> `ThrottleConfig`（`cooldownSeconds` / `maxDailyTriggers`）与
+> `EffectiveTimeConfig`（`start` / `end` / `timeRanges`）为唯一真相源。
+> 服务层与设计器都必须使用这套字段名，曾出现过服务层读 `startTime`/`endTime`/`enabled`
+> 导致配置完全失效的问题（详见 [bug-fixes.md](bug-fixes.md)）。
+>
+> `ExecutionResult.status` 新增 `'skipped'`，表示因生效时间/限流未实际执行动作。
+
+`Throttler.check()` 与 `EffectiveTimeChecker.check()` 的参数已放宽为最小结构
+（`ThrottleSubject` = `{ id, throttle? }`、`EffectiveTimeSubject` = `{ effectiveTime? }`），
+服务层可直接传入自身规则对象，无需类型断言。
+
 ## 执行日志
 
 ```typescript

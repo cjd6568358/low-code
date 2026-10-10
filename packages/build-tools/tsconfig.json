@@ -1,6 +1,9 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
     "outDir": "dist",
     "rootDir": "src",
     "paths": {
@@ -8,7 +11,5 @@
     }
   },
   "include": ["src"],
-  "references": [
-    { "path": "../shared" }
-  ]
+  "exclude": ["node_modules", "dist"]
 }

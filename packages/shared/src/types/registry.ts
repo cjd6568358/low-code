@@ -1,4 +1,5 @@
 import type { JSONSchema7 } from './json-schema';
+import type { PlatformComponent } from './adapter';
 
 /** 组件注册表接口 */
 export interface ComponentRegistry {
@@ -11,16 +12,32 @@ export interface ComponentRegistry {
   import(entries: ComponentRegistration[]): void;
 }
 
+/** 组件默认属性（开放对象，值形态由各组件自行约定） */
+export type ComponentDefaultProps = Record<string, unknown>;
+
+/** 组件分类 */
+export type ComponentCategory =
+  | 'general'
+  | 'layout'
+  | 'navigation'
+  | 'data-entry'
+  | 'data-display'
+  | 'feedback'
+  | 'basic'
+  | 'advanced'
+  | 'custom'
+  | 'business';
+
 /** 组件注册项 — 完全可序列化 */
 export interface ComponentRegistration {
   type: string;
   name: string;
-  category: 'general' | 'layout' | 'navigation' | 'data-entry' | 'data-display' | 'feedback' | 'basic' | 'advanced' | 'custom' | 'business';
+  category: ComponentCategory;
   icon?: string;
   /** 组件标识（序列化用），运行时通过 ComponentLibrary.components 解析为实际组件 */
   component: string;
   propsSchema: JSONSchema7;
-  defaultProps?: Record<string, any>;
+  defaultProps?: ComponentDefaultProps;
   acceptsChildren?: boolean;
   library?: string;
   version?: string;
@@ -54,8 +71,8 @@ export interface MethodParamDef {
   title: string;
   /** 是否必填 */
   required?: boolean;
-  /** 默认值 */
-  default?: any;
+  /** 默认值（JSON 可序列化值） */
+  default?: unknown;
   /** 参数描述 */
   description?: string;
 }
@@ -95,7 +112,13 @@ export interface ComponentLibrary {
   /** 公共 BaseProps 的 JSON Schema */
   basePropsSchema: JSONSchema7;
   /** 组件分类映射 */
-  categoryMap: Record<string, { category: string; name: string }>;
+  categoryMap: Record<string, { category: ComponentCategory; name: string }>;
   /** 容器组件类型集合 */
   containerTypes: Set<string>;
 }
+
+/** 组件库的组件实现映射（type → React 组件） */
+export type ComponentImplementations = Record<string, PlatformComponent>;
+
+/** 组件库的 Schema 映射（type → JSON Schema） */
+export type ComponentSchemaMap = Record<string, JSONSchema7>;

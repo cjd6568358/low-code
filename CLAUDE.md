@@ -6,9 +6,10 @@ This file provides guidance to Claude Code when working with this repository.
 
 **每次新会话开始时，立即执行以下操作：**
 1. 读取 `memory/` 目录下所有 `.md` 文件（使用 Glob + Read）
-2. 将这些记忆加载到当前会话上下文中
-3. 响应应该秉持公正客观的角度分析问题，而不是刻意讨好奉承
-4. 后续响应必须遵守这些规范
+2. 读取根目录 `PROGRESS.md`（实时进度台账）与 `TODO.md`（功能路线图），了解当前进度
+3. 将这些记忆加载到当前会话上下文中
+4. 响应应该秉持公正客观的角度分析问题，而不是刻意讨好奉承
+5. 后续响应必须遵守这些规范
 
 这是强制性指令，不需要用户提醒。
 
@@ -108,6 +109,15 @@ This file provides guidance to Claude Code when working with this repository.
 - **每次会话响应结尾必须包含 "-------是的，我还清醒---------"**
 - 每次解决完 bug 后需要将问题归档
 
+### 进度台账（每完成一项立即更新）
+
+**实时进度记录在根目录 [PROGRESS.md](PROGRESS.md)。**
+
+- 每完成一个任务**立即**把 `[ ]` 改成 `[x]` 并保存文件，**不要攒到最后一起更新**
+- 新增任务直接追加到对应阶段，不重排已有编号
+- 图例：`[x]` 已完成 · `[~]` 进行中 · `[ ]` 待开始 · `[!]` 阻塞
+- **分工**：`TODO.md` 是稳定的功能路线图（少改），`PROGRESS.md` 是逐项打勾的执行台账（频繁改）
+
 ### WebFetch 域名限制绕过
 
 Claude Code 的 WebFetch 工具有域名安全校验，某些域名（如企业内网域名、被安全策略拦截的域名）无法直接抓取。
@@ -174,9 +184,31 @@ npx tsx packages/data/scripts/seed-shansui.ts
 # 构建所有包
 yarn build
 
+# 类型检查（server + frontend + data）
+yarn typecheck
+
 # 运行测试
 yarn test
 ```
+
+> **验证约定（重要）**：`vitest` 使用 esbuild 转译，**不做类型检查**。
+> 只跑 `yarn test` 无法发现类型错误（历史上曾因此累积 60+ 类型错误而不自知）。
+> 提交前必须至少跑一次 `yarn build` 或 `yarn typecheck`。
+
+### 包 tsconfig 策略
+
+各包 `tsconfig.json` 统一：**关闭 `composite`**、`rootDir: src`、`paths` 直接指向依赖包源码、**不使用 `references`**
+（与 `server`/`frontend` 一致）。
+
+原因：`composite: true` 与 `paths` 指向源码互相冲突，会同时产生
+`TS6059`（文件不在 rootDir 内）、`TS6305`（被引用项目未构建）、`TS6306`（被引用项目非 composite）三类矛盾报错。
+
+### 根脚本的 `--exclude .`
+
+根 `build`/`test` 脚本使用 `yarn workspaces foreach -A --exclude . run <script>`。
+
+原因：`yarn workspaces foreach` 默认**包含根 workspace 自身**，根脚本会再次被调用，
+导致全部任务执行两遍（耗时翻倍、结果重复）。排除根 workspace 后每个任务只跑一次。
 
 ## 架构说明
 
@@ -193,14 +225,24 @@ server/          ← 后端 API（Koa，端口 3001）
   src/config/      配置（端口、DB 单例）
   src/middlewares/  中间件（错误、CORS、日志、JWT 认证、租户守卫）
   src/routes/      路由（auth、health、dictionaries、...）
-  src/services/    业务服务层（DictionaryService、...）
+  src/services/    业务服务层（DictionaryService、WorkflowDataSource、...）
+  src/types/       可选的第三方模块类型声明（nodemailer）
 packages/        ← 引擎层（纯逻辑，无框架依赖）
+  shared/          公共类型、表达式引擎（workerpool 沙箱）、权限引擎
+  computation/     运算引擎
+  automation/      自动化引擎（ECA：TriggerMatcher/ConditionEvaluator/Throttler/EffectiveTimeChecker）
+  renderer/        渲染引擎 + 设计器 + 流程 UI
+  auto-rendering/  自动渲染引擎
+  data/            数据引擎（SQLite koffi FFI）
+  build-tools/     TS → JSON Schema 编译器
+  workflow/        流程引擎核心（BPMN Schema、WorkflowEngine、StateMachine、SnapshotEngine）
 tenants/         ← 租户数据（Schema + SQLite，每租户独立目录）
 data/            ← 系统级数据
   _system.db       平台管理员、套餐配置
   dictionaries/    全局字典（JSON 文件）
 docs/            ← 项目文档
-TODO.md          ← 技术难点与工作计划
+TODO.md          ← 功能路线图（稳定，少改）
+PROGRESS.md      ← 工作进度台账（每完成一项立即打勾）
 ```
 
 ### 分层职责

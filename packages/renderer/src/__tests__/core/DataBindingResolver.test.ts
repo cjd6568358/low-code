@@ -10,7 +10,8 @@ import { dependencyGraph } from '../../core/DependencyGraph.js';
 
 describe('DataBindingResolver', () => {
   let resolver: DataBindingResolver;
-  let mockContext: any;
+  /** 测试用最小上下文：只需要被测表达式引用到的变量 */
+  let mockContext: Record<string, unknown>;
 
   beforeEach(() => {
     // 清理依赖图

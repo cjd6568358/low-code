@@ -2,7 +2,7 @@
  * BPMN 节点联合类型
  */
 
-import type { StartEvent, EndEvent, BoundaryEvent, IntermediateCatchEvent, IntermediateThrowEvent } from '../schema/events';
+import type { StartEvent, EndEvent, BoundaryEvent, IntermediateCatchEvent, IntermediateThrowEvent } from '../events';
 import type {
   UserTask,
   ServiceTask,
@@ -17,9 +17,9 @@ import type {
   UpdateTask,
   QueryTask,
   DeleteTask,
-} from '../schema/tasks';
-import type { ExclusiveGateway, ParallelGateway, InclusiveGateway, EventBasedGateway, ComplexGateway } from '../schema/gateways';
-import type { SequenceFlow, MessageFlow } from '../schema/flows';
+} from '../tasks';
+import type { ExclusiveGateway, ParallelGateway, InclusiveGateway, EventBasedGateway, ComplexGateway } from '../gateways';
+import type { SequenceFlow, MessageFlow } from '../flows';
 
 /** 所有流程节点类型 */
 export type FlowNode =

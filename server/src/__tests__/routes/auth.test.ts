@@ -127,7 +127,8 @@ describe('认证路由', () => {
 
     it('应该允许平台管理员访问任意租户', () => {
       const tokenRole = 'platform_admin';
-      const tokenTenantId = '';
+      // 平台管理员 Token 的 tenantId 为空（平台级身份不属于任何租户）
+      const tokenTenantId: string = '';
       const routeTenantId = 'tenant1';
 
       // 平台管理员可以访问任意租户

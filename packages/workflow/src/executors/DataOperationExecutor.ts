@@ -6,31 +6,47 @@
  *
  * 支持两种配置格式：
  * 1. 设计器格式：fields 为 FieldMappingItem[]，filter 为 ConditionItem[]
- * 2. 编程式格式：fields/filter 为 Record<string, any>
+ * 2. 编程式格式：fields/filter 为 Record<string, unknown>
  */
 
 import { NodeExecutorBase } from './NodeExecutorBase';
-import type { ExecutionContext, ExecutionResult } from '../types/execution';
+import type {
+  ExecutionContext,
+  ExecutionResult,
+  FieldValues,
+  FilterCondition,
+} from '../types/execution';
 import type { FlowNode } from '../schema';
 
 /** 字段映射项（设计器格式） */
-interface FieldMappingItem {
+export interface FieldMappingItem {
   /** 表字段名 */
   field: string;
   /** 绑定值（变量路径或常量） */
   value: string;
 }
 
+/** 条件操作符 */
+export type ConditionOperator = '=' | '!=' | '>' | '>=' | '<' | '<=' | 'like' | 'in';
+
 /** 条件项（设计器格式） */
-interface ConditionItem {
+export interface ConditionItem {
   /** 表字段名 */
   field: string;
   /** 操作符 */
-  operator: '=' | '!=' | '>' | '>=' | '<' | '<=' | 'like' | 'in';
+  operator: ConditionOperator;
   /** 绑定值（变量路径或常量） */
   value: string;
   /** 绑定类型 */
   valueType: 'variable' | 'constant';
+}
+
+/** 分页配置 */
+export interface DataOperationPagination {
+  /** 返回条数上限 */
+  limit?: number;
+  /** 偏移量 */
+  offset?: number;
 }
 
 /** 数据操作配置 */
@@ -40,16 +56,13 @@ export interface DataOperationConfig {
   /** 数据源名称（默认 default） */
   dataSource?: string;
   /** 字段值（设计器格式或编程格式） */
-  fields?: FieldMappingItem[] | Record<string, any>;
+  fields?: FieldMappingItem[] | FieldValues;
   /** 筛选条件（设计器格式或编程格式） */
-  filter?: ConditionItem[] | Record<string, any>;
+  filter?: ConditionItem[] | FilterCondition;
   /** 排序 */
   sort?: Record<string, 'asc' | 'desc'>;
   /** 分页 */
-  pagination?: {
-    limit?: number;
-    offset?: number;
-  };
+  pagination?: DataOperationPagination;
 }
 
 /** 数据操作结果 */
@@ -59,11 +72,49 @@ export interface DataOperationResult {
   /** 影响的记录数 */
   affectedCount?: number;
   /** 查询返回的记录 */
-  records?: Record<string, any>[];
+  records?: FieldValues[];
   /** 单条记录（创建/更新/查询单条） */
-  record?: Record<string, any>;
+  record?: FieldValues;
   /** 错误信息 */
   error?: string;
+}
+
+/**
+ * 判断值是否为普通键值对象（排除数组与 null）
+ */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * 判断是否为设计器字段映射数组
+ *
+ * @param value 待判断的值
+ * @returns 是否为 FieldMappingItem[]
+ */
+export function isFieldMappingList(value: unknown): value is FieldMappingItem[] {
+  return (
+    Array.isArray(value) &&
+    value.every(item => isPlainObject(item) && typeof item.field === 'string')
+  );
+}
+
+/**
+ * 判断是否为设计器条件项数组
+ *
+ * @param value 待判断的值
+ * @returns 是否为 ConditionItem[]
+ */
+export function isConditionItemList(value: unknown): value is ConditionItem[] {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      item =>
+        isPlainObject(item) &&
+        typeof item.field === 'string' &&
+        typeof item.operator === 'string',
+    )
+  );
 }
 
 /**
@@ -72,17 +123,19 @@ export interface DataOperationResult {
 export abstract class DataOperationExecutor extends NodeExecutorBase {
   /**
    * 从节点读取数据操作配置
-   * 设计器将配置保存在节点顶层字段
+   *
+   * 设计器将配置保存在节点顶层字段（BPMN 扩展属性），
+   * 因此这里按扩展属性读取而非标准的 BPMN 结构。
    */
   protected getDataOperationConfig(node: FlowNode): DataOperationConfig {
-    const anyNode = node as any;
+    const extended = node as FlowNode & Partial<DataOperationConfig>;
     return {
-      collection: anyNode.collection || '',
-      dataSource: anyNode.dataSource,
-      fields: anyNode.fields,
-      filter: anyNode.filter,
-      sort: anyNode.sort,
-      pagination: anyNode.pagination,
+      collection: extended.collection ?? '',
+      dataSource: extended.dataSource,
+      fields: extended.fields,
+      filter: extended.filter,
+      sort: extended.sort,
+      pagination: extended.pagination,
     };
   }
 
@@ -94,9 +147,9 @@ export abstract class DataOperationExecutor extends NodeExecutorBase {
    */
   protected convertFieldMappings(
     items: FieldMappingItem[],
-    context: ExecutionContext
-  ): Record<string, any> {
-    const result: Record<string, any> = {};
+    context: ExecutionContext,
+  ): FieldValues {
+    const result: FieldValues = {};
 
     for (const item of items) {
       if (!item.field) continue;
@@ -110,20 +163,21 @@ export abstract class DataOperationExecutor extends NodeExecutorBase {
    * 将 ConditionItem[] 转换为数据库查询条件
    *
    * 设计器输出格式：[{field: 'id', operator: '=', value: '$workflow.sourceId', valueType: 'variable'}, ...]
-   * 转换为数据库查询条件格式
+   * 转换为数据库查询条件格式（操作符包装为 `$ne`/`$gt`/`$in` 等）
    */
   protected convertConditions(
     items: ConditionItem[],
-    context: ExecutionContext
-  ): Record<string, any> {
-    const conditions: Record<string, any> = {};
+    context: ExecutionContext,
+  ): FilterCondition {
+    const conditions: FilterCondition = {};
 
     for (const item of items) {
       if (!item.field) continue;
 
-      const resolvedValue = item.valueType === 'variable'
-        ? this.resolveVariableValue(item.value, context)
-        : item.value;
+      const resolvedValue =
+        item.valueType === 'variable'
+          ? this.resolveVariableValue(item.value, context)
+          : item.value;
 
       switch (item.operator) {
         case '=':
@@ -160,9 +214,11 @@ export abstract class DataOperationExecutor extends NodeExecutorBase {
 
   /**
    * 解析变量引用值
-   * 支持 $workflow.nodeKey.field 格式
+   *
+   * 支持 `$workflow.nodeKey.field`、`$jobsMapByNodeKey.nodeKey.field`、
+   * `${path}` 以及普通字符串中的 `${path}` 插值。
    */
-  protected resolveVariableValue(value: string, context: ExecutionContext): any {
+  protected resolveVariableValue(value: string, context: ExecutionContext): unknown {
     if (!value) return value;
 
     // 处理变量引用格式：$workflow.nodeKey.field 或 $jobsMapByNodeKey.nodeKey.field
@@ -171,7 +227,7 @@ export abstract class DataOperationExecutor extends NodeExecutorBase {
     if (match) {
       const [, nodeKey, fieldPath] = match;
       // 从流程变量中获取上游节点结果
-      const nodeResult = context.variables?.[nodeKey] || context.variables?.[`${nodeKey}`];
+      const nodeResult = context.variables?.[nodeKey];
       if (nodeResult) {
         return this.getNestedValue(nodeResult, fieldPath);
       }
@@ -187,9 +243,9 @@ export abstract class DataOperationExecutor extends NodeExecutorBase {
 
     // 处理普通字符串中的 ${variable} 替换
     if (value.includes('${')) {
-      return value.replace(/\$\{([^}]+)\}/g, (match, varPath) => {
+      return value.replace(/\$\{([^}]+)\}/g, (whole, varPath: string) => {
         const val = this.getNestedValue(context.variables, varPath.trim());
-        return val !== undefined ? String(val) : match;
+        return val !== undefined ? String(val) : whole;
       });
     }
 
@@ -197,9 +253,9 @@ export abstract class DataOperationExecutor extends NodeExecutorBase {
   }
 
   /**
-   * 解析配置中的变量引用（兼容旧格式）
+   * 递归解析配置中的变量引用（兼容旧格式）
    */
-  protected resolveVariables(value: any, context: ExecutionContext): any {
+  protected resolveVariables(value: unknown, context: ExecutionContext): unknown {
     if (typeof value === 'string') {
       return this.resolveVariableValue(value, context);
     }
@@ -208,8 +264,8 @@ export abstract class DataOperationExecutor extends NodeExecutorBase {
       return value.map(item => this.resolveVariables(item, context));
     }
 
-    if (value && typeof value === 'object') {
-      const resolved: Record<string, any> = {};
+    if (isPlainObject(value)) {
+      const resolved: Record<string, unknown> = {};
       for (const [key, val] of Object.entries(value)) {
         resolved[key] = this.resolveVariables(val, context);
       }
@@ -221,37 +277,52 @@ export abstract class DataOperationExecutor extends NodeExecutorBase {
 
   /**
    * 获取嵌套对象的值
+   *
+   * @param source 源对象
+   * @param path 点分路径，如 `a.b.c`
+   * @returns 路径对应的值，任一层缺失时返回 undefined
    */
-  protected getNestedValue(obj: any, path: string): any {
-    return path.split('.').reduce((current, key) => current?.[key], obj);
+  protected getNestedValue(source: unknown, path: string): unknown {
+    let current: unknown = source;
+    for (const key of path.split('.')) {
+      if (!isPlainObject(current)) return undefined;
+      current = current[key];
+    }
+    return current;
   }
 
   /**
    * 解析筛选条件
-   * 支持 ConditionItem[] 和 Record<string, any> 两种格式
+   *
+   * 支持 ConditionItem[] 和 Record<string, unknown> 两种格式，
+   * 并递归展开 `$and` / `$or` 逻辑组合。
    */
-  protected resolveFilter(filter: any, context: ExecutionContext): any {
+  protected resolveFilter(filter: unknown, context: ExecutionContext): FilterCondition {
     if (!filter) return {};
 
     // 数组格式（设计器输出）
-    if (Array.isArray(filter)) {
-      return this.convertConditions(filter as ConditionItem[], context);
+    if (isConditionItemList(filter)) {
+      return this.convertConditions(filter, context);
     }
 
+    if (!isPlainObject(filter)) return {};
+
     // 处理逻辑操作符
-    if (filter.$and) {
+    const logicalAnd = filter.$and;
+    if (Array.isArray(logicalAnd)) {
       return {
-        $and: filter.$and.map((f: any) => this.resolveFilter(f, context)),
+        $and: logicalAnd.map(item => this.resolveFilter(item, context)),
       };
     }
-    if (filter.$or) {
+    const logicalOr = filter.$or;
+    if (Array.isArray(logicalOr)) {
       return {
-        $or: filter.$or.map((f: any) => this.resolveFilter(f, context)),
+        $or: logicalOr.map(item => this.resolveFilter(item, context)),
       };
     }
 
     // 处理普通键值对
-    const resolved: Record<string, any> = {};
+    const resolved: FilterCondition = {};
     for (const [key, value] of Object.entries(filter)) {
       if (key.startsWith('$')) {
         // 操作符直接传递
@@ -265,18 +336,20 @@ export abstract class DataOperationExecutor extends NodeExecutorBase {
 
   /**
    * 解析字段值
-   * 支持 FieldMappingItem[] 和 Record<string, any> 两种格式
+   *
+   * 支持 FieldMappingItem[] 和 Record<string, unknown> 两种格式。
    */
-  protected resolveFields(fields: any, context: ExecutionContext): Record<string, any> {
+  protected resolveFields(fields: unknown, context: ExecutionContext): FieldValues {
     if (!fields) return {};
 
     // 数组格式（设计器输出）
-    if (Array.isArray(fields)) {
-      return this.convertFieldMappings(fields as FieldMappingItem[], context);
+    if (isFieldMappingList(fields)) {
+      return this.convertFieldMappings(fields, context);
     }
 
     // Record 格式
-    return this.resolveVariables(fields, context);
+    const resolved = this.resolveVariables(fields, context);
+    return isPlainObject(resolved) ? resolved : {};
   }
 
   /**

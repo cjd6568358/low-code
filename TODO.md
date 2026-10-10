@@ -1,6 +1,8 @@
 # TODO — 待完成功能清单
 
-> 最后更新：2026-07-08，P0 任务全部完成，自动化中心已实现
+> 最后更新：2026-10-09，P0 全部完成；本轮完成类型系统修复 + 数据操作节点数据源接线 + 表单草稿暂存闭环
+
+> **📋 实时进度台账见 [PROGRESS.md](PROGRESS.md)** —— 本文件是稳定路线图，PROGRESS.md 是逐项打勾的执行台账。
 
 ---
 
@@ -14,36 +16,43 @@
 
 ---
 
+## ✅ 2026-10-09 本轮完成
+
+### 1. 类型系统与构建链修复（P0）
+
+- 修复 60+ TypeScript 编译错误，`yarn build` 覆盖全部 9 个 workspace 并通过
+- 补齐各包 `typescript`/`vitest`/`tsx` 依赖；`packages/data` 补 `tsconfig.json`；`packages/automation` 补 `build` 脚本
+- 统一各包 tsconfig 策略（关闭 `composite`、`paths` 指向源码、移除 `references`）
+- 新增根 `typecheck` 脚本；清理全部 `any`（`environment/permission/adapter/registry/form/table` 类型 + 数据层 + 渲染器核心）
+
+### 2. 流程数据操作节点数据源接线（P0）
+
+- `WorkflowEngineConfig.dataSourceResolver` + `ExecutionContext.getDatabase`（引擎层不感知存储）
+- 服务层 `TenantWorkflowDataSource` / `TenantDataSourceResolver`（基于租户 SQLite 动态表）
+- 数据层新增 `updateRecordsWhere` / `softDeleteRecordsWhere`（空条件抛错，防误操作全表）
+- `WorkflowService.transfer/addSign` 改为委托引擎（移除直连 DB 的重复实现）
+
+### 3. 自动化执行控制落地（P0）
+
+- 修复「限流 + 生效时间」字段错配导致的配置完全失效
+- 接入 `Throttler` / `EffectiveTimeChecker`，`AutomationLogService` 实现 `LogStore`
+- `ExecutionResult.status` 新增 `'skipped'`
+
+### 4. 表单数据暂存闭环（P1）
+
+- 表单 Schema 新增 `draftEnabled` / `draftDebounceMs` / `draftRestoreOnInit`
+- 草稿落盘 + 卸载兜底 flush + 定时器清理；**草稿不覆盖业务数据/快照数据**
+- 联动产出（选项/状态/属性）从 `values` 移出到 `linkageOutput`，表单字段集合不再被伪键污染
+- 新增 9 个草稿生命周期单测
+
+### 5. 审批人指派契约修正（P0）
+
+- 节点配置面板改用 `AssigneeSelector`（原来用 `UserSelector` 产出裸 ID，与引擎 `AssigneeStrategy` 契约不符，导致审批任务无法创建）
+- `UserTask` Schema 补 `candidateUsers` / `candidateGroups`
+
+---
+
 ## P0 — 高优先级（核心功能补全）
-
-### ~~1. 自动化设计器接入路由~~ ✅ 已完成
-
-- `AppDesignPage.tsx` 中新增 `automations` 分支，接入 `AutomationDesign` 组件
-- `designers/index.ts` 导出 `AutomationDesign`
-- 移除 `AutomationDesign` 中的整页跳转逻辑
-
----
-
-### ~~2. 数据表编辑器完善~~ ✅ 已完成
-
-- 字段类型扩展：新增 `enum` 类型，支持 string/number/date/enum 的约束配置（maxLength/pattern/format/min/max/precision/枚举值）
-- 索引管理：新增 `TableIndex` 类型，设计器中支持创建/删除索引（唯一索引/普通索引），`schema-builder.ts` 自动生成 `CREATE INDEX` SQL
-- 外键引用配置：已有（此前完成）
-- 字段校验规则：新增 `ValidationRule` 类型，设计器中支持按字段配置校验规则（required/pattern/min/max/minLength/maxLength/custom）
-
----
-
-### ~~3. 前端 Mock 数据替换为真实 API~~ ✅ 已完成
-
-| 页面 | 状态 | 说明 |
-|------|------|------|
-| `WorkspacePage.tsx` | ✅ 已对接 | 待办/通知/应用从 API 加载 |
-| `AppCenterPage.tsx` | ✅ 已对接 | 发布按钮调用 `POST /api/apps/:appId/publish` |
-| `ConfigCenterPage.tsx` | ✅ 已对接 | 用户/角色/权限/租户设置全部从 API 加载 |
-
-新增服务端 API：`/api/users`、`/api/roles`、`/api/permissions`、`/api/messages`
-
----
 
 ### ~~15. 自动化中心（设计器 + 执行引擎）~~ ✅ 已完成
 
@@ -51,28 +60,10 @@
 
 **已实现**：
 - ✅ **公共表达式引擎**（`packages/shared/src/engine/expression.ts`）
-  - 安全沙箱求值，禁止访问全局对象
-  - 超时控制
-  - 依赖分析（提取 `$variable.path` 引用）
-  - 模板字符串插值（`{{expression}}` 语法）
 - ✅ **跨平台 Cron 调度器**（`server/src/services/CronScheduler.ts`）
-  - 纯 TypeScript 实现，不依赖外部库
-  - 支持标准 cron 表达式（分 时 日 月 周）
-  - 时区支持
-  - 任务状态管理
 - ✅ **自动化引擎**（`server/src/services/AutomationEngine.ts`）
-  - 支持 6 种动作类型：触发流程、执行脚本、发送通知、数据操作、API 调用、Webhook
-  - 条件评估复用 `@low-code/automation` 的 ConditionEvaluator（支持嵌套 AND/OR、15 种运算符）
-  - 执行日志记录
-  - 重试策略
-- ✅ **设计器增强**（`frontend/src/designers/automation/ActionConfig.tsx`）
-  - 新增「执行脚本」动作类型
-  - 集成 ExpressionEditor 进行脚本编辑
-  - 支持 `$event`、`$rule`、`$tenant`、`$now` 上下文变量
-- ✅ **API 路由**
-  - `POST /api/automations/trigger` — 触发事件
-  - `POST /api/automations/:id/execute` — 手动执行规则
-  - `GET /api/automations/:id/stats` — 获取执行统计
+- ✅ **执行控制** — 生效时间（`EffectiveTimeChecker`）+ 限流（`Throttler`）已在执行前生效
+- ✅ **API 路由** — `POST /api/automations/trigger`、`/:id/execute`、`/:id/stats`
 
 ---
 
@@ -80,7 +71,8 @@
 
 ### 4. 表单引擎高级功能
 
-**已完成**：Form 容器、Form.Item 自动包装、校验规则编辑器、表单预求值、表单联动引擎、表单注册表
+**已完成**：Form 容器、Form.Item 自动包装、校验规则编辑器、表单预求值、表单联动引擎、表单注册表、
+**数据暂存（localStorage 自动保存草稿，含恢复与安全约束）**
 
 **未实现**：
 
@@ -88,9 +80,14 @@
 |------|------|--------|
 | 子表单（明细表） | 动态行增删、子表单汇总 | 大 |
 | 特殊控件 | 签名、地理位置、扫码、附件、评分、级联选择 | 大 |
-| 跨字段校验 | 日期区间、金额一致性等 | 中 |
-| 异步校验 | API 校验 + loading 状态反馈 | 中 |
-| 数据暂存 | localStorage 自动保存草稿 | 小 |
+| 跨字段校验（设计器 UI） | 引擎已实现 `validateLevel3`，但**设计器无配置入口**，需补可视化规则编辑 | 中 |
+| 异步校验（设计器 UI） | 引擎已实现 `validateLevel4`（`validationApi` + `apiRequest`），但设计器无配置入口与 loading 反馈 | 中 |
+| 服务端草稿 | `storage: server` 跨设备草稿（需新增草稿接口与表） | 中 |
+
+**校验引擎现状**（`packages/renderer/src/core/ValidationEngine.ts`）：
+四级校验**引擎侧已完成** —— Level 1 字段级 / Level 2 表单级 / Level 3 跨字段 / Level 4 服务端，
+`validate(fields, values, { crossFieldRules, validationApi, apiRequest })` 已支持全部参数。
+缺口在**设计器配置 UI**，不在引擎。
 
 ---
 
@@ -113,51 +110,8 @@
 |------|------|--------|
 | 组织架构 | 部门/岗位树形管理、拖拽调整层级（后端 `tenants.ts` 已有基础树接口，前端无页面） | 大 |
 | 字典管理 | 租户级字典 CRUD，前后端均无代码 | 中 |
-| OpenKey 管理 | API 访问权限配置，前后端均无代码 | 小 |
+| OpenKey 管理 | API 访问权限配置，前后端均无代码（表结构已就绪） | 小 |
 | 应用管理员 | 应用级管理员分配 UI（后端 roles 表已支持 app 级角色，无分配界面） | 小 |
-
----
-
-### ~~6. 卡片设计器~~ ✅ 已完成
-
-- `CardDesign` 组件：卡片属性/方法/事件的可视化配置界面
-- 卡片预览功能
-- `AppDesignPage` 中接入 `cards` 分支
-- `designers/index.ts` 导出 `CardDesign`
-
----
-
-### ~~7. 运算中心（设计器 + 执行器）~~ ✅ 已完成
-
-**问题**：`AppDesignPage.tsx` 中 `computations` 显示"即将上线"占位，无设计器组件。
-
-**已实现**：
-- ✅ **运算设计器**（`frontend/src/designers/ComputationDesign.tsx`）
-  - 规则级元数据（名称、描述）
-  - 4 种运算类型：字段计算、公式规则、聚合计算、数据转换
-  - 输入字段配置（变量名、类型、描述、必填）
-  - 输出配置（字段名、类型、格式化选项）
-  - 运算结果预览
-- ✅ **环境变量过滤**（`packages/renderer/src/core/EnvironmentRegistry.ts`）
-  - 运算模式只保留 `$user`、`$now`、`$env`
-  - 去掉 `$component`、`$route`、`$data` 等页面相关变量
-- ✅ **存储格式**：PropValue 格式 `{ type: 'expression', value: '...', async: false }`
-- ✅ **运算执行器**（已迁移至 `@low-code/shared` ExpressionEngine）
-  - 沙箱执行，禁止危险操作
-  - 超时保护（workerpool 沙箱，100ms 硬杀）
-  - 依赖分析
-- ✅ **完整 CRUD API**（统一走 apps 路由）
-  - `GET /api/apps/:appId/computations` — 列表
-  - `GET /api/apps/:appId/computations/:id` — 详情
-  - `POST /api/apps/:appId/computations` — 创建
-  - `PUT /api/apps/:appId/computations/:id` — 更新
-  - `DELETE /api/apps/:appId/computations/:id` — 删除
-  - `POST /api/apps/:appId/computations/:id/execute` — 执行
-  - `POST /api/apps/:appId/computations/preview` — 预览
-- ✅ **流程节点集成**
-  - `ComputationSelector` 组件（运算规则选择器）
-  - `ComputationParamMapper` 组件（参数映射）
-  - 计算节点支持"自定义表达式"和"选择运算规则"两种模式
 
 ---
 
@@ -165,16 +119,8 @@
 
 ### 8. 多端适配器 ✅
 
-**问题**：仅有 `WebAdapter.ts`，无 Mobile 和小程序适配器。
-
-**已完成**：
-- `BaseAdapter` — 基类，抽取组件注册/解析公共逻辑
-- `H5Adapter` — H5 移动端 Web 适配（hash/history 路由、viewport 适配、localStorage 降级）
-- `ReactNativeAdapter` — React Native 适配（注入 Navigation/AsyncStorage）
-- `WechatMiniAppAdapter` — 微信小程序适配（wx.* API 封装）
-- `WebAdapter` — 重构为继承 BaseAdapter
-
-**实现文件**：`packages/renderer/src/core/adapters/`
+**已完成**：`BaseAdapter` / `H5Adapter` / `ReactNativeAdapter` / `WechatMiniAppAdapter` / `WebAdapter`
+（`packages/renderer/src/core/adapters/`）；参数序列化统一到 `http-utils.ts`
 
 ---
 
@@ -219,12 +165,12 @@
 
 ### 12. 审计日志
 
-**问题**：DB 表结构已有，无运行时代码。
+**现状**：DB 表结构 + `AuditLogService` + `middlewares/audit.ts` + `/api/audit-logs` 路由已就绪。
 
-**需要实现**：
-- 操作日志记录（自动采集）
-- 日志查询/筛选/导出
-- 日志保留策略
+**待完善**：
+- 日志查询/筛选/导出的前端页面
+- 日志保留策略（`AuditLogService` 已有 `cleanup`）
+- 按月分区归档
 
 **工作量**：中
 
@@ -232,12 +178,13 @@
 
 ### 13. 通知系统
 
-**问题**：无通知功能。
+**现状**：站内消息已实现（`messages` 表 + `/api/messages` 路由 + `EmailNotifyService`）；
+自动化「发送通知」动作已写入 `messages` 表。
 
-**需要实现**：
-- 站内消息
-- 邮件通知
-- 企业微信/钉钉/飞书推送
+**待完善**：
+- 邮件/企业微信/钉钉/飞书渠道的实际投递（`EmailNotifyService` 需安装 `nodemailer` 才可用，否则降级为控制台输出）
+- 消息模板管理与变量插值
+- 订阅偏好与免打扰时段
 
 **工作量**：大
 
@@ -255,18 +202,34 @@
 
 ---
 
+### 16. 审批人表达式指派
+
+**问题**：`AssigneeStrategy` 只支持静态 ID 列表，不支持
+`{ type: 'expression', expression: '$initiator.managerId' }` 这类动态解析，
+也不支持「发起人自选」（文档中提到的审批人规则之一）。
+
+**需要实现**：
+- `AssigneeStrategy` 增加 `expression` 分支
+- `UserTaskExecutor.resolveAssignees` 支持表达式求值
+- 设计器支持配置表达式指派 / 发起人自选
+
+**工作量**：中
+
+---
+
 ## 已完成的核心功能（参考）
 
 <details>
 <summary>点击展开已完成功能列表</summary>
 
 ### 渲染引擎
-- 组件注册表、运行时渲染器、数据绑定引擎、表达式引擎
+- 组件注册表、运行时渲染器、数据绑定引擎、表达式引擎（workerpool 沙箱硬超时）
 - 依赖图管理器、统一依赖图、环境变量注册表
 - 事件编译器、动作注册表（21 种标准动作）
-- 条件规则引擎、联动引擎、弹窗栈管理
+- 条件规则引擎、联动引擎（产出与表单值分离）、弹窗栈管理
 - 组件方法注册表、绑定缓存、表单预求值器
 - 表单注册表、查询代理、组件刷新管理器
+- 表单数据暂存（草稿落盘/恢复/清理，含"不覆盖业务数据"约束）
 
 ### 统一设计器
 - 设计器主框架、状态管理、设计画布、组件面板
@@ -276,15 +239,22 @@
 ### 组件库
 - antd 组件库（65 个全量组件）
 - withPlatform HOC、DesignOverlay、FormContext
-- MonacoEditor、ExpressionEditor、VariableTreeSelector
+- MonacoEditor、ExpressionEditor、VariableTreeSelector、AssigneeSelector
 
 ### 流程引擎
-- BPMN Schema、流程引擎核心、6 种节点执行器
+- BPMN Schema、流程引擎核心（WorkflowEngine）、状态机、6 种节点执行器
+- 数据操作执行器 + 业务数据源解析（服务层注入）
 - 流程设计器、8 种节点组件、节点配置抽屉
 - 审批表单运行时、任务列表、流程图
+- 节点级快照、审批人指派策略、转办/加签/竞签
+
+### 自动化引擎
+- ECA 模型（TriggerMatcher / ConditionEvaluator / Throttler / EffectiveTimeChecker）
+- 自动化设计器 + 执行日志查看器
+- 执行控制（生效时间 + 限流）已在服务层生效
 
 ### 服务端 API
-- 应用管理、认证、流程定义/实例/任务、自动化、数据查询、租户
+- 应用管理、认证、流程定义/实例/任务、自动化、数据查询、租户、字典、审计日志、消息
 
 ### 构建工具
 - Schema 编译器、antd 类型提取器、组件 Schema 扫描器、CLI
@@ -312,3 +282,17 @@
 | `schemaVersion` | `number` | 文件结构版本号。引擎代码变更导致 Schema 结构变化时递增 |
 | `version` | `number` | 业务版本号。每次保存递增，用于乐观锁 |
 | `references` | `object` | 仅资源级。资源引用声明，按资源类型分组 |
+
+---
+
+## 验证命令
+
+```bash
+yarn typecheck   # server + frontend + data 类型检查（快速）
+yarn build       # 全部 9 个 workspace 构建（含测试文件类型检查）
+yarn test        # 全部 workspace 测试
+```
+
+> **重要**：`vitest` 用 esbuild 转译，**不做类型检查**。只跑测试无法发现类型错误，
+> 提交前必须至少跑一次 `yarn build` 或 `yarn typecheck`。
+

@@ -408,10 +408,24 @@ export function PageRenderer(config: RendererConfig) {
       setComponentProp,
       navigate: (url, params) => adapter.navigate(url, params),
       showMessage: (type: string, content: string, duration?: number) => {
-        // 使用 antd message 组件
-        const messageApi = message[type as keyof typeof message];
-        if (messageApi) {
-          messageApi(content, duration ? duration / 1000 : undefined);
+        // antd message 的每种类型签名不同，无法用联合类型索引调用，这里显式分派
+        const seconds = duration !== undefined ? duration / 1000 : undefined;
+        switch (type) {
+          case 'success':
+            message.success(content, seconds);
+            break;
+          case 'error':
+            message.error(content, seconds);
+            break;
+          case 'warning':
+            message.warning(content, seconds);
+            break;
+          case 'loading':
+            message.loading(content, seconds);
+            break;
+          default:
+            message.info(content, seconds);
+            break;
         }
       },
       showLoading,
@@ -587,6 +601,8 @@ export function PageRenderer(config: RendererConfig) {
                 _formId: node.id,
                 _componentMap: componentMap,
                 _context: runtimeContext,
+                // 表单服务端校验（Level 4）需要走适配器发起请求，保证多端一致
+                _adapter: adapter,
               } : {}),
             };
 

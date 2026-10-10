@@ -64,7 +64,7 @@ metadata:
 ```typescript
 // 1. 外部依赖
 import React from 'react';
-import Database from 'better-sqlite3';
+import koffi from 'koffi';
 
 // 2. 跨包引用
 import type { PageSchema, RenderContext } from '@low-code/shared';

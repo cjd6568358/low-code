@@ -9,9 +9,9 @@
 export { TriggerMatcher } from './engine/TriggerMatcher';
 export { ConditionEvaluator } from './engine/ConditionEvaluator';
 export { Throttler } from './engine/Throttler';
-export type { ThrottleResult } from './engine/Throttler';
+export type { ThrottleResult, ThrottleSubject, LogStore } from './engine/Throttler';
 export { EffectiveTimeChecker } from './engine/EffectiveTimeChecker';
-export type { EffectiveTimeResult } from './engine/EffectiveTimeChecker';
+export type { EffectiveTimeResult, EffectiveTimeSubject } from './engine/EffectiveTimeChecker';
 export { ExecutionLogger } from './logger/ExecutionLogger';
 export { VariableResolver } from './variable/VariableResolver';
 export type { VariableContext } from './variable/VariableResolver';

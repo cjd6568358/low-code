@@ -382,8 +382,8 @@ export class UserTaskExecutor extends NodeExecutorBase {
    */
   async claim(taskId: string, userId: string, tasks: TaskRecord[]): Promise<boolean> {
     // 检查是否已有人认领
-    const claimedTask = tasks.find(t =>
-      t.status === 'claimed' || t.status === 'resolved' || t.status === 'rejected'
+    const claimedTask = tasks.find(
+      t => t.status === 'claimed' || t.status === 'resolved' || t.status === 'rejected'
     );
 
     if (claimedTask) {
@@ -395,14 +395,14 @@ export class UserTaskExecutor extends NodeExecutorBase {
     for (const task of tasks) {
       if (task.id === taskId) {
         // 更新为已认领状态
-        await this.engine['updateTask'](task.id, {
+        await this.engine.updateTask(task.id, {
           status: 'claimed',
           assigneeId: userId,
           claimedAt: new Date().toISOString(),
         });
       } else {
         // 取消其他任务
-        await this.engine['updateTask'](task.id, {
+        await this.engine.updateTask(task.id, {
           status: 'cancelled',
         });
       }

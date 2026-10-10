@@ -5,14 +5,18 @@ import type { LinkageRule } from './form';
 /**
  * 属性值类型 — 支持字面量、变量引用、表达式
  *
- * 字面量：直接存储值（string/number/boolean/object）
+ * 字面量：直接存储值（string/number/boolean/object/array）——类型为 `unknown`
  * 变量引用：{ type: 'variable', value: '$platform.web' }
  * 表达式：{ type: 'expression', value: 'return $user.name', async: true }
+ *
+ * 注意：字面量分支使用 `unknown` 而非 `any`，因为 `any` 会让联合类型坍缩为 `any`，
+ * 使 `PropValue` 的类型收窄完全失效。判断绑定形态统一使用 `isVariableBinding` /
+ * `isExpressionBinding` / `isPropBinding` 类型守卫。
  */
 export type PropValue =
-  | any
-  | { type: 'variable'; value: string }
-  | { type: 'expression'; value: string; async?: boolean };
+  | unknown
+  | VariableBinding
+  | ExpressionBinding;
 
 /**
  * 变量引用对象
@@ -31,6 +35,46 @@ export interface ExpressionBinding {
   type: 'expression';
   value: string;   // 函数体，如 "return $user.name + 1"
   async?: boolean;  // 是否异步（默认 true）
+}
+
+/**
+ * 判断值是否为变量引用对象
+ *
+ * @param value 待判断的值
+ * @returns 是否为 VariableBinding
+ */
+export function isVariableBinding(value: unknown): value is VariableBinding {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { type?: unknown }).type === 'variable' &&
+    typeof (value as { value?: unknown }).value === 'string'
+  );
+}
+
+/**
+ * 判断值是否为表达式对象
+ *
+ * @param value 待判断的值
+ * @returns 是否为 ExpressionBinding
+ */
+export function isExpressionBinding(value: unknown): value is ExpressionBinding {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { type?: unknown }).type === 'expression' &&
+    typeof (value as { value?: unknown }).value === 'string'
+  );
+}
+
+/**
+ * 判断值是否为属性绑定对象（变量引用或表达式）
+ *
+ * @param value 待判断的值
+ * @returns 是否为绑定对象
+ */
+export function isPropBinding(value: unknown): value is VariableBinding | ExpressionBinding {
+  return isVariableBinding(value) || isExpressionBinding(value);
 }
 
 /**

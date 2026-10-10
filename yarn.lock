@@ -759,6 +759,8 @@ __metadata:
     "@types/react-dom": "npm:^18.2.0"
     react: "npm:^18.2.0"
     react-dom: "npm:^18.2.0"
+    typescript: "npm:^5.4.0"
+    vitest: "npm:^2.0.0"
   languageName: unknown
   linkType: soft
 
@@ -779,8 +781,10 @@ __metadata:
   dependencies:
     "@low-code/shared": "workspace:*"
     "@types/node": "npm:^20.0.0"
+    tsx: "npm:^4.7.0"
     typescript: "npm:^5.4.0"
     typescript-json-schema: "npm:^0.67.4"
+    vitest: "npm:^2.0.0"
   bin:
     lc-schema: src/cli.ts
   languageName: unknown
@@ -791,6 +795,8 @@ __metadata:
   resolution: "@low-code/computation@workspace:packages/computation"
   dependencies:
     "@low-code/shared": "workspace:*"
+    typescript: "npm:^5.4.0"
+    vitest: "npm:^2.0.0"
   languageName: unknown
   linkType: soft
 
@@ -798,7 +804,10 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@low-code/data@workspace:packages/data"
   dependencies:
+    "@low-code/shared": "workspace:*"
     koffi: "npm:^2.8.0"
+    typescript: "npm:^5.4.0"
+    vitest: "npm:^2.0.0"
   languageName: unknown
   linkType: soft
 
@@ -833,6 +842,8 @@ __metadata:
     monaco-editor: "npm:^0.55.1"
     react: "npm:^18.2.0"
     react-dom: "npm:^18.2.0"
+    typescript: "npm:^5.4.0"
+    vitest: "npm:^2.0.0"
   languageName: unknown
   linkType: soft
 
@@ -857,12 +868,14 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@low-code/shared@npm:1.0.0, @low-code/shared@workspace:*, @low-code/shared@workspace:packages/shared":
+"@low-code/shared@workspace:*, @low-code/shared@workspace:packages/shared":
   version: 0.0.0-use.local
   resolution: "@low-code/shared@workspace:packages/shared"
   dependencies:
     "@types/react": "npm:^18.2.0"
-    workerpool: "npm:^9.2.0"
+    typescript: "npm:^5.4.0"
+    vitest: "npm:^2.0.0"
+    workerpool: "npm:^10.0.3"
   languageName: unknown
   linkType: soft
 
@@ -870,7 +883,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@low-code/workflow@workspace:packages/workflow"
   dependencies:
-    "@low-code/shared": "npm:1.0.0"
+    "@low-code/shared": "workspace:*"
+    typescript: "npm:^5.4.0"
+    vitest: "npm:^2.0.0"
   languageName: unknown
   linkType: soft
 
@@ -3698,6 +3713,8 @@ __metadata:
   resolution: "low-code-platform@workspace:."
   dependencies:
     concurrently: "npm:^8.2.0"
+    react: "npm:^18.2.0"
+    react-dom: "npm:^18.2.0"
     react-flow-builder: "npm:^2.11.0"
     typescript: "npm:^5.4.0"
     typescript-json-schema: "npm:^0.67.4"
@@ -5193,13 +5210,6 @@ __metadata:
   version: 10.0.3
   resolution: "workerpool@npm:10.0.3"
   checksum: 10c0/a20a274ac9afc6c329f5b1661914a8ebd160320cfbd816b723b6ef385e41b186ef0bf2d6d82a77556fc33599ce14e40c7fdfd44a2a4daff488257cdd396fa9e9
-  languageName: node
-  linkType: hard
-
-"workerpool@npm:^9.2.0":
-  version: 9.3.4
-  resolution: "workerpool@npm:9.3.4"
-  checksum: 10c0/b09d80c81c6e50dab1bc6cc3a4180d4222068f17ada9b04fb7053bf98fdbe3dbd6bdd04ad1420363f5391cbf57d622ecd2680469ad0137aef990f510ab807a09
   languageName: node
   linkType: hard
 

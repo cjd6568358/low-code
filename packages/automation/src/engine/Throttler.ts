@@ -7,12 +7,26 @@
  * 2. 每日上限 — 每日最大触发次数
  */
 
-import type { AutomationRule, ThrottleConfig } from '../types/rule';
+import type { ThrottleConfig } from '../types/rule';
 
 /** 日志存储接口 */
 export interface LogStore {
+  /** 获取规则最近一次执行时间（ISO8601） */
   getLastExecutionTime(ruleId: string): Promise<string | undefined>;
+  /** 获取规则今日执行次数 */
   getTodayExecutionCount(ruleId: string): Promise<number>;
+}
+
+/**
+ * 限流检查所需的最小规则结构
+ *
+ * 只依赖 id 与 throttle 字段，便于服务层用自身的规则结构直接调用。
+ */
+export interface ThrottleSubject {
+  /** 规则 ID */
+  id: string;
+  /** 限流配置（缺省表示不限流） */
+  throttle?: ThrottleConfig;
 }
 
 /**
@@ -44,10 +58,10 @@ export class Throttler {
   /**
    * 检查规则是否允许触发
    *
-   * @param rule - 自动化规则
+   * @param rule - 自动化规则（或任意含 id/throttle 的对象）
    * @returns 检查结果
    */
-  async check(rule: AutomationRule): Promise<ThrottleResult> {
+  async check(rule: ThrottleSubject): Promise<ThrottleResult> {
     if (!rule.throttle) {
       return { allowed: true };
     }

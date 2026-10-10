@@ -4,7 +4,19 @@
  * 替代代码中散落的 Array.find/filter 线性扫描
  */
 
-import type { FlowNode, Edge, ProcessDefinition } from '../schema';
+import type { FlowNode, Edge, ProcessDefinition, SequenceFlow } from '../schema';
+
+/**
+ * 判断连线是否为顺序流
+ *
+ * 顺序流才有 sourceRef/targetRef，消息流（MessageFlow）不参与节点流转。
+ *
+ * @param edge 连线对象
+ * @returns 是否为顺序流
+ */
+function isSequenceFlowEdge(edge: Edge): edge is SequenceFlow {
+  return edge.$type === 'bpmn:SequenceFlow';
+}
 
 /**
  * 流程定义索引
@@ -28,8 +40,10 @@ export class DefinitionIndex {
     this.incomingMap = new Map();
 
     for (const edge of definition.edges) {
-      const sourceId = (edge as { sourceRef?: string }).sourceRef;
-      const targetId = (edge as { targetRef?: string }).targetRef;
+      if (!isSequenceFlowEdge(edge)) continue;
+
+      const sourceId = edge.sourceRef;
+      const targetId = edge.targetRef;
 
       if (sourceId) {
         const outList = this.outgoingMap.get(sourceId);

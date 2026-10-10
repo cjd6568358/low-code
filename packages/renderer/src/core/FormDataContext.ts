@@ -1,7 +1,7 @@
 import type { FormDataContext as IFormDataContext } from '@low-code/shared';
-import { ValidationEngine } from './ValidationEngine';
+import type { CrossFieldRule, CrossFieldValidationResult, SyncExpressionEvaluator } from '@low-code/shared';
+import { ValidationEngine, type ValidationResult } from './ValidationEngine';
 import { LinkageEngine, type LinkageResult } from './LinkageEngine';
-import type { DefaultExpressionEngine } from '@low-code/shared';
 
 /** 初始值来源（优先级从低到高） */
 export type InitialValueSource = 'schema' | 'url' | 'draft' | 'edit' | 'snapshot';
@@ -12,6 +12,45 @@ export interface InitialValueLoadResult {
   source: InitialValueSource;
   meta: Record<string, any>;
 }
+
+/** 草稿配置 */
+export interface DraftConfig {
+  /** 是否启用自动暂存（默认 false，需页面显式开启） */
+  enabled?: boolean;
+  /** 自动暂存防抖间隔（毫秒，默认 2000） */
+  debounceMs?: number;
+  /**
+   * 是否在初始化时自动恢复本地草稿
+   *
+   * 默认 false —— 仅当没有业务数据/快照数据时才恢复，
+   * 避免草稿覆盖真实业务数据（编辑态数据丢失是严重问题）。
+   */
+  restoreOnInit?: boolean;
+}
+
+/**
+ * 表单校验配置
+ *
+ * 来自 Form 组件的 Schema props，运行时由 `FormRegistry.validateForm` 消费。
+ */
+export interface FormValidationConfig {
+  /** Level 3 跨字段规则（Form props.crossFieldRules） */
+  crossFieldRules?: CrossFieldRule[];
+  /** Level 4 服务端校验接口地址（Form props.validationApi） */
+  validationApi?: string;
+  /** Level 4 请求函数（默认使用平台适配器 api.request） */
+  apiRequest?: (config: {
+    url: string;
+    method?: string;
+    data?: unknown;
+  }) => Promise<unknown>;
+}
+
+/** localStorage 草稿 key 前缀 */
+const DRAFT_KEY_PREFIX = 'lc_draft_';
+
+/** 默认草稿防抖间隔（毫秒） */
+const DEFAULT_DRAFT_DEBOUNCE_MS = 2000;
 
 /**
  * 表单运行时上下文管理器
@@ -28,18 +67,40 @@ export class FormDataContextManager {
   private context: IFormDataContext;
   private validationEngine: ValidationEngine;
   private linkageEngine: LinkageEngine;
-  private expressionEngine: DefaultExpressionEngine;
+  private expressionEngine: SyncExpressionEvaluator;
   private changeListeners: Set<(values: Record<string, any>) => void> = new Set();
   private draftSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  /** 草稿配置 */
+  private draftConfig: Required<DraftConfig> = {
+    enabled: false,
+    debounceMs: DEFAULT_DRAFT_DEBOUNCE_MS,
+    restoreOnInit: false,
+  };
+
+  /**
+   * 联动产出（选项/状态/属性）
+   *
+   * 与表单字段值分离存储，避免出现在 values/草稿/提交数据中。
+   */
+  private linkageOutput: {
+    options: Record<string, unknown>;
+    state: Record<string, unknown>;
+    attributes: Record<string, unknown>;
+  } = { options: {}, state: {}, attributes: {} };
+
+  /** 表单校验配置（跨字段规则 + 服务端校验），由 Form 组件 mount 时注入 */
+  private validationConfig: FormValidationConfig = {};
 
   constructor(
-    expressionEngine: DefaultExpressionEngine,
+    expressionEngine: SyncExpressionEvaluator,
     linkageEngine: LinkageEngine,
     validationEngine?: ValidationEngine,
   ) {
     this.expressionEngine = expressionEngine;
     this.linkageEngine = linkageEngine;
-    this.validationEngine = validationEngine || new ValidationEngine();
+    // 缺省自建校验引擎时注入表达式引擎，使跨字段「自定义表达式」校验可用
+    this.validationEngine = validationEngine
+      || new ValidationEngine(undefined, expressionEngine);
 
     this.context = {
       values: {},
@@ -54,6 +115,9 @@ export class FormDataContextManager {
 
   /**
    * 初始化表单上下文
+   *
+   * @param config 初始化配置
+   * @returns 初始值加载结果（含最终来源标记）
    */
   async init(config: {
     formId: string;
@@ -66,6 +130,8 @@ export class FormDataContextManager {
     recordId?: string;
     draftId?: string;
     snapshotId?: string;
+    /** 草稿配置 */
+    draft?: DraftConfig;
   }): Promise<InitialValueLoadResult> {
     const values: Record<string, any> = {};
     let source: InitialValueSource = 'schema';
@@ -91,9 +157,25 @@ export class FormDataContextManager {
       }
     }
 
+    // 记录草稿配置（formId 就绪后才能读写 localStorage）
+    this.draftConfig = {
+      enabled: config.draft?.enabled ?? false,
+      debounceMs: config.draft?.debounceMs ?? DEFAULT_DRAFT_DEBOUNCE_MS,
+      restoreOnInit: config.draft?.restoreOnInit ?? false,
+    };
+
     // 3. Draft 数据
-    if (config.draftData) {
-      Object.assign(values, config.draftData);
+    // 显式传入 draftData 优先；否则在「无业务数据/无快照数据」且开启恢复时读取本地草稿，
+    // 避免草稿覆盖真实业务数据（编辑态数据丢失属于严重问题）。
+    let draftValues = config.draftData;
+    const hasAuthoritativeData = Boolean(config.businessData || config.snapshotData);
+    if (!draftValues && this.draftConfig.enabled && this.draftConfig.restoreOnInit && !hasAuthoritativeData) {
+      this.context.meta.formId = config.formId;
+      // loadDraftFromLocal 返回完整草稿对象（含 values/formId/savedAt），这里只取字段值
+      draftValues = this.loadDraftFromLocal()?.values;
+    }
+    if (draftValues) {
+      Object.assign(values, draftValues);
       source = 'draft';
     }
 
@@ -110,10 +192,20 @@ export class FormDataContextManager {
     }
 
     // 设置上下文
+    // `InitialValueSource` 是「加载过程」的标记（含 schema/url），
+    // 上下文 source 只描述「数据来源」语义，schema/url 归为 'new'。
+    const contextSource: IFormDataContext['source'] = config.businessData
+      ? 'edit'
+      : config.snapshotData
+        ? 'snapshot'
+        : draftValues
+          ? 'draft'
+          : 'new';
+
     this.context = {
       values: { ...values },
       initialValues: { ...values },
-      source: config.businessData ? 'edit' : config.snapshotData ? 'snapshot' : config.draftData ? 'draft' : 'new',
+      source: contextSource,
       meta: {
         formId: config.formId,
         recordId: config.recordId,
@@ -210,9 +302,34 @@ export class FormDataContextManager {
 
   /**
    * 获取上下文（用于 RenderContext）
+   *
+   * 注意：联动产出（选项/状态/属性）不写入 `values`，
+   * 通过 `getLinkageOutput()` 单独获取，避免污染表单数据。
    */
   getContext(): IFormDataContext {
-    return { ...this.context };
+    return { ...this.context, values: { ...this.context.values } };
+  }
+
+  /**
+   * 获取联动产出快照
+   *
+   * 三种产出分别对应：选项更新、状态更新（visible/disabled/required）、属性更新。
+   * 之前这三类产出以 `__options_{field}` 等伪键写进 `values`，导致：
+   * 1. `values` 混入非字段键，提交/暂存/校验时都必须过滤；
+   * 2. `Object.keys(values)` 不再等于表单字段集合，草稿内容被污染。
+   *
+   * @returns 联动产出快照
+   */
+  getLinkageOutput(): {
+    options: Record<string, unknown>;
+    state: Record<string, unknown>;
+    attributes: Record<string, unknown>;
+  } {
+    return {
+      options: { ...this.linkageOutput.options },
+      state: { ...this.linkageOutput.state },
+      attributes: { ...this.linkageOutput.attributes },
+    };
   }
 
   /**
@@ -234,6 +351,10 @@ export class FormDataContextManager {
 
   /**
    * Level 1 校验（onChange 触发）
+   *
+   * @param field 字段名
+   * @param fieldSchema 字段 Schema（JSON Schema 约束）
+   * @returns 错误消息，通过时返回 null
    */
   async validateField(
     field: string,
@@ -248,7 +369,42 @@ export class FormDataContextManager {
   }
 
   /**
-   * 完整校验（提交时执行）
+   * Level 3 跨字段校验
+   *
+   * @param rules 跨字段规则（缺省使用表单配置中的规则）
+   * @returns 字段级错误映射
+   */
+  validateCrossFields(rules?: CrossFieldRule[]): CrossFieldValidationResult {
+    const effective = rules ?? this.validationConfig.crossFieldRules ?? [];
+    if (effective.length === 0) {
+      return { valid: true, errors: {} };
+    }
+    return this.validationEngine.validateLevel3(this.context.values, effective);
+  }
+
+  /**
+   * Level 4 服务端校验
+   *
+   * @param values 提交值（缺省使用当前表单值）
+   * @returns 字段级错误映射
+   */
+  async validateOnServer(values?: Record<string, unknown>): Promise<Record<string, string[]>> {
+    const { validationApi, apiRequest } = this.validationConfig;
+    if (!validationApi || !apiRequest) return {};
+
+    return this.validationEngine.validateLevel4(
+      apiRequest,
+      validationApi,
+      values ?? this.context.values,
+    );
+  }
+
+  /**
+   * 完整校验（Level 1 ~ 4，提交时执行）
+   *
+   * @param fields 待校验字段（含各自 Schema）
+   * @param options 覆盖校验配置（缺省使用表单配置）
+   * @returns 汇总校验结果
    */
   async validate(
     fields: Array<{
@@ -256,20 +412,52 @@ export class FormDataContextManager {
       schema: Record<string, any>;
     }>,
     options?: {
+      crossFieldRules?: CrossFieldRule[];
       validationApi?: string;
-      apiRequest?: (config: any) => Promise<any>;
+      apiRequest?: (config: {
+        url: string;
+        method?: string;
+        data?: unknown;
+      }) => Promise<unknown>;
     },
-  ) {
-    return this.validationEngine.validate(fields, this.context.values, options);
+  ): Promise<ValidationResult> {
+    return this.validationEngine.validate(fields, this.context.values, {
+      crossFieldRules: options?.crossFieldRules ?? this.validationConfig.crossFieldRules,
+      validationApi: options?.validationApi ?? this.validationConfig.validationApi,
+      apiRequest: options?.apiRequest ?? this.validationConfig.apiRequest,
+    });
+  }
+
+  /**
+   * 设置校验配置（Form 组件 mount 时调用）
+   *
+   * @param config 跨字段规则与服务端校验配置
+   */
+  setValidationConfig(config: FormValidationConfig): void {
+    this.validationConfig = { ...config };
+  }
+
+  /**
+   * 获取当前校验配置
+   */
+  getValidationConfig(): FormValidationConfig {
+    return { ...this.validationConfig };
   }
 
   /**
    * 导出为可序列化的草稿
+   *
+   * 过滤 `undefined` 值：`JSON.stringify` 会把它丢弃，导致
+   * 「草稿中未出现的字段」与「草稿中显式为空的字段」在恢复时无法区分。
    */
   exportDraft(): Record<string, any> {
+    const values: Record<string, any> = {};
+    for (const [key, value] of Object.entries(this.context.values)) {
+      if (value !== undefined) values[key] = value;
+    }
     return {
       formId: this.context.meta.formId,
-      values: { ...this.context.values },
+      values,
       savedAt: Date.now(),
     };
   }
@@ -286,23 +474,26 @@ export class FormDataContextManager {
 
   /**
    * 应用联动结果
+   *
+   * 值更新写回 `values`；选项/状态/属性更新写入 `linkageOutput`，
+   * 不污染表单字段集合。
    */
   private applyLinkageResult(result: LinkageResult): void {
     // 值更新
     for (const [field, value] of Object.entries(result.valueUpdates)) {
       this.context.values[field] = value;
     }
-    // 状态更新（visible/disabled/required）存储到 meta
+    // 状态更新（visible/disabled/required）
     for (const [field, state] of Object.entries(result.stateUpdates)) {
-      (this.context as any)[`__state_${field}`] = state;
+      this.linkageOutput.state[field] = state;
     }
-    // 选项更新存储到 meta
+    // 选项更新
     for (const [field, options] of Object.entries(result.optionsUpdates)) {
-      (this.context as any)[`__options_${field}`] = options;
+      this.linkageOutput.options[field] = options;
     }
-    // 属性更新存储到 meta
+    // 属性更新
     for (const [field, attrs] of Object.entries(result.attributeUpdates)) {
-      (this.context as any)[`__attrs_${field}`] = attrs;
+      this.linkageOutput.attributes[field] = attrs;
     }
   }
 
@@ -318,14 +509,46 @@ export class FormDataContextManager {
 
   /**
    * 调度草稿保存（防抖）
+   *
+   * 未开启自动暂存时直接跳过（避免无意义写 localStorage）。
    */
   private scheduleDraftSave(): void {
+    if (!this.draftConfig.enabled) return;
+
     if (this.draftSaveTimer) {
       clearTimeout(this.draftSaveTimer);
     }
     this.draftSaveTimer = setTimeout(() => {
+      this.draftSaveTimer = null;
       this.saveDraftToLocal();
-    }, 2000);
+    }, this.draftConfig.debounceMs);
+  }
+
+  /**
+   * 立即保存草稿到 localStorage（忽略防抖）
+   *
+   * 供表单卸载、页面隐藏等时机调用，避免丢失最后一次编辑。
+   */
+  flushDraftSave(): void {
+    if (!this.draftConfig.enabled) return;
+    if (this.draftSaveTimer) {
+      clearTimeout(this.draftSaveTimer);
+      this.draftSaveTimer = null;
+    }
+    this.saveDraftToLocal();
+  }
+
+  /**
+   * 释放资源（清理防抖定时器）
+   *
+   * 表单卸载时调用，防止定时器在卸载后触发。
+   */
+  dispose(): void {
+    if (this.draftSaveTimer) {
+      clearTimeout(this.draftSaveTimer);
+      this.draftSaveTimer = null;
+    }
+    this.changeListeners.clear();
   }
 
   /**
@@ -334,7 +557,7 @@ export class FormDataContextManager {
   private saveDraftToLocal(): void {
     try {
       const draft = this.exportDraft();
-      const key = `lc_draft_${this.context.meta.formId}`;
+      const key = `${DRAFT_KEY_PREFIX}${this.context.meta.formId}`;
       localStorage.setItem(key, JSON.stringify(draft));
     } catch {
       // storage full or disabled
@@ -346,7 +569,7 @@ export class FormDataContextManager {
    */
   loadDraftFromLocal(): Record<string, any> | null {
     try {
-      const key = `lc_draft_${this.context.meta.formId}`;
+      const key = `${DRAFT_KEY_PREFIX}${this.context.meta.formId}`;
       const data = localStorage.getItem(key);
       if (data) return JSON.parse(data);
     } catch {
@@ -360,10 +583,24 @@ export class FormDataContextManager {
    */
   clearLocalDraft(): void {
     try {
-      const key = `lc_draft_${this.context.meta.formId}`;
+      const key = `${DRAFT_KEY_PREFIX}${this.context.meta.formId}`;
       localStorage.removeItem(key);
     } catch {
       // ignore
+    }
+  }
+
+  /**
+   * 是否存在本地草稿
+   *
+   * 供页面提示「检测到未提交的草稿，是否恢复？」。
+   */
+  hasLocalDraft(): boolean {
+    try {
+      const key = `${DRAFT_KEY_PREFIX}${this.context.meta.formId}`;
+      return localStorage.getItem(key) !== null;
+    } catch {
+      return false;
     }
   }
 }

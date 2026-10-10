@@ -257,9 +257,10 @@ describe('EventCompiler', () => {
       const executor = { execute: vi.fn().mockResolvedValue(undefined) };
       mockActionRegistry.resolve.mockReturnValue(executor);
 
-      const events = {
-        onClick: [{ action: 'showMessage', params: { content: 'clicked' } }],
-        onChange: [{ action: 'setValue', params: { key: 'value', value: 'new' } }],
+      // 事件名 → 动作链数组（同一事件可配置多条链，按顺序执行）
+      const events: Record<string, ActionChain[]> = {
+        onClick: [[{ action: 'showMessage', params: { content: 'clicked' } }]],
+        onChange: [[{ action: 'setValue', params: { key: 'value', value: 'new' } }]],
       };
 
       const handlers = compiler.compileEvents(events, baseContext);

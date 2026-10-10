@@ -15,6 +15,7 @@ import type {
   UploadResult,
 } from '@low-code/shared';
 import { BaseAdapter } from './BaseAdapter';
+import { buildUrl } from './http-utils';
 
 /** H5 适配器配置 */
 export interface H5AdapterConfig {
@@ -123,8 +124,7 @@ export class H5Adapter extends BaseAdapter {
 
       let requestUrl = this.apiBaseUrl ? `${this.apiBaseUrl}${url}` : url;
       if (params) {
-        const searchParams = new URLSearchParams(params);
-        requestUrl += `?${searchParams.toString()}`;
+        requestUrl = buildUrl(requestUrl, params);
       }
 
       const response = await fetch(requestUrl, {

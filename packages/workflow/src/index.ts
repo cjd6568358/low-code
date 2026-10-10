@@ -60,8 +60,15 @@ export { ServiceTaskExecutor } from './executors/ServiceTaskExecutor';
 export { ScriptTaskExecutor } from './executors/ScriptTaskExecutor';
 
 // 数据操作执行器
-export { DataOperationExecutor } from './executors/DataOperationExecutor';
-export type { DataOperationConfig, DataOperationResult } from './executors/DataOperationExecutor';
+export { DataOperationExecutor, isFieldMappingList, isConditionItemList } from './executors/DataOperationExecutor';
+export type {
+  DataOperationConfig,
+  DataOperationResult,
+  FieldMappingItem,
+  ConditionItem,
+  ConditionOperator,
+  DataOperationPagination,
+} from './executors/DataOperationExecutor';
 export { CreateRecordExecutor } from './executors/CreateRecordExecutor';
 export { UpdateRecordExecutor } from './executors/UpdateRecordExecutor';
 export { QueryRecordExecutor } from './executors/QueryRecordExecutor';
@@ -85,6 +92,9 @@ export type {
   // 用户解析
   UserResolver,
   ResolvedUser,
+
+  // 业务数据源
+  DataSourceResolver,
 
   // 流程实例
   InstanceRecord,
@@ -117,6 +127,14 @@ export type {
   StateTransition,
   ExecutionPath,
   ParallelBranchState,
+  // 数据操作数据源
+  DataRecord,
+  FilterValue,
+  FilterCondition,
+  FieldValues,
+  SortOptions,
+  DataQueryOptions,
+  WorkflowDataSource,
 } from './types/execution';
 
 export type {

@@ -3,15 +3,17 @@ import type {
   ComponentRegistration,
   ComponentLibrary,
   ComponentMethodDef,
+  ComponentImplementations,
+  ComponentSchemaMap,
+  PlatformComponent,
 } from '@low-code/shared';
-import type React from 'react';
 
 /** 带组件实现的注册表 — 在 IComponentRegistry 基础上增加组件解析能力 */
 export class ComponentRegistryImpl implements IComponentRegistry {
   private entries = new Map<string, ComponentRegistration>();
   private libraryEntries = new Map<string, Map<string, ComponentRegistration>>();
   /** 组件实现映射（type → React 组件） */
-  private componentImpls = new Map<string, React.ComponentType<any>>();
+  private componentImpls = new Map<string, PlatformComponent>();
 
   register(entry: ComponentRegistration): void {
     this.entries.set(entry.type, entry);
@@ -62,8 +64,8 @@ export class ComponentRegistryImpl implements IComponentRegistry {
    */
   registerLibrary(
     library: ComponentLibrary,
-    components: Record<string, React.ComponentType<any>>,
-    schemas: Record<string, Record<string, any>>,
+    components: ComponentImplementations,
+    schemas: ComponentSchemaMap,
     methodsMap?: Record<string, ComponentMethodDef[]>,
   ): void {
     // 注册组件实现
@@ -72,21 +74,24 @@ export class ComponentRegistryImpl implements IComponentRegistry {
     }
 
     // 注册元数据
-    const categoryMap = library.categoryMap as Record<string, { category: string; name: string }>;
-    for (const [type, meta] of Object.entries(categoryMap)) {
+    for (const [type, meta] of Object.entries(library.categoryMap)) {
       const schema = schemas[type];
       if (!schema) continue;
 
-      this.register({
+      const registration: ComponentRegistration = {
         type,
         name: meta.name,
-        category: meta.category as any,
+        category: meta.category,
         component: type,
-        propsSchema: schema as any,
+        propsSchema: schema,
         acceptsChildren: library.containerTypes.has(type),
         library: library.name,
-        methods: methodsMap?.[type],
-      });
+      };
+      const methods = methodsMap?.[type];
+      if (methods) {
+        registration.methods = methods;
+      }
+      this.register(registration);
     }
   }
 
@@ -96,7 +101,7 @@ export class ComponentRegistryImpl implements IComponentRegistry {
    * @param type 组件类型标识
    * @returns React 组件，未找到返回 null
    */
-  resolveComponent(type: string): React.ComponentType<any> | null {
+  resolveComponent(type: string): PlatformComponent | null {
     return this.componentImpls.get(type) || null;
   }
 

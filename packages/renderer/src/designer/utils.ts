@@ -50,3 +50,42 @@ export function isInContainer(
 ): boolean {
   return findAncestor(node, components, (n) => n.type === containerType) !== null;
 }
+
+/**
+ * 收集指定容器内的全部后代组件（深度优先）
+ *
+ * 用于「表单内的字段列表」这类场景：跨字段校验、联动规则等需要知道
+ * 容器内部有哪些可参与的子组件。
+ *
+ * @param container 容器节点
+ * @param components 所有组件列表
+ * @returns 后代组件列表（不含容器自身），按 depth-first 顺序
+ */
+export function collectDescendants(
+  container: ComponentNode,
+  components: ComponentNode[],
+): ComponentNode[] {
+  const byParent = new Map<string, ComponentNode[]>();
+  for (const comp of components) {
+    if (!comp.parentId) continue;
+    const siblings = byParent.get(comp.parentId);
+    if (siblings) siblings.push(comp);
+    else byParent.set(comp.parentId, [comp]);
+  }
+
+  const result: ComponentNode[] = [];
+  const visited = new Set<string>();
+
+  const walk = (parentId: string): void => {
+    for (const child of byParent.get(parentId) ?? []) {
+      // 防御脏数据导致的环
+      if (visited.has(child.id)) continue;
+      visited.add(child.id);
+      result.push(child);
+      walk(child.id);
+    }
+  };
+
+  walk(container.id);
+  return result;
+}
